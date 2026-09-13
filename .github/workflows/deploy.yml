@@ -24,9 +24,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unzip Archive
+      - name: Extract ZIP Archive
         run: |
-          unzip -o ACProcessMonthlyReport.zip -d site
+          python3 - << 'EOF'
+          import zipfile, os
+
+          os.makedirs('site', exist_ok=True)
+          with zipfile.ZipFile('ACProcessMonthlyReport.zip', 'r') as z:
+              for m in z.infolist():
+                  clean_name = m.filename.replace('\\', '/')
+                  target = os.path.join('site', clean_name)
+                  if target.endswith('/'):
+                      os.makedirs(target, exist_ok=True)
+                  else:
+                      os.makedirs(os.path.dirname(target), exist_ok=True)
+                      with open(target, 'wb') as f:
+                          f.write(z.read(m))
+          EOF
+
+      - name: Verify Extracted Files
+        run: |
+          ls -la site
+          test -f site/index.html && echo "index.html successfully extracted!"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
