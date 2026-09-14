@@ -1,0 +1,173 @@
+/**
+ * Process Development Monthly Report Automation System
+ * Module: Corporate White Professional Stylesheet
+ * Aligned with Walton Process Development Executive Red Master Theme
+ * WALTON Hi-Tech Industries PLC
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --font-primary: 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --walton-red: #C5161D;
+  --walton-red-dark: #9E1016;
+  --walton-red-light: #FEF2F2;
+  --walton-charcoal: #0F172A;
+  --walton-emerald: #10B981;
+  --surface-primary: #FFFFFF;
+  --surface-secondary: #F8FAFC;
+  --surface-tertiary: #F1F5F9;
+  --border-subtle: #E2E8F0;
+  --border-medium: #CBD5E1;
+}
+
+body, button, input, select, textarea, table {
+  font-family: var(--font-primary);
+}
+
+body {
+  font-family: var(--font-primary);
+  background-color: #F4F6F9;
+  background-image:
+    radial-gradient(1200px 700px at 20% -100px, rgba(197, 22, 29, 0.03) 0%, transparent 60%),
+    radial-gradient(1000px 600px at 85% -50px, rgba(241, 245, 249, 0.5) 0%, transparent 60%);
+  background-attachment: fixed;
+  color: #1E293B;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Custom scrollbars - light theme */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Toast Notifications */
+#toast-notification {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 16:9 Canvas Slide Preview Container */
+.slide-preview-aspect {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+/* Line clamp utility */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* AI Button Pulse Animation */
+@keyframes ai-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(197, 22, 29, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(197, 22, 29, 0);
+  }
+}
+
+.ai-pulse-hover:hover {
+  animation: ai-pulse 1.6s infinite;
+}
+
+/* Executive Card - Light Theme */
+.executive-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.executive-card:hover {
+  border-color: rgba(197, 22, 29, 0.3);
+  box-shadow: 0 4px 12px rgba(197, 22, 29, 0.08);
+}
+
+/* White card with subtle shadow */
+.card-white {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.card-white:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Table styling */
+.pro-table thead {
+  background: #F8FAFC;
+  border-bottom: 2px solid #E2E8F0;
+}
+.pro-table tbody tr {
+  border-bottom: 1px solid #F1F5F9;
+}
+.pro-table tbody tr:hover {
+  background: #FAFBFD;
+}
+
+/* Print Rules for Executive PDF */
+@media print {
+  .no-print, header, nav, #toast-notification {
+    display: none !important;
+  }
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+  .master-slide-canvas {
+    page-break-after: always;
+    border: none !important;
+    height: 100vh !important;
+  }
+}
+
+/* Pre-defined Shape Auto-Fit Image Containers & Drag-and-Drop */
+.slide-photo-frame {
+  position: relative;
+  overflow: hidden;
+  background-color: #0F172A;
+  transition: all 0.2s ease-in-out;
+}
+.slide-photo-frame.drag-over {
+  border-color: #38BDF8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.4) !important;
+  transform: scale(1.01);
+}
+.slide-photo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+

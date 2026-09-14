@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Process Development Monthly Report Automation System | WALTON</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Lexend', 'Segoe UI', 'sans-serif'],
+            lexend: ['Lexend', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            brand: {
+              red: '#C5161D',
+              navy: '#0F172A',
+              surface: '#F8FAFC',
+              cyan: '#0284C7',
+              orange: '#FF6B00',
+              emerald: '#10B981'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Lexend -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Lexend:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- PptxGenJS CDN for 100% Editable PowerPoint Presentations -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
+  <!-- SheetJS for Excel (.xlsx) Import & Export -->
+  <script src="assets/js/xlsx.full.min.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="min-h-screen bg-[#F4F6F9] text-slate-800 flex flex-col antialiased selection:bg-red-600 selection:text-white font-sans">
+
+  <!-- TOP CORPORATE MISSION CONTROL BAR -->
+  <header class="sticky top-0 z-40 bg-white/98 backdrop-blur-xl border-b border-slate-200 shadow-sm no-print">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[4.5rem] py-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4">
+      
+      <!-- Brand & Department Identifier -->
+      <div class="flex items-center gap-2.5 sm:gap-3.5">
+        <img src="assets/img/walton_logo.png" alt="WALTON" class="h-9 sm:h-11 w-auto object-contain flex-shrink-0 drop-shadow-sm">
+        <div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[11px] sm:text-xs font-black tracking-widest text-red-600 uppercase font-mono">WALTON</span>
+            <span class="text-slate-300">&bull;</span>
+            <span class="text-[11px] sm:text-xs font-semibold text-slate-500 hidden sm:inline">Hi-Tech Industries PLC &bull;</span>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-600">AC Process</span>
+          </div>
+          <h1 class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wide mt-0.5">
+            Process Development Monthly Report
+          </h1>
+        </div>
+      </div>
+
+      <!-- User Role, Settings & Quick Actions -->
+      <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <!-- Cloud Database Sync Badge -->
+        <div id="navbar-cloud-sync-badge"></div>
+
+        <!-- Global Sync Button -->
+        <button onclick="App.triggerGlobalSync()" title="Synchronize latest tasks from Cloud & compile slides" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+          <span class="text-amber-500">⚡</span>
+          <span class="hidden md:inline">Sync Data</span>
+        </button>
+
+        <!-- User Role Badge -->
+        <div id="user-role-badge"></div>
+
+        <!-- Generate Monthly Report Fast Action -->
+        <button onclick="ReportBuilderView.generateMonthlyReport()" class="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-black text-white shadow-lg shadow-red-200/50 transition">
+          <span>🚀</span>
+          <span>Generate Report</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- NAVIGATION TABS (9 Core Sections) -->
+    <div class="border-t border-slate-100 bg-white/80">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center gap-1.5 overflow-x-auto -webkit-overflow-scrolling-touch py-2 scrollbar-thin">
+        <button onclick="App.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          📊 Dashboard
+        </button>
+        <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          📋 Monthly Input
+        </button>
+        <button onclick="App.switchTab('projects')" data-tab="projects" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          🚀 Projects
+        </button>
+        <button onclick="App.switchTab('ai-breakdown')" data-tab="ai-breakdown" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          🤖 AI Breakdown
+        </button>
+        <button onclick="App.switchTab('report-builder')" data-tab="report-builder" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          🛠 Report Builder
+        </button>
+        <button onclick="App.switchTab('photo-manager')" data-tab="photo-manager" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          📸 Photo Manager
+        </button>
+        <button onclick="App.switchTab('final-report')" data-tab="final-report" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          ✏️ Final Report
+        </button>
+        <button onclick="App.switchTab('history')" data-tab="history" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          📚 Report History
+        </button>
+        <button onclick="App.switchTab('master-data')" data-tab="master-data" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          🏛 Master Data
+        </button>
+        <button onclick="App.switchTab('settings')" data-tab="settings" class="nav-tab-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          ⚙️ Settings
+        </button>
+        <a href="tests/run_tests.html" target="_blank" class="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[11px] font-mono text-emerald-600 border border-emerald-200 whitespace-nowrap">
+          <span>✔</span> <span>Run Automated Tests</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- View 1: Dashboard -->
+    <div id="dashboard-view-container" class="view-container hidden"></div>
+
+    <!-- View 2: Monthly Input (Single Source of Truth) -->
+    <div id="monthly-input-view-container" class="view-container"></div>
+
+    <!-- View 2b: Dedicated Projects View -->
+    <div id="projects-view-container" class="view-container hidden"></div>
+
+    <!-- View 3: AI Breakdown Sheet -->
+    <div id="ai-breakdown-view-container" class="view-container hidden"></div>
+
+    <!-- View 4: Report Builder -->
+    <div id="report-builder-view-container" class="view-container hidden"></div>
+
+    <!-- View 5: Photo Manager Gallery -->
+    <div id="photo-manager-view-container" class="view-container hidden"></div>
+
+    <!-- View 6: Final Report Overrides -->
+    <div id="final-report-view-container" class="view-container hidden"></div>
+
+    <!-- View 7: Report History -->
+    <div id="history-view-container" class="view-container hidden"></div>
+
+    <!-- View 8: Master Data -->
+    <div id="master-data-view-container" class="view-container hidden"></div>
+
+    <!-- View 9: Settings -->
+    <div id="settings-view-container" class="view-container hidden"></div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-400 font-mono no-print">
+    <div class="max-w-7xl mx-auto px-4">
+      WALTON Hi-Tech Industries PLC &bull; AC Process Development Department &bull; Process Monthly Report Automation System v2.0
+    </div>
+  </footer>
+
+  <!-- LOAD APPLICATION MODULES IN STRICT DEPENDENCY ORDER -->
+  <script src="config/app_config.js"></script>
+  <script src="config/master_lists.js"></script>
+  <script src="config/slide_theme.js"></script>
+  <script src="utils/helpers.js"></script>
+  <script src="database/schema.js"></script>
+  <script src="database/seed_data.js"></script>
+  <script src="database/imported_2026_dataset.js"></script>
+  <script src="database/db_adapter.js"></script>
+  <script src="database/gas_sync_service.js"></script>
+  <script src="tasks/excel_sync_service.js"></script>
+  <script src="tasks/month_workbook_manager.js"></script>
+  <script src="tasks/task_manager.js"></script>
+  <script src="tasks/task_form_view.js"></script>
+  <script src="tasks/monthly_input_view.js"></script>
+  <script src="ai/prompt_templates.js"></script>
+  <script src="ai/ai_cache_manager.js"></script>
+  <script src="ai/gemini_client.js"></script>
+  <script src="ai/ai_breakdown_sheet.js"></script>
+  <script src="ai/ai_breakdown_view.js"></script>
+  <script src="photos/storage_provider.js"></script>
+  <script src="photos/photo_manager.js"></script>
+  <script src="photos/photo_view_modal.js"></script>
+  <script src="photos/photo_manager_view.js"></script>
+  <script src="slides/radial_gauge_component.js"></script>
+  <script src="slides/engineer_grouping.js"></script>
+  <script src="slides/slide_layout_engine.js"></script>
+  <script src="tasks/sync_engine.js"></script>
+  <script src="report/readiness_engine.js"></script>
+  <script src="report/preview_modal.js"></script>
+  <script src="report/builder_view.js"></script>
+  <script src="report/top_works_manager.js"></script>
+  <script src="report/final_editor_view.js"></script>
+  <script src="dashboard/cost_saving_tracker.js"></script>
+  <script src="dashboard/bom_tracker.js"></script>
+  <script src="dashboard/project_tracker.js"></script>
+  <script src="projects/projects_view.js"></script>
+  <script src="dashboard/charts.js"></script>
+  <script src="dashboard/dashboard_controller.js"></script>
+  <script src="database/master_data_view.js"></script>
+  <script src="config/settings_view.js"></script>
+  <script src="export/pptx_generator.js"></script>
+  <script src="export/pdf_generator.js"></script>
+  <script src="export/html_generator.js"></script>
+  <script src="history/history_manager.js"></script>
+  <script src="history/version_view.js"></script>
+  <script src="auth/auth_manager.js"></script>
+  <script src="audit/audit_logger.js"></script>
+  <script src="export/export_controller.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

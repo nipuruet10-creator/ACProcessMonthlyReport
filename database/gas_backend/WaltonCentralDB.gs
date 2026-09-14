@@ -1,0 +1,586 @@
+/**
+ * @OnlyCurrentDoc
+ * ==============================================================================
+ * Process Development Monthly Report Automation System
+ * Central Cloud Database Backend for Google Sheets
+ * Organization: WALTON Hi-Tech Industries PLC
+ * Department: Process Development (AC)
+ * ==============================================================================
+ * 
+ * SETUP INSTRUCTIONS:
+ * 1. Open Google Sheets (https://sheets.new)
+ * 2. Rename spreadsheet to: "Walton AC Process Monthly Report DB"
+ * 3. Go to: Extensions > Apps Script
+ * 4. Delete any code in the editor and PASTE THIS ENTIRE SCRIPT.
+ * 5. Click "Save" (disk icon).
+ * 6. Click "Deploy" (blue button at top right) > "New deployment".
+ * 7. Select type: "Web app" (click gear icon next to 'Select type' if needed).
+ * 8. Set Configuration:
+ *    - Description: "Walton AC Process Sync API"
+ *    - Execute as: "Me (your email)"
+ *    - Who has access: "Anyone" (Required so your web app can sync without login popups)
+ * 9. Click "Deploy", authorize permissions when prompted.
+ * 10. Copy the "Web app URL" and paste it into the Settings page of your application!
+ * ==============================================================================
+ */
+
+const DB_CONFIG = {
+  SHEET_TASKS: 'TASKS',
+  SHEET_COST_SAVINGS: 'COST_SAVINGS',
+  SHEET_ARCHIVE: 'ARCHIVE_TASKS',
+  SHEET_META: 'SYSTEM_INFO',
+  TASK_HEADERS: [
+    'task_id', 'month', 'task_name', 'task_details', 'category',
+    'points', 'supervisor', 'assignee', 'engineer', 'start_date',
+    'end_date', 'status', 'include_in_report', 'photo_1', 'photo_2',
+    'ai_report_title', 'ai_report_description', 'ai_report_impact',
+    'remarks', 'last_updated'
+  ],
+  COST_HEADERS: [
+    'year', 'month_code', 'target_bdt', 'achieved_bdt', 'project_count', 'remarks', 'last_updated'
+  ]
+};
+
+/**
+ * Handle HTTP GET Requests
+ */
+function doGet(e) {
+  try {
+    const params = e ? e.parameter : {};
+    const action = params.action || 'PING';
+    let result = {};
+
+    if (action === 'PING' || action === 'health') {
+      result = {
+        status: 'OK',
+        system: 'Walton AC Process Report Central DB',
+        version: '2.3.0',
+        timestamp: new Date().toISOString()
+      };
+    } else if (action === 'GET_MONTH') {
+      const month = params.month || 'SEP-2026';
+      let tasks = [];
+      try {
+        tasks = getTasksForMonth(month);
+      } catch (mErr) {
+        tasks = getRecentTasks(100);
+      }
+      result = {
+        status: 'OK',
+        month: month,
+        tasks: tasks,
+        timestamp: new Date().toISOString()
+      };
+    } else if (action === 'GET_RECENT') {
+      const limit = parseInt(params.limit || '80', 10);
+      result = {
+        status: 'OK',
+        tasks: getRecentTasks(limit),
+        timestamp: new Date().toISOString()
+      };
+    } else if (action === 'ARCHIVE_OLD_DATA') {
+      result = archiveOldData();
+    } else if (action === 'GET_ALL') {
+      result = {
+        status: 'OK',
+        workbooks: getAllWorkbooksGrouped(),
+        cost_savings: getAllCostSavings(),
+        timestamp: new Date().toISOString()
+      };
+    } else {
+      result = { status: 'ERROR', message: 'Unknown GET action: ' + action };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'ERROR',
+      message: err.message,
+      stack: err.stack
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Handle HTTP POST Requests
+ */
+function doPost(e) {
+  try {
+    let requestData = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        requestData = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        requestData = {};
+      }
+    }
+
+    const action = requestData.action || '';
+    const payload = requestData.payload || {};
+    let result = {};
+
+    if (action === 'SYNC_TASK') {
+      result = syncSingleTask(payload);
+    } else if (action === 'DELETE_TASK') {
+      result = deleteSingleTask(payload.task_id, payload.month);
+    } else if (action === 'BULK_PUSH') {
+      result = bulkPushAllData(payload);
+    } else if (action === 'SYNC_COST_SAVINGS') {
+      result = syncCostSavingsTable(payload);
+    } else if (action === 'ARCHIVE_OLD_DATA') {
+      result = archiveOldData();
+    } else {
+      result = { status: 'ERROR', message: 'Unsupported POST action: ' + action };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'ERROR',
+      message: err.message,
+      stack: err.stack
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Sheet Initializers & Helpers
+// -----------------------------------------------------------------------------
+
+function getSpreadsheet() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function getOrCreateSheet(sheetName, headers, headerColor) {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(headers);
+    const range = sheet.getRange(1, 1, 1, headers.length);
+    range.setFontWeight('bold')
+      .setBackground(headerColor || '#1E293B')
+      .setFontColor('#FFFFFF')
+      .setHorizontalAlignment('center');
+    sheet.setFrozenRows(1);
+    sheet.setRowHeight(1, 32);
+  }
+  return sheet;
+}
+
+function getTasksSheet() {
+  return getOrCreateSheet(DB_CONFIG.SHEET_TASKS, DB_CONFIG.TASK_HEADERS, '#0F172A');
+}
+
+function getCostSheet() {
+  return getOrCreateSheet(DB_CONFIG.SHEET_COST_SAVINGS, DB_CONFIG.COST_HEADERS, '#1E3A8A');
+}
+
+// -----------------------------------------------------------------------------
+// Database Operations
+// -----------------------------------------------------------------------------
+
+const MONTH_NAMES_MAP = {
+  0: "JAN", 1: "FEB", 2: "MAR", 3: "APR", 4: "MAY", 5: "JUN",
+  6: "JUL", 7: "AUG", 8: "SEP", 9: "OCT", 10: "NOV", 11: "DEC"
+};
+
+/**
+ * Universal Month Formatter: Pure in-memory JavaScript date arithmetic (0 RPC overhead).
+ * Converts Date objects, UTC strings, and locale strings to canonical format e.g. "SEP-2026".
+ * Adds 6 hours for Bangladesh Time (Asia/Dhaka UTC+6).
+ */
+function parseMonthKey(val) {
+  if (!val) return '';
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  if (val instanceof Date) {
+    const bdTime = new Date(val.getTime() + (6 * 3600 * 1000));
+    return months[bdTime.getUTCMonth()] + '-' + bdTime.getUTCFullYear();
+  }
+
+  const str = String(val).trim();
+  // If already standard month code: "SEP-2026", "AUG-2026"
+  const std = str.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[- ]?(\d{4})$/i);
+  if (std) return std[1].toUpperCase() + '-' + std[2];
+
+  // Try parsing date string (handles ISO UTC e.g. "2026-08-31T18:00:00.000Z")
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const bdTime = new Date(d.getTime() + (6 * 3600 * 1000));
+    return months[bdTime.getUTCMonth()] + '-' + bdTime.getUTCFullYear();
+  }
+
+  // English month name fallback
+  const mMatch = str.match(/\b(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/i);
+  const yMatch = str.match(/\b(202\d|203\d)\b/);
+  if (mMatch && yMatch) {
+    const monthMap = {
+      "JAN": "JAN", "FEB": "FEB", "MAR": "MAR", "APR": "APR", "MAY": "MAY", "JUN": "JUN",
+      "JUL": "JUL", "AUG": "AUG", "SEP": "SEP", "OCT": "OCT", "NOV": "NOV", "DEC": "DEC",
+      "JANUARY": "JAN", "FEBRUARY": "FEB", "MARCH": "MAR", "APRIL": "APR", "JUNE": "JUN",
+      "JULY": "JUL", "AUGUST": "AUG", "SEPTEMBER": "SEP", "OCTOBER": "OCT", "NOVEMBER": "NOV", "DECEMBER": "DEC"
+    };
+    return (monthMap[mMatch[1].toUpperCase()] || mMatch[1].toUpperCase().substring(0, 3)) + '-' + yMatch[1];
+  }
+
+  return str.toUpperCase();
+}
+
+/**
+ * Retrieve tasks for a specific month (sub-second response: ~3 KB payload)
+ * Checks bottom 120 rows first (< 50ms) where active month tasks are appended.
+ */
+function getTasksForMonth(month) {
+  const target = month ? parseMonthKey(month) : 'SEP-2026';
+  const sheet = getTasksSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const monthColIdx = headers.indexOf('month');
+  if (monthColIdx === -1) return [];
+
+  // OPTIMIZATION: Check bottom 120 rows first (< 50ms)
+  const scanRows = Math.min(120, lastRow - 1);
+  const startRow = lastRow - scanRows + 1;
+  const recentValues = sheet.getRange(startRow, 1, scanRows, headers.length).getValues();
+  const tasks = [];
+
+  for (let i = 0; i < recentValues.length; i++) {
+    const row = recentValues[i];
+    const m = parseMonthKey(row[monthColIdx]);
+    if (m === target) {
+      const task = {};
+      headers.forEach((h, col) => {
+        task[h] = row[col];
+      });
+      task.month = target;
+      tasks.push(task);
+    }
+  }
+
+  // If found in bottom rows, return immediately! (< 100ms total)
+  if (tasks.length > 0) {
+    return tasks;
+  }
+
+  // Fallback: If requesting historical month (e.g. JAN-2026), read earlier rows
+  if (startRow > 2) {
+    const olderValues = sheet.getRange(2, 1, startRow - 2, headers.length).getValues();
+    for (let i = 0; i < olderValues.length; i++) {
+      const row = olderValues[i];
+      const m = parseMonthKey(row[monthColIdx]);
+      if (m === target) {
+        const task = {};
+        headers.forEach((h, col) => {
+          task[h] = row[col];
+        });
+        task.month = target;
+        tasks.push(task);
+      }
+    }
+  }
+
+  return tasks;
+}
+
+/**
+ * Retrieve the most recent N tasks from the bottom of the sheet (< 50ms)
+ */
+function getRecentTasks(limit) {
+  const sheet = getTasksSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const monthColIdx = headers.indexOf('month');
+  const numRows = Math.min(limit || 60, lastRow - 1);
+  const startRow = lastRow - numRows + 1;
+  const values = sheet.getRange(startRow, 1, numRows, headers.length).getValues();
+
+  const tasks = [];
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const task = {};
+    headers.forEach((h, col) => {
+      task[h] = row[col];
+    });
+    if (monthColIdx !== -1) {
+      task.month = parseMonthKey(row[monthColIdx]);
+    }
+    tasks.push(task);
+  }
+
+  return tasks;
+}
+
+/**
+ * One-Click Optimization: Moves historical tasks (Jan-Aug 2026) to ARCHIVE_TASKS sheet.
+ * Leaves active tasks (SEP-2026 onwards) in TASKS for blazing fast live multi-device syncing.
+ */
+function archiveOldData() {
+  const ss = getSpreadsheet();
+  const taskSheet = getTasksSheet();
+  const archiveSheet = getOrCreateSheet(DB_CONFIG.SHEET_ARCHIVE, DB_CONFIG.TASK_HEADERS, '#334155');
+
+  const lastRow = taskSheet.getLastRow();
+  if (lastRow <= 1) {
+    return { status: 'OK', archivedCount: 0, activeCount: 0, message: 'No tasks to archive.' };
+  }
+
+  const headers = DB_CONFIG.TASK_HEADERS;
+  const values = taskSheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const monthColIdx = headers.indexOf('month');
+
+  const keepRows = [];
+  const archiveRows = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    const m = parseMonthKey(row[monthColIdx !== -1 ? monthColIdx : 1]);
+    // Keep active months (SEP-2026, OCT-2026, NOV-2026, DEC-2026, 2027) in TASKS
+    if (m === 'SEP-2026' || m.endsWith('-2027') || m === 'OCT-2026' || m === 'NOV-2026' || m === 'DEC-2026') {
+      keepRows.push(row);
+    } else {
+      archiveRows.push(row);
+    }
+  }
+
+  // Append old rows to ARCHIVE_TASKS
+  if (archiveRows.length > 0) {
+    const startArchiveRow = archiveSheet.getLastRow() + 1;
+    archiveSheet.getRange(startArchiveRow, 1, archiveRows.length, headers.length).setValues(archiveRows);
+  }
+
+  // Clear task sheet data rows and rewrite with active rows only
+  taskSheet.deleteRows(2, lastRow - 1);
+  if (keepRows.length > 0) {
+    taskSheet.getRange(2, 1, keepRows.length, headers.length).setValues(keepRows);
+    taskSheet.getRange(2, 2, keepRows.length, 1).setNumberFormat('@');
+  }
+
+  return {
+    status: 'OK',
+    archivedCount: archiveRows.length,
+    activeCount: keepRows.length,
+    message: 'Successfully archived ' + archiveRows.length + ' historical tasks into ARCHIVE_TASKS sheet. Active TASKS sheet now has ' + keepRows.length + ' tasks and runs at maximum speed!'
+  };
+}
+
+/**
+ * Retrieve all tasks grouped by month { "JAN-2026": [...], "SEP-2026": [...] }
+ */
+function getAllWorkbooksGrouped() {
+  const sheet = getTasksSheet();
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return {};
+
+  const headers = data[0];
+  const monthColIdx = headers.indexOf('month');
+  const workbooks = {};
+
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    const task = {};
+    headers.forEach((h, col) => {
+      task[h] = row[col];
+    });
+
+    const m = parseMonthKey(row[monthColIdx !== -1 ? monthColIdx : 1]) || 'SEP-2026';
+    task.month = m;
+
+    if (!workbooks[m]) {
+      workbooks[m] = [];
+    }
+    workbooks[m].push(task);
+  }
+
+  return workbooks;
+}
+
+/**
+ * Insert or update a single task in the TASKS sheet (< 0.2s)
+ * Non-destructive protection: Prevents edits from one laptop from wiping out AI details or photos from another.
+ */
+function syncSingleTask(task) {
+  if (!task || !task.task_id) {
+    return { status: 'ERROR', message: 'Task ID is required' };
+  }
+
+  const sheet = getTasksSheet();
+  const lastRow = sheet.getLastRow();
+  const headers = DB_CONFIG.TASK_HEADERS;
+  const taskIdCol = 0; // task_id is column 0
+
+  let foundRowIndex = -1;
+  let existingRow = null;
+
+  // Search bottom 120 rows first (< 50ms) where active tasks live
+  if (lastRow > 1) {
+    const checkCount = Math.min(120, lastRow - 1);
+    const startScan = lastRow - checkCount + 1;
+    const recentData = sheet.getRange(startScan, 1, checkCount, headers.length).getValues();
+    for (let r = recentData.length - 1; r >= 0; r--) {
+      if (String(recentData[r][taskIdCol]).trim() === String(task.task_id).trim()) {
+        foundRowIndex = startScan + r;
+        existingRow = recentData[r];
+        break;
+      }
+    }
+
+    // Fallback: search remaining earlier rows if not found in bottom 120
+    if (foundRowIndex === -1 && startScan > 2) {
+      const earlierCount = startScan - 2;
+      const earlierData = sheet.getRange(2, 1, earlierCount, headers.length).getValues();
+      for (let r = earlierData.length - 1; r >= 0; r--) {
+        if (String(earlierData[r][taskIdCol]).trim() === String(task.task_id).trim()) {
+          foundRowIndex = 2 + r;
+          existingRow = earlierData[r];
+          break;
+        }
+      }
+    }
+  }
+
+  task.last_updated = new Date().toISOString();
+
+  // NON-DESTRUCTIVE MULTI-DEVICE PROTECTION:
+  // If updating existing row, never let incoming empty fields clobber existing valuable content
+  const rowData = headers.map((h, col) => {
+    let val = task[h];
+    if (foundRowIndex > 0 && existingRow) {
+      const existVal = existingRow[col];
+      const hasExist = (existVal !== undefined && existVal !== null && String(existVal).trim() !== '');
+      const incomingEmpty = (val === undefined || val === null || String(val).trim() === '');
+      
+      // Protected fields: task_details, photo_1, photo_2, ai_report_*
+      if (incomingEmpty && hasExist) {
+        if (h === 'task_details' || h === 'photo_1' || h === 'photo_2' || h === 'ai_report_title' || h === 'ai_report_description' || h === 'ai_report_impact') {
+          val = existVal; // Preserve existing data!
+        }
+      }
+    }
+    return val !== undefined && val !== null ? val : '';
+  });
+
+  if (foundRowIndex > 0) {
+    sheet.getRange(foundRowIndex, 1, 1, headers.length).setValues([rowData]);
+    return { status: 'OK', action: 'UPDATED', task_id: task.task_id };
+  } else {
+    sheet.appendRow(rowData);
+    return { status: 'OK', action: 'INSERTED', task_id: task.task_id };
+  }
+}
+
+/**
+ * Delete a single task by taskId
+ */
+function deleteSingleTask(taskId, month) {
+  if (!taskId) return { status: 'ERROR', message: 'Task ID required' };
+
+  const sheet = getTasksSheet();
+  const data = sheet.getDataRange().getValues();
+  const taskIdCol = 0;
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][taskIdCol]).trim() === String(taskId).trim()) {
+      sheet.deleteRow(r + 1);
+      return { status: 'OK', action: 'DELETED', task_id: taskId };
+    }
+  }
+
+  return { status: 'NOT_FOUND', task_id: taskId };
+}
+
+/**
+ * Bulk push all local workbooks and cost savings from frontend into Google Sheet
+ */
+function bulkPushAllData(payload) {
+  const workbooks = payload.workbooks || {};
+  const costSavings = payload.cost_savings || [];
+
+  const taskSheet = getTasksSheet();
+  // Clear existing task data rows (keep headers)
+  if (taskSheet.getLastRow() > 1) {
+    taskSheet.deleteRows(2, taskSheet.getLastRow() - 1);
+  }
+
+  const headers = DB_CONFIG.TASK_HEADERS;
+  const taskRows = [];
+
+  const months = Object.keys(workbooks);
+  months.forEach(m => {
+    const list = workbooks[m] || [];
+    list.forEach(t => {
+      const row = headers.map(h => {
+        const val = t[h];
+        return val !== undefined && val !== null ? val : '';
+      });
+      taskRows.push(row);
+    });
+  });
+
+  if (taskRows.length > 0) {
+    taskSheet.getRange(2, 1, taskRows.length, headers.length).setValues(taskRows);
+    taskSheet.getRange(2, 2, taskRows.length, 1).setNumberFormat('@');
+  }
+
+  // Update Cost Savings
+  if (Array.isArray(costSavings) && costSavings.length > 0) {
+    syncCostSavingsTable(costSavings);
+  }
+
+  return {
+    status: 'OK',
+    action: 'BULK_SAVED',
+    total_tasks: taskRows.length,
+    months_count: months.length,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Retrieve all Cost Savings rows
+ */
+function getAllCostSavings() {
+  const sheet = getCostSheet();
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+
+  const headers = data[0];
+  const list = [];
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    const item = {};
+    headers.forEach((h, col) => {
+      item[h] = row[col];
+    });
+    list.push(item);
+  }
+  return list;
+}
+
+/**
+ * Sync Cost Savings Table
+ */
+function syncCostSavingsTable(costList) {
+  if (!Array.isArray(costList)) return { status: 'ERROR', message: 'Array expected' };
+
+  const sheet = getCostSheet();
+  if (sheet.getLastRow() > 1) {
+    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  }
+
+  const headers = DB_CONFIG.COST_HEADERS;
+  const rows = costList.map(item => {
+    return headers.map(h => item[h] !== undefined && item[h] !== null ? item[h] : '');
+  });
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  return { status: 'OK', count: rows.length };
+}
