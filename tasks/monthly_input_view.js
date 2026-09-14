@@ -1271,6 +1271,16 @@ const MonthlyInputView = {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    // Security Gate: Check if Input Section is unlocked
+    const isUnlocked = (typeof authManager !== 'undefined' && authManager.isInputUnlocked)
+      ? authManager.isInputUnlocked()
+      : false;
+
+    if (!isUnlocked) {
+      this.renderLoginGate(containerId);
+      return;
+    }
+
     const workbookMgr = window.appState && window.appState.workbookMgr
       ? window.appState.workbookMgr
       : new MonthWorkbookManager();
@@ -1328,6 +1338,18 @@ const MonthlyInputView = {
 
             <!-- Action Buttons -->
             <div class="flex flex-wrap items-center gap-2.5">
+              <!-- Security Status Badge & Quick Actions -->
+              <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-sm">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Admin Access</span>
+                <button onclick="MonthlyInputView.openChangePasswordModal()" class="ml-1 px-2 py-0.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-red-600 border border-slate-200 text-[10px] font-semibold transition" title="Change Team Password via Email Verification">
+                  🔑 Change Password
+                </button>
+                <button onclick="MonthlyInputView.handleLock()" class="px-2 py-0.5 rounded-lg bg-white hover:bg-red-50 text-red-600 border border-red-200 text-[10px] font-semibold transition" title="Lock Input Section">
+                  🔒 Lock
+                </button>
+              </div>
+
               <button onclick="MonthlyInputView.openPasteModal()" title="Copy rows in Excel (Ctrl+C) and click here or press Ctrl+V to bulk paste" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-bold text-white shadow-md shadow-red-200/50 flex items-center gap-1.5 transition">
                 <span>📋</span> <span>Paste from Excel</span>
                 <span class="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono">Ctrl+V</span>
@@ -1547,6 +1569,418 @@ const MonthlyInputView = {
         });
       }
     }, 20);
+  },
+
+  // ---------------------------------------------------------------------------
+  // Input Section Security Gate & Login View
+  // ---------------------------------------------------------------------------
+
+  renderLoginGate(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="max-w-md mx-auto py-12 px-4 sm:px-6">
+        <div class="bg-white border border-slate-200 rounded-3xl p-7 sm:p-8 shadow-xl shadow-slate-100 text-center relative overflow-hidden">
+          
+          <!-- Top Brand Strip -->
+          <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500"></div>
+
+          <!-- Walton Brand & Shield Icon -->
+          <div class="flex flex-col items-center mb-6">
+            <img src="assets/img/walton_logo.png" alt="WALTON" class="h-10 w-auto object-contain drop-shadow-sm mb-3">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-600 text-[10px] font-mono font-black uppercase tracking-wider">
+              <span>🛡️</span> <span>Restricted Access Area</span>
+            </div>
+            <h2 class="text-xl font-black text-slate-800 mt-3">Monthly Task Input Section</h2>
+            <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+              Official engineering records, task points, and photos are protected. Please sign in with team credentials to unlock editing.
+            </p>
+          </div>
+
+          <!-- Login Form -->
+          <form id="input-auth-form" onsubmit="event.preventDefault(); MonthlyInputView.handleUnlockSubmit(event);" class="space-y-4 text-left">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Login Username
+              </label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-sm">👤</span>
+                <input 
+                  type="text" 
+                  id="input-auth-user" 
+                  value="admin" 
+                  required
+                  placeholder="admin"
+                  class="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-slate-50 focus:bg-white transition"
+                >
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Password
+                </label>
+                <button 
+                  type="button" 
+                  onclick="MonthlyInputView.openChangePasswordModal()" 
+                  class="text-[11px] text-red-600 hover:text-red-700 font-bold transition">
+                  Change / Forgot?
+                </button>
+              </div>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-sm">🔒</span>
+                <input 
+                  type="password" 
+                  id="input-auth-pass" 
+                  required
+                  placeholder="Enter team password"
+                  class="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-slate-50 focus:bg-white transition"
+                >
+                <button 
+                  type="button" 
+                  onclick="MonthlyInputView.togglePasswordVisibility('input-auth-pass', 'input-auth-toggle-icon')" 
+                  class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
+                  <span id="input-auth-toggle-icon">👁️</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
+                <input type="checkbox" id="input-auth-remember" checked class="rounded border-slate-300 text-red-600 focus:ring-red-500">
+                <span>Remember session on this device</span>
+              </label>
+            </div>
+
+            <div id="input-auth-error" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium"></div>
+
+            <button 
+              type="submit" 
+              id="input-auth-submit-btn"
+              class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-lg shadow-red-200/50 transition flex items-center justify-center gap-2">
+              <span>🔓</span>
+              <span>Unlock Input Section</span>
+            </button>
+          </form>
+
+          <!-- Information Notice -->
+          <div class="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              <strong class="text-slate-600">Open Public Access:</strong> Dashboard, Strategic Projects, Presentation Slides & Export reports remain completely accessible to everyone without login.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    `;
+  },
+
+  async handleUnlockSubmit(event) {
+    if (event) event.preventDefault();
+    const userEl = document.getElementById('input-auth-user');
+    const passEl = document.getElementById('input-auth-pass');
+    const rememberEl = document.getElementById('input-auth-remember');
+    const errorEl = document.getElementById('input-auth-error');
+    const btn = document.getElementById('input-auth-submit-btn');
+
+    const username = userEl ? userEl.value.trim() : '';
+    const password = passEl ? passEl.value.trim() : '';
+    const remember = rememberEl ? rememberEl.checked : true;
+
+    if (!password) {
+      if (errorEl) {
+        errorEl.textContent = "Please enter the password.";
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> <span>Verifying...</span>';
+    }
+
+    try {
+      const res = await authManager.unlockInput(username, password, remember);
+      if (res && res.success) {
+        if (typeof window.showToast === 'function') {
+          window.showToast("🔓 Input section unlocked successfully!", "success");
+        }
+        await this.render();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = (res && res.error) ? res.error : "Incorrect password. Please try again.";
+          errorEl.classList.remove('hidden');
+        }
+        if (passEl) passEl.focus();
+      }
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = "Authentication error: " + err.message;
+        errorEl.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔓</span> <span>Unlock Input Section</span>';
+      }
+    }
+  },
+
+  handleLock() {
+    if (typeof authManager !== 'undefined') {
+      authManager.lockInput();
+      if (typeof window.showToast === 'function') {
+        window.showToast("🔒 Input section has been locked.", "info");
+      }
+      this.render();
+    }
+  },
+
+  togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (icon) icon.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      if (icon) icon.textContent = '👁️';
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // Change Password & Email OTP Verification Modal
+  // ---------------------------------------------------------------------------
+
+  openChangePasswordModal() {
+    const existing = document.getElementById('change-password-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'change-password-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm';
+
+    modal.innerHTML = `
+      <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200">
+        <!-- Accent Top Strip -->
+        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 to-rose-500"></div>
+
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg font-bold">
+              🔑
+            </div>
+            <div>
+              <h3 class="text-base font-extrabold text-slate-800">Change Team Password</h3>
+              <p class="text-[11px] text-slate-400 font-mono">Email Verification Required</p>
+            </div>
+          </div>
+          <button onclick="MonthlyInputView.closeChangePasswordModal()" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm font-bold transition">
+            ✕
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+          For security, a 6-digit verification code will be sent to the authorized admin email:
+          <strong class="text-slate-800 font-mono">nipu.ruet10@gmail.com</strong>.
+        </p>
+
+        <!-- Step 1: Request OTP -->
+        <div id="otp-request-step" class="mb-4">
+          <button 
+            type="button" 
+            id="otp-send-btn"
+            onclick="MonthlyInputView.handleRequestOtp()" 
+            class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow transition flex items-center justify-center gap-2">
+            <span>📧</span>
+            <span>Send 6-Digit Code to nipu.ruet10@gmail.com</span>
+          </button>
+          <div id="otp-send-status" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium"></div>
+        </div>
+
+        <!-- Step 2: Enter Code & New Password -->
+        <div id="otp-verify-step" class="space-y-3 pt-3 border-t border-slate-100">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              6-Digit Verification Code
+            </label>
+            <input 
+              type="text" 
+              id="otp-input-code" 
+              maxlength="6"
+              placeholder="e.g. 482915" 
+              class="w-full text-center tracking-[6px] font-mono text-base font-black py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+            >
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              New Password (min. 6 characters)
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="otp-new-password" 
+                placeholder="Enter new team password" 
+                class="w-full px-3.5 pr-10 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+              >
+              <button 
+                type="button" 
+                onclick="MonthlyInputView.togglePasswordVisibility('otp-new-password', 'otp-pass-toggle-icon')" 
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                <span id="otp-pass-toggle-icon">👁️</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Confirm New Password
+            </label>
+            <input 
+              type="password" 
+              id="otp-confirm-password" 
+              placeholder="Re-enter new password" 
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+            >
+          </div>
+
+          <div id="otp-verify-error" class="hidden p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium"></div>
+
+          <div class="flex items-center gap-2 pt-2">
+            <button 
+              type="button" 
+              onclick="MonthlyInputView.closeChangePasswordModal()" 
+              class="w-1/3 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs transition">
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              id="otp-verify-submit-btn"
+              onclick="MonthlyInputView.handleVerifyAndSavePassword()" 
+              class="w-2/3 py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-md shadow-red-200 transition flex items-center justify-center gap-1.5">
+              <span>✔</span>
+              <span>Save New Password</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+  },
+
+  closeChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) modal.remove();
+  },
+
+  async handleRequestOtp() {
+    const btn = document.getElementById('otp-send-btn');
+    const status = document.getElementById('otp-send-status');
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> <span>Sending code to nipu.ruet10@gmail.com...</span>';
+    }
+
+    try {
+      const res = await authManager.requestPasswordResetOtp();
+      if (status) {
+        if (res.success) {
+          status.className = 'mt-2 p-2.5 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-700';
+          status.textContent = '✔ Verification code sent! Please check nipu.ruet10@gmail.com inbox or spam folder.';
+          status.classList.remove('hidden');
+        } else {
+          status.className = 'mt-2 p-2.5 rounded-xl text-xs font-medium bg-red-50 border border-red-200 text-red-600';
+          status.textContent = res.error || 'Failed to send code. Make sure Google Sheets Web App is connected.';
+          status.classList.remove('hidden');
+        }
+      }
+    } catch (e) {
+      if (status) {
+        status.className = 'mt-2 p-2.5 rounded-xl text-xs font-medium bg-red-50 border border-red-200 text-red-600';
+        status.textContent = e.message;
+        status.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄</span> <span>Resend Code to nipu.ruet10@gmail.com</span>';
+      }
+    }
+  },
+
+  async handleVerifyAndSavePassword() {
+    const codeEl = document.getElementById('otp-input-code');
+    const passEl = document.getElementById('otp-new-password');
+    const confirmEl = document.getElementById('otp-confirm-password');
+    const errorEl = document.getElementById('otp-verify-error');
+    const btn = document.getElementById('otp-verify-submit-btn');
+
+    const code = codeEl ? codeEl.value.trim() : '';
+    const pass = passEl ? passEl.value.trim() : '';
+    const confirm = confirmEl ? confirmEl.value.trim() : '';
+
+    if (!code) {
+      if (errorEl) {
+        errorEl.textContent = 'Please enter the 6-digit verification code.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (!pass || pass.length < 6) {
+      if (errorEl) {
+        errorEl.textContent = 'Password must be at least 6 characters long.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (pass !== confirm) {
+      if (errorEl) {
+        errorEl.textContent = 'Passwords do not match. Please re-check.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> <span>Verifying & Saving...</span>';
+    }
+
+    try {
+      const res = await authManager.verifyOtpAndChangePassword(code, pass);
+      if (res && res.success) {
+        this.closeChangePasswordModal();
+        if (typeof window.showToast === 'function') {
+          window.showToast("🎉 Password updated successfully! Input section unlocked.", "success");
+        }
+        await this.render();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = (res && res.error) ? res.error : 'Invalid verification code.';
+          errorEl.classList.remove('hidden');
+        }
+      }
+    } catch (e) {
+      if (errorEl) {
+        errorEl.textContent = e.message;
+        errorEl.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✔</span> <span>Save New Password</span>';
+      }
+    }
   }
 };
 

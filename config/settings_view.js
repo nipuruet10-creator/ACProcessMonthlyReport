@@ -295,7 +295,7 @@ function doGet(e) {
     let result = {};
 
     if (action === 'PING' || action === 'health') {
-      result = { status: 'OK', system: 'Walton AC Process Report Central DB', version: '2.3.0', timestamp: new Date().toISOString() };
+      result = { status: 'OK', system: 'Walton AC Process Report Central DB', version: '2.4.0', timestamp: new Date().toISOString() };
     } else if (action === 'GET_MONTH') {
       const month = params.month || 'SEP-2026';
       let tasks = [];

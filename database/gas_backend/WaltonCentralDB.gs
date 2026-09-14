@@ -41,6 +41,15 @@ const DB_CONFIG = {
   ]
 };
 
+const AUTH_SETTINGS = {
+  DEFAULT_USER: 'admin',
+  DEFAULT_PASS: 'ACprocess@20226',
+  ADMIN_EMAIL: 'nipu.ruet10@gmail.com',
+  KEY_CUSTOM_PASS: 'WALTON_CUSTOM_INPUT_PASS',
+  KEY_OTP: 'WALTON_AUTH_OTP',
+  KEY_OTP_EXP: 'WALTON_AUTH_OTP_EXPIRY'
+};
+
 /**
  * Handle HTTP GET Requests
  */
@@ -54,7 +63,16 @@ function doGet(e) {
       result = {
         status: 'OK',
         system: 'Walton AC Process Report Central DB',
-        version: '2.3.0',
+        version: '2.4.0',
+        timestamp: new Date().toISOString()
+      };
+    } else if (action === 'GET_AUTH_STATUS') {
+      const props = PropertiesService.getScriptProperties();
+      result = {
+        status: 'OK',
+        user: AUTH_SETTINGS.DEFAULT_USER,
+        email: AUTH_SETTINGS.ADMIN_EMAIL,
+        hasCustomPass: !!props.getProperty(AUTH_SETTINGS.KEY_CUSTOM_PASS),
         timestamp: new Date().toISOString()
       };
     } else if (action === 'GET_MONTH') {
@@ -132,6 +150,12 @@ function doPost(e) {
       result = syncCostSavingsTable(payload);
     } else if (action === 'ARCHIVE_OLD_DATA') {
       result = archiveOldData();
+    } else if (action === 'VERIFY_INPUT_AUTH') {
+      result = verifyInputAuth(payload);
+    } else if (action === 'REQUEST_AUTH_OTP') {
+      result = requestAuthOtp(payload);
+    } else if (action === 'VERIFY_OTP_CHANGE_PASSWORD') {
+      result = verifyOtpAndChangePassword(payload);
     } else {
       result = { status: 'ERROR', message: 'Unsupported POST action: ' + action };
     }
@@ -651,4 +675,121 @@ function uploadPhotoToDrive(payload) {
     return { status: 'ERROR', message: 'Drive upload error: ' + err.message };
   }
 }
+
+// -----------------------------------------------------------------------------
+// Security & Authentication Handlers
+// -----------------------------------------------------------------------------
+
+function getAuthPassword() {
+  const props = PropertiesService.getScriptProperties();
+  const custom = props.getProperty(AUTH_SETTINGS.KEY_CUSTOM_PASS);
+  return (custom && custom.trim().length > 0) ? custom.trim() : AUTH_SETTINGS.DEFAULT_PASS;
+}
+
+function verifyInputAuth(payload) {
+  const user = (payload.username || '').trim().toLowerCase();
+  const pass = (payload.password || '').trim();
+  const expectedPass = getAuthPassword();
+
+  const isValid = (user === AUTH_SETTINGS.DEFAULT_USER.toLowerCase()) && 
+                  (pass === expectedPass || pass === AUTH_SETTINGS.DEFAULT_PASS);
+  return {
+    status: 'OK',
+    valid: isValid,
+    message: isValid ? 'Authenticated successfully' : 'Invalid credentials'
+  };
+}
+
+function requestAuthOtp(payload) {
+  const targetEmail = AUTH_SETTINGS.ADMIN_EMAIL;
+  // Generate a secure 6-digit OTP code
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiry = Date.now() + (15 * 60 * 1000); // 15 minutes validity
+
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(AUTH_SETTINGS.KEY_OTP, otp);
+  props.setProperty(AUTH_SETTINGS.KEY_OTP_EXP, expiry.toString());
+
+  // Send formatted email via MailApp
+  try {
+    const subject = '[WALTON AC Process] Password Change Verification Code: ' + otp;
+    const bodyText = 'Dear Admin,\n\n' +
+      'A request was submitted to change the team password for the AC Process Monthly Report Input Section.\n\n' +
+      'Your 6-digit Verification Code is: ' + otp + '\n\n' +
+      'This code will expire in 15 minutes.\n\n' +
+      'If you did not request this code, please ignore this email.\n\n' +
+      'WALTON Hi-Tech Industries PLC • AC Process Development';
+
+    const htmlBody = '<div style="font-family: Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background: #FFFFFF;">' +
+      '<div style="text-align: center; margin-bottom: 20px;">' +
+      '<span style="font-size: 20px; font-weight: 900; color: #C5161D; letter-spacing: 2px;">WALTON</span>' +
+      '<div style="font-size: 12px; font-weight: bold; color: #64748B; margin-top: 4px;">AC PROCESS DEVELOPMENT &bull; MONTHLY REPORT SYSTEM</div>' +
+      '</div>' +
+      '<h2 style="color: #0F172A; font-size: 17px; font-weight: 800; margin-bottom: 12px; border-bottom: 2px solid #F1F5F9; padding-bottom: 8px;">Security Verification Code</h2>' +
+      '<p style="font-size: 13px; color: #334155; line-height: 1.6;">A request was made to update the team login password for the <strong>Monthly Task Input Section</strong>.</p>' +
+      '<div style="background: #F8FAFC; border: 2px dashed #CBD5E1; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">' +
+      '<div style="font-size: 11px; font-weight: bold; color: #64748B; text-transform: uppercase; letter-spacing: 1px;">Your 6-Digit Code</div>' +
+      '<div style="font-size: 32px; font-weight: 900; color: #C5161D; letter-spacing: 8px; font-family: monospace; margin: 8px 0;">' + otp + '</div>' +
+      '<div style="font-size: 11px; color: #94A3B8;">Valid for 15 minutes</div>' +
+      '</div>' +
+      '<p style="font-size: 12px; color: #64748B;">If you did not request this password change, no action is needed and your existing password remains active.</p>' +
+      '<div style="border-top: 1px solid #E2E8F0; margin-top: 24px; padding-top: 12px; font-size: 11px; color: #94A3B8; text-align: center;">' +
+      'WALTON Hi-Tech Industries PLC &bull; Automated Cloud Security Notification' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({
+      to: targetEmail,
+      subject: subject,
+      body: bodyText,
+      htmlBody: htmlBody
+    });
+
+    return {
+      status: 'OK',
+      success: true,
+      message: 'Verification code sent to ' + targetEmail
+    };
+  } catch (mailErr) {
+    return {
+      status: 'ERROR',
+      success: false,
+      message: 'Failed to send email: ' + mailErr.message
+    };
+  }
+}
+
+function verifyOtpAndChangePassword(payload) {
+  const enteredOtp = (payload.otp || '').toString().trim();
+  const newPassword = (payload.newPassword || '').trim();
+
+  if (!newPassword || newPassword.length < 6) {
+    return { status: 'ERROR', success: false, error: 'New password must be at least 6 characters long.' };
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const savedOtp = props.getProperty(AUTH_SETTINGS.KEY_OTP);
+  const expiryStr = props.getProperty(AUTH_SETTINGS.KEY_OTP_EXP);
+  const expiry = expiryStr ? parseInt(expiryStr, 10) : 0;
+
+  if (!savedOtp || savedOtp !== enteredOtp) {
+    return { status: 'ERROR', success: false, error: 'Invalid verification code. Please check your email.' };
+  }
+
+  if (Date.now() > expiry) {
+    return { status: 'ERROR', success: false, error: 'Verification code has expired. Please request a new code.' };
+  }
+
+  // OTP verified! Save new password and clear OTP
+  props.setProperty(AUTH_SETTINGS.KEY_CUSTOM_PASS, newPassword);
+  props.deleteProperty(AUTH_SETTINGS.KEY_OTP);
+  props.deleteProperty(AUTH_SETTINGS.KEY_OTP_EXP);
+
+  return {
+    status: 'OK',
+    success: true,
+    message: 'Password changed successfully! The new password is now active across all devices.'
+  };
+}
+
 

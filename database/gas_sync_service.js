@@ -386,6 +386,85 @@ const GoogleSheetsSync = {
   },
 
   /**
+   * Verify username & password against Google Apps Script
+   */
+  async verifyInputAuth(username, password) {
+    const url = this.getWebAppUrl();
+    if (!url) return { valid: false };
+
+    try {
+      const res = await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'VERIFY_INPUT_AUTH',
+          payload: { username, password }
+        })
+      }, 15000);
+      const data = await this._safeJson(res);
+      return data && data.status === 'OK' ? data : { valid: false };
+    } catch (e) {
+      console.warn("Verify input auth notice:", e);
+      return { valid: false };
+    }
+  },
+
+  /**
+   * Request 6-digit OTP sent to admin email (nipu.ruet10@gmail.com)
+   */
+  async requestAuthOtp(email) {
+    const url = this.getWebAppUrl();
+    if (!url) throw new Error("Google Apps Script URL is not configured. Connect in Settings.");
+
+    try {
+      const res = await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'REQUEST_AUTH_OTP',
+          payload: { email }
+        })
+      }, 20000);
+      const data = await this._safeJson(res);
+      if (data && data.status === 'OK') {
+        return { success: true, message: data.message || "Verification code sent." };
+      }
+      return { success: false, error: (data && data.message) ? data.message : "Failed to send code." };
+    } catch (e) {
+      return { success: false, error: "Network error: " + e.message };
+    }
+  },
+
+  /**
+   * Verify OTP and change team password on Google Apps Script
+   */
+  async verifyOtpChangePassword(otp, newPassword) {
+    const url = this.getWebAppUrl();
+    if (!url) throw new Error("Google Apps Script URL is not configured. Connect in Settings.");
+
+    try {
+      const res = await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'VERIFY_OTP_CHANGE_PASSWORD',
+          payload: { otp, newPassword }
+        })
+      }, 20000);
+      const data = await this._safeJson(res);
+      if (data && data.status === 'OK' && data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: (data && data.error) ? data.error : "Failed to verify code." };
+    } catch (e) {
+      return { success: false, error: "Network error: " + e.message };
+    }
+  },
+
+  /**
    * Pull all tasks and cost savings from Google Sheets
    */
   async pullFromCloud(silent = false) {
