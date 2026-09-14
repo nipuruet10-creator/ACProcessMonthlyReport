@@ -134,9 +134,25 @@ class SyncEngine {
       } else {
         // Step 9: Bind Preserved Photos & Manual User Overrides
         const overrides = this.getManualOverride(taskId) || {};
-        const photoBefore = overrides.photo_before || (photos ? photos.before_photo : null) || (breakdownRecord ? breakdownRecord.photo_before : null);
-        const photoAfter = overrides.photo_after || (photos ? photos.after_photo : null) || (breakdownRecord ? breakdownRecord.photo_after : null);
-        const photoGeneral = overrides.photo || (photos ? photos.photo_1 : null) || (breakdownRecord ? breakdownRecord.photo : null);
+        const localPhotoObj = (this.photoMgr && this.photoMgr.getTaskPhotos) ? this.photoMgr.getTaskPhotos(taskId) : null;
+        
+        const photoBefore = overrides.photo_before || 
+                            (localPhotoObj && (localPhotoObj.before_photo || localPhotoObj.photo_1)) || 
+                            (photos && (photos.before_photo || photos.photo_1)) || 
+                            (breakdownRecord && typeof breakdownRecord.photo_before === 'string' && breakdownRecord.photo_before.length > 5 ? breakdownRecord.photo_before : null) || 
+                            task.photo_1 || task.before_photo || null;
+
+        const photoAfter = overrides.photo_after || 
+                           (localPhotoObj && (localPhotoObj.after_photo || localPhotoObj.photo_2)) || 
+                           (photos && (photos.after_photo || photos.photo_2)) || 
+                           (breakdownRecord && typeof breakdownRecord.photo_after === 'string' && breakdownRecord.photo_after.length > 5 ? breakdownRecord.photo_after : null) || 
+                           task.photo_2 || task.after_photo || null;
+
+        const photoGeneral = overrides.photo || 
+                             (localPhotoObj && (localPhotoObj.photo_1 || localPhotoObj.before_photo || localPhotoObj.after_photo)) || 
+                             (photos && (photos.photo_1 || photos.before_photo || photos.after_photo)) || 
+                             (breakdownRecord && typeof breakdownRecord.photo === 'string' && breakdownRecord.photo.length > 5 ? breakdownRecord.photo : null) || 
+                             task.photo_1 || task.photo_2 || null;
 
         const slideData = {
           task_id: taskId,

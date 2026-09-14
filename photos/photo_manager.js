@@ -164,26 +164,39 @@ class PhotoManager {
 
         if (targetTask) {
           const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
-          const thumb = syncThumbnail || (base64Url && base64Url.length < 35000 ? base64Url : null);
+          
+          // ALWAYS preserve full resolution photo locally in targetTask!
+          targetTask[photoKey] = base64Url;
+          targetTask.last_updated = new Date().toISOString();
+          wbMgr.save();
 
-          const applyThumbAndPush = (th) => {
-            if (th) {
-              targetTask[photoKey] = th;
+          // Push to cloud in background: prefer Google Drive direct CDN link, fallback to sharp thumbnail
+          (async () => {
+            let cloudPhotoRef = null;
+            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.uploadPhoto) {
+              cloudPhotoRef = await GoogleSheetsSync.uploadPhoto(taskId, slot, base64Url);
+            }
+
+            if (cloudPhotoRef) {
+              // Google Drive successfully stored original photo! Update targetTask with high-res Drive CDN link
+              targetTask[photoKey] = cloudPhotoRef;
               targetTask.last_updated = new Date().toISOString();
               wbMgr.save();
               if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
                 GoogleSheetsSync.pushTask(targetTask);
               }
+            } else {
+              // Fallback for Google Sheets cell: generate sharp thumbnail fitting in cell
+              let th = syncThumbnail;
+              if (!th && typeof PhotoStorageProvider !== 'undefined' && PhotoStorageProvider.generateSyncThumbnail) {
+                th = await PhotoStorageProvider.generateSyncThumbnail(base64Url);
+              }
+              const taskToPush = { ...targetTask, [photoKey]: th || base64Url };
+              if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+                GoogleSheetsSync.pushTask(taskToPush);
+              }
             }
-          };
-
-          if (thumb) {
-            applyThumbAndPush(thumb);
-          } else if (base64Url && typeof PhotoStorageProvider !== 'undefined' && PhotoStorageProvider.generateSyncThumbnail) {
-            PhotoStorageProvider.generateSyncThumbnail(base64Url).then(th => {
-              applyThumbAndPush(th);
-            }).catch(e => console.warn("Thumb async gen error:", e));
-          }
+          })().catch(err => console.warn("Background photo cloud sync notice:", err));
         }
       }
     } catch (syncErr) {

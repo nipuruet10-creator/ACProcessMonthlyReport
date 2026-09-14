@@ -124,6 +124,8 @@ function doPost(e) {
       result = syncSingleTask(payload);
     } else if (action === 'DELETE_TASK') {
       result = deleteSingleTask(payload.task_id, payload.month);
+    } else if (action === 'UPLOAD_PHOTO') {
+      result = uploadPhotoToDrive(payload);
     } else if (action === 'BULK_PUSH') {
       result = bulkPushAllData(payload);
     } else if (action === 'SYNC_COST_SAVINGS') {
@@ -584,3 +586,69 @@ function syncCostSavingsTable(costList) {
 
   return { status: 'OK', count: rows.length };
 }
+
+/**
+ * Upload High-Resolution Photo directly to Google Drive
+ * Saves photo to 'WALTON_Task_Photos' folder and generates direct CDN image URL.
+ * Automatically updates photo_1 or photo_2 in the TASKS sheet without hitting the 50,000 char cell limit.
+ */
+function uploadPhotoToDrive(payload) {
+  if (!payload || !payload.base64Data) {
+    return { status: 'ERROR', message: 'No photo data provided' };
+  }
+
+  try {
+    const folderName = 'WALTON_Task_Photos';
+    let folder;
+    const folders = DriveApp.getFoldersByName(folderName);
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder(folderName);
+    }
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const base64Clean = payload.base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
+    const decoded = Utilities.base64Decode(base64Clean);
+    const mimeType = payload.mimeType || 'image/jpeg';
+    const fileName = (payload.task_id || 'task') + '_' + (payload.photoType || 'photo_1') + '_' + Date.now() + '.jpg';
+    const blob = Utilities.newBlob(decoded, mimeType, fileName);
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const fileId = file.getId();
+    // Direct, ultra-fast Google Cloud image CDN link (works globally without Google login)
+    const directUrl = 'https://lh3.googleusercontent.com/d/' + fileId;
+
+    // Automatically update the row in Google Sheets TASKS sheet
+    if (payload.task_id) {
+      const photoColName = (payload.photoType === 'photo_2' || payload.photoType === 'after_photo') ? 'photo_2' : 'photo_1';
+      const sheet = getTasksSheet();
+      const lastRow = sheet.getLastRow();
+      const headers = DB_CONFIG.TASK_HEADERS;
+      const pColIdx = headers.indexOf(photoColName);
+      if (lastRow > 1 && pColIdx !== -1) {
+        const idColIdx = headers.indexOf('task_id');
+        const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+        for (let r = values.length - 1; r >= 0; r--) {
+          if (String(values[r][idColIdx]).trim() === String(payload.task_id).trim()) {
+            sheet.getRange(2 + r, pColIdx + 1).setValue(directUrl);
+            sheet.getRange(2 + r, headers.indexOf('last_updated') + 1).setValue(new Date().toISOString());
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      status: 'OK',
+      fileId: fileId,
+      directUrl: directUrl,
+      task_id: payload.task_id,
+      photoType: payload.photoType
+    };
+  } catch (err) {
+    return { status: 'ERROR', message: 'Drive upload error: ' + err.message };
+  }
+}
+

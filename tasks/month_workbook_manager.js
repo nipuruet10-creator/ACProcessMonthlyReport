@@ -652,9 +652,13 @@ class MonthWorkbookManager {
             }
           }
 
+          // Check for actual data differences on meaningful user-facing fields
+          const checkFields = ['task_name', 'task_details', 'category', 'points', 'assignee', 'supervisor', 'status', 'include_in_report', 'photo_1', 'photo_2'];
           let isDifferent = false;
-          for (const k of Object.keys(rt)) {
-            if (rt[k] !== lt[k]) {
+          for (const k of checkFields) {
+            const rVal = String(rt[k] !== undefined && rt[k] !== null ? rt[k] : '').trim();
+            const lVal = String(lt[k] !== undefined && lt[k] !== null ? lt[k] : '').trim();
+            if (rVal !== lVal) {
               isDifferent = true;
               break;
             }
@@ -669,27 +673,12 @@ class MonthWorkbookManager {
               const isProtectedField = (k === 'task_details' || k === 'photo_1' || k === 'photo_2' || k === 'ai_report_title' || k === 'ai_report_description');
               
               if (isProtectedField && (rVal === "" || rVal === null || rVal === undefined) && (lVal !== "" && lVal !== null && lVal !== undefined)) {
-                // Local has valuable content (e.g. AI task breakdown or photo), remote is empty.
-                // Keep local content!
+                // Local has valuable content, remote is empty. Keep local content!
                 continue;
               }
               lt[k] = rVal;
             }
             anyChanges = true;
-          }
-
-          // If local has valuable details/photo that remote Google Sheets is missing, push local back to cloud!
-          let localPhoto = lt.photo_1 || lt.photo_2;
-          if (!localPhoto && typeof photoManager !== 'undefined') {
-            const lp = photoManager.getTaskPhotos(lt.task_id);
-            if (lp && (lp.before_photo || lp.photo_1)) {
-              lt.photo_1 = lp.before_photo || lp.photo_1;
-              localPhoto = lt.photo_1;
-            }
-          }
-          const needsRepush = (lt.task_details && !rt.task_details) || (localPhoto && !rt.photo_1);
-          if (needsRepush && typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-            GoogleSheetsSync.pushTask(lt);
           }
         }
       });

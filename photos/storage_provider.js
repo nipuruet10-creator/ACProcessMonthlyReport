@@ -161,10 +161,10 @@ const PhotoStorageProvider = {
   },
 
   /**
-   * Automatically compresses and resizes photos to max 1600px width/height and 0.82 quality.
-   * Compresses 5MB-15MB high-res camera photos down to ~120KB-200KB with 100% crisp visual quality on 16:9 slides.
+   * Automatically compresses and resizes photos to Full HD (max 1920x1080) with 0.88 quality.
+   * Produces crystal-clear visual quality on 16:9 widescreen presentation slides while keeping file size lean (~150-250KB).
    */
-  async compressImageFile(file, maxWidth = 1600, maxHeight = 1200, quality = 0.82) {
+  async compressImageFile(file, maxWidth = 1920, maxHeight = 1080, quality = 0.88) {
     if (!file || !file.type || !file.type.startsWith('image/')) {
       return this.fileToBase64(file);
     }
@@ -177,7 +177,7 @@ const PhotoStorageProvider = {
           let width = img.width;
           let height = img.height;
 
-          // Scale down proportionally if larger than maximum presentation size
+          // Scale down proportionally if larger than 1080p presentation resolution
           if (width > maxWidth || height > maxHeight) {
             if (width / height > maxWidth / maxHeight) {
               height = Math.round((height * maxWidth) / width);
@@ -189,16 +189,16 @@ const PhotoStorageProvider = {
           }
 
           const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
           const ctx = canvas.getContext('2d');
 
-          // High quality smoothing
+          // High quality smoothing for razor-sharp presentation graphics
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Use JPEG for massive compression unless PNG has alpha transparency
+          // Use JPEG for optimal compression unless PNG has alpha transparency
           const isTransparentPng = file.type === 'image/png' && this._hasTransparency(ctx, width, height);
           const mime = isTransparentPng ? 'image/png' : 'image/jpeg';
           const compressed = canvas.toDataURL(mime, quality);
@@ -238,18 +238,17 @@ const PhotoStorageProvider = {
   },
 
   /**
-   * Generates an ultra-compact Base64 thumbnail (< 18KB, ~12,000 chars)
-   * Guaranteed to fit within Google Sheets' 50,000 character cell limit
-   * and synchronizes across devices in < 50ms.
+   * Generates a sharp, adaptive Base64 image for cloud synchronization.
+   * Starts at 800x600 high quality, and adaptively fits within Google Sheets' 50,000 char cell limit (< 46,000 chars).
    */
-  async generateSyncThumbnail(input, maxWidth = 320, maxHeight = 240, quality = 0.65) {
+  async generateSyncThumbnail(input, maxWidth = 800, maxHeight = 600, quality = 0.76) {
     if (!input) return "";
 
     return new Promise((resolve) => {
       const processImg = (img) => {
         try {
-          let width = img.width || 320;
-          let height = img.height || 240;
+          let width = img.width || 800;
+          let height = img.height || 600;
 
           if (width > maxWidth || height > maxHeight) {
             if (width / height > maxWidth / maxHeight) {
@@ -266,14 +265,34 @@ const PhotoStorageProvider = {
           canvas.height = Math.max(1, height);
           const ctx = canvas.getContext('2d');
           ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'medium';
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-          // Force JPEG at 0.65 quality for minimal payload (< 18KB)
-          const compressed = canvas.toDataURL('image/jpeg', quality);
+          let currentQuality = quality;
+          let compressed = canvas.toDataURL('image/jpeg', currentQuality);
+
+          // Google Sheets cell limit is 50,000 characters.
+          // Adaptively step down quality if needed to ensure it never exceeds 46,000 characters
+          while (compressed.length > 46000 && currentQuality > 0.40) {
+            currentQuality -= 0.08;
+            compressed = canvas.toDataURL('image/jpeg', currentQuality);
+          }
+
+          // If still slightly over limit, scale dimensions down to 640x480
+          if (compressed.length > 46000) {
+            const smaller = document.createElement('canvas');
+            smaller.width = Math.round(width * 0.8);
+            smaller.height = Math.round(height * 0.8);
+            const sCtx = smaller.getContext('2d');
+            sCtx.imageSmoothingEnabled = true;
+            sCtx.imageSmoothingQuality = 'high';
+            sCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+            compressed = smaller.toDataURL('image/jpeg', 0.68);
+          }
+
           resolve(compressed);
         } catch (err) {
-          resolve(typeof input === 'string' && input.length < 35000 ? input : "");
+          resolve(typeof input === 'string' && input.length < 46000 ? input : "");
         }
       };
 
@@ -289,12 +308,12 @@ const PhotoStorageProvider = {
         reader.readAsDataURL(input);
       } else if (typeof input === 'string') {
         if (!input.startsWith('data:image')) {
-          // Relative file path (e.g. assets/images/...)
+          // URLs or relative file paths (e.g. Google Drive CDN links)
           return resolve(input);
         }
         const img = new Image();
         img.onload = () => processImg(img);
-        img.onerror = () => resolve(input.length < 35000 ? input : "");
+        img.onerror = () => resolve(input.length < 46000 ? input : "");
         img.src = input;
       } else {
         resolve("");

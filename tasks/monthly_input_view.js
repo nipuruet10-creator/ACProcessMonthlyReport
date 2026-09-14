@@ -26,6 +26,9 @@ const MonthlyInputView = {
   async handleInlineUpdate(taskId, field, value) {
     if (!window.appState || !window.appState.workbookMgr) return;
     try {
+      if (typeof GoogleSheetsSync !== 'undefined') {
+        GoogleSheetsSync._lastLocalEditTime = Date.now();
+      }
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: value });
       // Update summary cards without full re-render to keep focus
       this.updateEngineerSummary();
@@ -76,12 +79,18 @@ const MonthlyInputView = {
 
   async addNewRow(focusNew = false) {
     if (!window.appState || !window.appState.workbookMgr) return;
+    if (typeof GoogleSheetsSync !== 'undefined') {
+      GoogleSheetsSync._lastLocalEditTime = Date.now();
+    }
     const engineers = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers)
       ? MasterDataManager.getEngineers()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
     const supervisors = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getSupervisors)
       ? MasterDataManager.getSupervisors()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.SUPERVISORS) ? MASTER_LISTS.SUPERVISORS : []);
+    const categories = (typeof MasterDataManager !== 'undefined')
+      ? MasterDataManager.getCategories()
+      : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
 
     const defaultEng = (engineers[0] && engineers[0].display) ? engineers[0].display : "Sazzad (50463)";
     const defaultSup = (supervisors[0] && supervisors[0].display) ? supervisors[0].display : "Kamrul (44819)";
@@ -98,19 +107,52 @@ const MonthlyInputView = {
       { last_updated: new Date().toISOString() }
     );
 
+    // Asynchronously synchronize in background without full page reload
     if (window.appState.syncEngine) {
-      await window.appState.syncEngine.syncMonth(this.selectedMonth);
+      window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
     }
-    await this.render();
 
-    if (focusNew && newTask && newTask.task_id) {
-      setTimeout(() => {
-        const inputElem = document.getElementById(`task-name-input-${newTask.task_id}`);
-        if (inputElem) {
-          inputElem.focus();
-          inputElem.select();
-        }
-      }, 50);
+    const tbody = document.getElementById('monthly-input-tbody');
+    // If table already has rows rendered, insert smoothly into DOM without shaking/reloading the page!
+    if (tbody && !tbody.querySelector('td[colspan]')) {
+      const allTasks = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
+      const rowHtml = this.renderTaskRowHtml(newTask, allTasks.length - 1, allTasks.length, categories, engineers, supervisors);
+      const tempTbody = document.createElement('tbody');
+      tempTbody.innerHTML = rowHtml;
+      const newTr = tempTbody.firstElementChild;
+      if (newTr) {
+        tbody.appendChild(newTr);
+      }
+
+      const counter = document.getElementById('total-rows-counter');
+      if (counter) {
+        counter.innerHTML = `Total ${allTasks.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides`;
+      }
+
+      this.updateEngineerSummary();
+
+      if (focusNew && newTask && newTask.task_id) {
+        setTimeout(() => {
+          const inputElem = document.getElementById(`task-name-input-${newTask.task_id}`);
+          if (inputElem) {
+            inputElem.focus();
+            inputElem.select();
+            inputElem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 50);
+      }
+    } else {
+      await this.render();
+      if (focusNew && newTask && newTask.task_id) {
+        setTimeout(() => {
+          const inputElem = document.getElementById(`task-name-input-${newTask.task_id}`);
+          if (inputElem) {
+            inputElem.focus();
+            inputElem.select();
+            inputElem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 50);
+      }
     }
   },
 
@@ -165,42 +207,9 @@ const MonthlyInputView = {
     }
   },
 
-  async fillPointDown(fromTaskId, forcedValue = null) {
-    if (!window.appState || !window.appState.workbookMgr) return;
-    const tasks = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
-    const fromIdx = tasks.findIndex(t => t.task_id === fromTaskId);
-    if (fromIdx === -1) return;
-
-    let pointVal = forcedValue;
-    if (pointVal === null || pointVal === undefined) {
-      const input = document.getElementById(`task-point-${fromTaskId}`);
-      pointVal = input ? input.value : tasks[fromIdx].points;
-    }
-
-    if (pointVal === "" || isNaN(parseFloat(pointVal))) {
-      alert("Please enter a valid numeric Task Point to fill down.");
-      return;
-    }
-
-    const numVal = parseFloat(pointVal);
-    if (!confirm(`Do you want to copy Task Point (${numVal}) down to all rows below row ${fromIdx + 1}?`)) {
-      return;
-    }
-    let filledCount = 0;
-
-    for (let i = fromIdx + 1; i < tasks.length; i++) {
-      window.appState.workbookMgr.updateTask(this.selectedMonth, tasks[i].task_id, { points: numVal });
-      filledCount++;
-    }
-
-    if (window.appState.syncEngine) {
-      await window.appState.syncEngine.syncMonth(this.selectedMonth);
-    }
-
-    await this.render();
-    if (typeof window.showToast === 'function') {
-      window.showToast(`⬇️ Filled point (${numVal}) down across ${filledCount} rows!`, "success");
-    }
+  fillPointDown(fromTaskId, forcedValue = null) {
+    // Disabled & removed per user request
+    return;
   },
 
   handlePointKeyDown(event, taskId) {
@@ -1048,6 +1057,150 @@ const MonthlyInputView = {
     if (kpiTop && ranking.length > 0) kpiTop.textContent = `${ranking[0].name} (${ranking[0].total_point} pts)`;
   },
 
+  renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors) {
+    const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id) : {};
+    const rawThumb = (photos && (photos.before_photo || photos.photo_1 || photos.after_photo)) || t.photo_1 || t.photo_2;
+    const hasPhoto = Boolean(rawThumb);
+    const thumb = rawThumb;
+    const currentSup = HELPERS.formatPersonnelName(t.supervisor || "Kamrul (44819)");
+    const currentAssignee = HELPERS.formatPersonnelName(t.assignee || t.engineer || (engineers[0] ? engineers[0].display : "Sazzad (50463)"));
+    const isLastRow = (idx === totalCount - 1);
+
+    return `
+      <tr class="hover:bg-slate-50/80 transition group">
+        <!-- Checkbox Selection -->
+        <td class="py-2.5 px-2 text-center border-r border-slate-200 align-middle">
+          <input type="checkbox" class="task-row-checkbox w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
+                 data-task-id="${t.task_id}" onchange="MonthlyInputView.updateBulkDeleteButton()" />
+        </td>
+
+        <!-- SL -->
+        <td class="py-2.5 px-3 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle">
+          ${idx + 1}
+        </td>
+
+        <!-- Task Name (Full Visibility Auto-adjusting Textarea) -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          <textarea id="task-name-input-${t.task_id}" rows="1"
+                    oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
+                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
+                    class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block transition"
+                    placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
+        </td>
+
+        <!-- Task Details / Steps (Editable Text with Docked AI Button) -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          <div class="relative flex items-center">
+            <input type="text" id="task-details-input-${t.task_id}" value="${HELPERS.escapeHtml(t.task_details || '')}"
+                   placeholder="1. Design 2. Handover 3. Fabrication..."
+                   onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_details', this.value)"
+                   class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg pl-2.5 pr-14 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 transition" />
+            <button id="ai-btn-${t.task_id}" type="button" onclick="MonthlyInputView.generateTaskDetails('${t.task_id}')"
+                    title="Auto-generate engineering steps with AI"
+                    class="absolute right-1 px-2 py-1 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[10px] font-black text-white shadow-sm flex items-center gap-1 transition">
+              <span>✨</span><span>AI</span>
+            </button>
+          </div>
+        </td>
+
+        <!-- Category Dropdown -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
+                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
+            ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </td>
+
+        <!-- Task Point (Centered, Clean, No Fill Down Button per User Request) -->
+        <td class="py-2 px-2 text-center bg-[#D4EDDA]/60 border-r border-slate-200 align-middle">
+          <div class="flex items-center justify-center">
+            <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
+                   placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
+                   onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
+                   class="w-16 text-center bg-white/90 border border-emerald-300 hover:border-emerald-500 rounded-lg px-1.5 py-1.5 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-sm placeholder:text-slate-400" />
+          </div>
+        </td>
+
+        <!-- Supervisor Dropdown (Kamrul default, Kamrul and Sazzad only) -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
+                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
+            ${supervisors.map(s => {
+              const isSel = (currentSup === s.display || currentSup === s.name || (!t.supervisor && s.name === 'Kamrul'));
+              return `<option value="${s.display}" ${isSel ? 'selected' : ''}>${s.display}</option>`;
+            }).join('')}
+          </select>
+        </td>
+
+        <!-- Assignee Dropdown (7 removed engineers excluded) -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
+                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500">
+            ${engineers.map(e => {
+              const isSel = (currentAssignee === e.display || currentAssignee === e.name);
+              return `<option value="${e.display}" ${isSel ? 'selected' : ''}>${e.display}</option>`;
+            }).join('')}
+          </select>
+        </td>
+
+        <!-- Direct Drag & Drop Photo Attachment / Interactive Studio -->
+        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+          ${hasPhoto ? `
+            <div class="flex items-center justify-between gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1">
+              <div class="flex items-center gap-1.5 overflow-hidden cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="Click to view & edit in Photo Studio">
+                <img src="${thumb}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 flex-shrink-0">
+                <span class="text-[10px] text-emerald-600 font-bold font-mono">Attached</span>
+              </div>
+              <div class="flex items-center gap-0.5">
+                <button onclick="photoViewModal.open('${t.task_id}')" title="Open Photo Studio (Replace / Manage)" class="text-xs text-slate-500 hover:text-slate-900 p-1 rounded hover:bg-slate-200 transition">
+                  📷
+                </button>
+                <button onclick="MonthlyInputView.deleteRowPhoto('${t.task_id}')" title="Delete Photo" class="text-xs text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div id="dropzone-${t.task_id}"
+                 ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50');"
+                 ondragleave="this.classList.remove('border-red-500', 'bg-red-50');"
+                 ondrop="MonthlyInputView.handlePhotoDrop(event, '${t.task_id}')"
+                 class="border border-dashed border-slate-300 hover:border-red-400 rounded-xl p-1 flex items-center justify-between gap-1 transition bg-slate-50/50">
+              <label for="row-file-${t.task_id}" class="cursor-pointer flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-red-600 font-medium py-0.5 px-1 flex-1">
+                <span>📸</span> <span>Upload</span>
+              </label>
+              <button onclick="photoViewModal.open('${t.task_id}')" title="Open in Photo Studio" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded text-xs">
+                🖼️
+              </button>
+              <input type="file" id="row-file-${t.task_id}" accept="image/*" class="hidden" onchange="MonthlyInputView.handleRowPhotoUpload(event, '${t.task_id}')">
+            </div>
+          `}
+        </td>
+
+        <!-- Report Inclusion Toggle -->
+        <td class="py-2.5 px-3 text-center whitespace-nowrap border-r border-slate-200 align-middle">
+          <button onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
+            t.include_in_report !== 'NO'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-black'
+              : 'bg-slate-50 text-slate-400 border border-slate-200'
+          }">
+            ${t.include_in_report !== 'NO' ? 'YES' : 'NO'}
+          </button>
+        </td>
+
+        <!-- Delete Row & Auto Row Trigger on Tab/Enter -->
+        <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
+          <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
+                  onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
+                  title="Delete Row (or press Tab on last row to auto-insert new row)" 
+                  class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition">
+            ✕
+          </button>
+        </td>
+      </tr>
+    `;
+  },
+
   updateEngineerSummary() {
     this.updateRankingTable();
   },
@@ -1319,7 +1472,7 @@ const MonthlyInputView = {
                   <th class="py-2.5 px-2 w-12 text-center">Del</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">
+              <tbody id="monthly-input-tbody" class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">
                 ${tasks.length === 0 ? (
                   (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl()) ? `
                     <tr>
@@ -1357,155 +1510,7 @@ const MonthlyInputView = {
                       </td>
                     </tr>
                   `
-                ) : tasks.map((t, idx) => {
-                  const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id) : {};
-                  const rawThumb = (photos && (photos.before_photo || photos.photo_1 || photos.after_photo)) || t.photo_1 || t.photo_2;
-                  const hasPhoto = Boolean(rawThumb);
-                  const thumb = rawThumb;
-                  const currentSup = HELPERS.formatPersonnelName(t.supervisor || "Kamrul (44819)");
-                  const currentAssignee = HELPERS.formatPersonnelName(t.assignee || t.engineer || (engineers[0] ? engineers[0].display : "Sazzad (50463)"));
-                  const isLastRow = (idx === tasks.length - 1);
-
-                  return `
-                    <tr class="hover:bg-slate-50/80 transition group">
-                      <!-- Checkbox Selection -->
-                      <td class="py-2.5 px-2 text-center border-r border-slate-200 align-middle">
-                        <input type="checkbox" class="task-row-checkbox w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
-                               data-task-id="${t.task_id}" onchange="MonthlyInputView.updateBulkDeleteButton()" />
-                      </td>
-
-                      <!-- SL -->
-                      <td class="py-2.5 px-3 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle">
-                        ${idx + 1}
-                      </td>
-
-                      <!-- Task Name (Full Visibility Auto-adjusting Textarea) -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        <textarea id="task-name-input-${t.task_id}" rows="1"
-                                  oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
-                                  onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block transition"
-                                  placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
-                      </td>
-
-                      <!-- Task Details / Steps (Editable Text with Docked AI Button) -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        <div class="relative flex items-center">
-                          <input type="text" id="task-details-input-${t.task_id}" value="${HELPERS.escapeHtml(t.task_details || '')}"
-                                 placeholder="1. Design 2. Handover 3. Fabrication..."
-                                 onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_details', this.value)"
-                                 class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg pl-2.5 pr-14 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 transition" />
-                          <button id="ai-btn-${t.task_id}" type="button" onclick="MonthlyInputView.generateTaskDetails('${t.task_id}')"
-                                  title="Auto-generate engineering steps with AI"
-                                  class="absolute right-1 px-2 py-1 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[10px] font-black text-white shadow-sm flex items-center gap-1 transition">
-                            <span>✨</span><span>AI</span>
-                          </button>
-                        </div>
-                      </td>
-
-                      <!-- Category Dropdown -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
-                                class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
-                          ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
-                      </td>
-
-                      <!-- Task Point with Excel-like Copy / Fill Down & Ctrl+D -->
-                      <td class="py-2 px-2 text-center bg-[#D4EDDA]/60 border-r border-slate-200 align-middle">
-                        <div class="flex items-center justify-center gap-1">
-                          <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
-                                 placeholder="—" title="Task Point (Ctrl+D to copy from cell above, or paste multiple)" step="5" min="0" max="100"
-                                 onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                                 onkeydown="MonthlyInputView.handlePointKeyDown(event, '${t.task_id}')"
-                                 onpaste="MonthlyInputView.handlePointPaste(event, '${t.task_id}')"
-                                 class="w-16 text-center bg-white/90 border border-emerald-300 hover:border-emerald-500 rounded-lg px-1.5 py-1.5 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-sm placeholder:text-slate-400" />
-                          <button type="button" onclick="MonthlyInputView.fillPointDown('${t.task_id}')" title="Fill this point down to all remaining rows"
-                                  class="p-1 rounded hover:bg-emerald-200/60 text-[10px] text-emerald-800 transition">
-                            ⬇️
-                          </button>
-                        </div>
-                      </td>
-
-                      <!-- Supervisor Dropdown (Kamrul default, Kamrul and Sazzad only) -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
-                                class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
-                          ${supervisors.map(s => {
-                            const isSel = (currentSup === s.display || currentSup === s.name || (!t.supervisor && s.name === 'Kamrul'));
-                            return `<option value="${s.display}" ${isSel ? 'selected' : ''}>${s.display}</option>`;
-                          }).join('')}
-                        </select>
-                      </td>
-
-                      <!-- Assignee Dropdown (7 removed engineers excluded) -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
-                                class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500">
-                          ${engineers.map(e => {
-                            const isSel = (currentAssignee === e.display || currentAssignee === e.name);
-                            return `<option value="${e.display}" ${isSel ? 'selected' : ''}>${e.display}</option>`;
-                          }).join('')}
-                        </select>
-                      </td>
-
-                      <!-- Direct Drag & Drop Photo Attachment / Interactive Studio -->
-                      <td class="py-2 px-2 border-r border-slate-200 align-middle">
-                        ${hasPhoto ? `
-                          <div class="flex items-center justify-between gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1">
-                            <div class="flex items-center gap-1.5 overflow-hidden cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="Click to view & edit in Photo Studio">
-                              <img src="${thumb}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 flex-shrink-0">
-                              <span class="text-[10px] text-emerald-600 font-bold font-mono">Attached</span>
-                            </div>
-                            <div class="flex items-center gap-0.5">
-                              <button onclick="photoViewModal.open('${t.task_id}')" title="Open Photo Studio (Replace / Manage)" class="text-xs text-slate-500 hover:text-slate-900 p-1 rounded hover:bg-slate-200 transition">
-                                📷
-                              </button>
-                              <button onclick="MonthlyInputView.deleteRowPhoto('${t.task_id}')" title="Delete Photo" class="text-xs text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition">
-                                🗑️
-                              </button>
-                            </div>
-                          </div>
-                        ` : `
-                          <div id="dropzone-${t.task_id}"
-                               ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50');"
-                               ondragleave="this.classList.remove('border-red-500', 'bg-red-50');"
-                               ondrop="MonthlyInputView.handlePhotoDrop(event, '${t.task_id}')"
-                               class="border border-dashed border-slate-300 hover:border-red-400 rounded-xl p-1 flex items-center justify-between gap-1 transition bg-slate-50/50">
-                            <label for="row-file-${t.task_id}" class="cursor-pointer flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-red-600 font-medium py-0.5 px-1 flex-1">
-                              <span>📸</span> <span>Upload</span>
-                            </label>
-                            <button onclick="photoViewModal.open('${t.task_id}')" title="Open in Photo Studio" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded text-xs">
-                              🖼️
-                            </button>
-                            <input type="file" id="row-file-${t.task_id}" accept="image/*" class="hidden" onchange="MonthlyInputView.handleRowPhotoUpload(event, '${t.task_id}')">
-                          </div>
-                        `}
-                      </td>
-
-                      <!-- Report Inclusion Toggle -->
-                      <td class="py-2.5 px-3 text-center whitespace-nowrap border-r border-slate-200 align-middle">
-                        <button onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
-                          t.include_in_report !== 'NO'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-black'
-                            : 'bg-slate-50 text-slate-400 border border-slate-200'
-                        }">
-                          ${t.include_in_report !== 'NO' ? 'YES' : 'NO'}
-                        </button>
-                      </td>
-
-                      <!-- Delete Row & Auto Row Trigger on Tab/Enter -->
-                      <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-                        <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
-                                onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
-                                title="Delete Row (or press Tab on last row to auto-insert new row)" 
-                                class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition">
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+                ) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors)).join('')}
               </tbody>
             </table>
           </div>
@@ -1520,7 +1525,7 @@ const MonthlyInputView = {
                 <span>✨</span> <span>Auto-Fill All Details (AI)</span>
               </button>
             </div>
-            <span class="text-xs text-slate-500 font-mono">
+            <span id="total-rows-counter" class="text-xs text-slate-500 font-mono">
               Total ${tasks.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides
             </span>
           </div>

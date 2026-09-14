@@ -310,16 +310,49 @@ const GoogleSheetsSync = {
       this.lastSyncTime = new Date().toISOString();
       localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
       this.status = 'CONNECTED';
+      this._lastLocalEditTime = Date.now();
       this._broadcastUpdate('TASK_PUSHED');
-      // Trigger immediate background sync so concurrent updates from other laptops merge
-      setTimeout(() => {
-        if (!this.isSyncing) this.pullFromCloud(true);
-      }, 600);
       return true;
     } catch (e) {
       console.warn("Background cloud task sync notice - enqueuing retry:", e);
       this.queuePending({ action: 'SYNC_TASK', payload: task });
       return false;
+    }
+  },
+
+  /**
+   * Upload high-resolution photo directly to Google Drive via Apps Script API
+   * Returns permanent direct CDN image URL (lh3.googleusercontent.com/d/...)
+   */
+  async uploadPhoto(taskId, slot, base64Data) {
+    const url = this.getWebAppUrl();
+    if (!url || !base64Data) return null;
+
+    try {
+      this._lastLocalEditTime = Date.now();
+      const res = await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'UPLOAD_PHOTO',
+          payload: {
+            task_id: taskId,
+            photoType: (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1',
+            base64Data: base64Data,
+            mimeType: 'image/jpeg'
+          }
+        })
+      }, 35000);
+
+      const data = await this._safeJson(res);
+      if (data && data.status === 'OK' && data.directUrl) {
+        return data.directUrl;
+      }
+      return null;
+    } catch (e) {
+      console.warn("Google Drive photo upload fallback:", e);
+      return null;
     }
   },
 
@@ -551,25 +584,24 @@ const GoogleSheetsSync = {
   _refreshActiveViews() {
     try {
       const activeEl = document.activeElement;
-      const isUserTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+      const isUserInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+      
+      // If user is actively typing or focused on a control, NEVER wipe out the table!
+      if (isUserInteracting) {
+        return;
+      }
+
+      // If user made a local edit within the last 8 seconds, do not disrupt their work!
+      if (Date.now() - (this._lastLocalEditTime || 0) < 8000) {
+        return;
+      }
 
       if (window.appState && window.appState.activeTab === 'monthly-input' && window.appState.monthlyInputView) {
-        if (!isUserTyping) {
-          window.appState.monthlyInputView.render();
-        } else {
-          // Re-render safely when user finishes typing
-          activeEl.addEventListener('blur', () => {
-            if (window.appState && window.appState.activeTab === 'monthly-input') {
-              window.appState.monthlyInputView.render();
-            }
-          }, { once: true });
-        }
+        window.appState.monthlyInputView.render();
       }
 
       if (window.appState && window.appState.activeTab === 'projects' && window.appState.projectsView) {
-        if (!isUserTyping) {
-          window.appState.projectsView.render();
-        }
+        window.appState.projectsView.render();
       }
 
       if (window.appState && window.appState.activeTab === 'dashboard' && window.appState.dashboardView) {
