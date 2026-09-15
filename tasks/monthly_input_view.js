@@ -48,6 +48,16 @@ const MonthlyInputView = {
         GoogleSheetsSync._lastLocalEditTime = Date.now();
       }
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: value });
+      
+      // If Assignee was changed, re-render immediately so the task transfers to that respective concern engineer's tab!
+      if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Task assigned to ${value}`, 'info');
+        }
+        await this.render();
+        return;
+      }
+
       // Update summary cards without full re-render to keep focus
       this.updateEngineerSummary();
     } catch (e) {
@@ -1307,9 +1317,21 @@ const MonthlyInputView = {
     const allTasks = workbookMgr.getTasksForMonth(month);
     const months = workbookMgr.getAllMonths();
 
-    // Filter tasks by Concern Assignee/Engineer if set
+    // Filter tasks strictly by Concern Assignee/Engineer if set (exclude supervisor from assignee tab)
+    const norm = (s) => (s || '').trim().toLowerCase();
+    const filterNorm = norm(this.filterEngineer);
+    const filterFirst = filterNorm.split(/[\s(]/)[0];
+
+    const isMatch = (val) => {
+      if (!val) return false;
+      const v = norm(val);
+      if (v === filterNorm) return true;
+      const vFirst = v.split(/[\s(]/)[0];
+      return Boolean(vFirst && filterFirst && vFirst === filterFirst);
+    };
+
     const tasks = this.filterEngineer 
-      ? allTasks.filter(t => (t.assignee === this.filterEngineer || t.engineer === this.filterEngineer || t.supervisor === this.filterEngineer)) 
+      ? allTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
       : allTasks;
 
     const personnel = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getAllPersonnel)
@@ -1468,8 +1490,8 @@ const MonthlyInputView = {
         <!-- 2ND SECTION: SPREADSHEET TASK GRID (WITH ENGINEER TABS - IMAGE 2 REPLICA) -->
         <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
           
-          <!-- Engineer Tabs Bar (Requirement 2: Tabbed per Engineer) -->
-          <div class="bg-slate-100/90 border-b border-slate-200 px-4 py-2.5 flex items-center gap-2 overflow-x-auto -webkit-overflow-scrolling-touch scrollbar-thin">
+          <!-- Engineer Tabs Bar (Requirement 2: Tabbed per Engineer - Multi-Row Responsive Wrap) -->
+          <div class="bg-slate-100/90 border-b border-slate-200 px-3 sm:px-4 py-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span class="text-xs font-mono font-black text-slate-500 uppercase tracking-wider pl-1 whitespace-nowrap hidden sm:inline">Engineers:</span>
             <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
                     class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-sm border ${!this.filterEngineer ? 'bg-slate-900 text-white border-slate-900' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">

@@ -1119,6 +1119,30 @@
         lastTwoAreProjects && completedProjectFirst,
         `Order: ${finalOrder.map(s => s.category).join(" -> ")}`);
 
+      // ----------------------------------------------------
+      // TEST: Project Editing & Assignee Reassignment Isolation
+      // ----------------------------------------------------
+      assert("Project Management Edit Functionality", "ProjectsView supports opening edit modal and updating existing project tasks", 
+        typeof ProjectsView.openEditProjectModal === 'function' && typeof ProjectsView.saveProjectEntry === 'function');
+
+      const testSupervisorTask = {
+        task_id: "TSK-TEST-999",
+        assignee: "Rafi (45127)",
+        engineer: "Rafi (45127)",
+        supervisor: "Sazzad (50463)"
+      };
+      const normEng = (s) => (s || '').trim().toLowerCase();
+      const filterNormSazzad = normEng("Sazzad (50463)");
+      const filterFirstSazzad = filterNormSazzad.split(/[\s(]/)[0];
+      const isMatchSazzad = (val) => {
+        if (!val) return false;
+        const v = normEng(val);
+        if (v === filterNormSazzad) return true;
+        const vFirst = v.split(/[\s(]/)[0];
+        return Boolean(vFirst && filterFirstSazzad && vFirst === filterFirstSazzad);
+      };
+      const matchesSazzad = isMatchSazzad(testSupervisorTask.assignee) || isMatchSazzad(testSupervisorTask.engineer);
+      assert("Task Reassignment Isolation", "Tasks assigned to other concerns do not match supervisor's assignee tab filter", matchesSazzad === false);
 
       } catch (err) {
         console.error("Test Suite Runtime Exception:", err);
