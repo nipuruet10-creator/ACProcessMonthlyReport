@@ -1,0 +1,23 @@
+{
+  "name": "ac-process-monthly-report",
+  "version": "2.0.0",
+  "description": "Process Development Monthly Report Automation System - WALTON Hi-Tech Industries PLC",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "echo \"No tests specified yet\"",
+    "lint": "echo \"No linter configured yet\""
+  },
+  "keywords": [
+    "walton",
+    "process-development",
+    "monthly-report",
+    "automation"
+  ],
+  "author": "WALTON Hi-Tech Industries PLC - AC Process Development Department",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@vercel/analytics": "^1.3.1"
+  }
+}
