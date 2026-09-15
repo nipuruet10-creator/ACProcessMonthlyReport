@@ -42,7 +42,31 @@ class PPTXGenerator {
     const textMuted = "64748B";
 
     const monthName = reportData.month || "SEPTEMBER 2026";
-    const taskSlides = reportData.slides || [];
+    const rawSlides = reportData.slides || [];
+
+    // Order slides: Standard tasks first, followed by Completed Projects & Ongoing Projects right before the final summary slide
+    const standardTaskSlides = [];
+    const completedProjectSlides = [];
+    const ongoingProjectSlides = [];
+
+    rawSlides.forEach(s => {
+      const cat = (s.category || '').toLowerCase();
+      const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
+      const status = (s.status || s.project_status || '').toLowerCase();
+      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjectSlides.push({ ...s, is_project: true, project_status: "Completed" });
+        } else {
+          ongoingProjectSlides.push({ ...s, is_project: true, project_status: "Ongoing" });
+        }
+      } else {
+        standardTaskSlides.push(s);
+      }
+    });
+
+    const taskSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
     const activeTemplate = template || reportData.template || "walton_executive_crimson";
     const isBlue = (activeTemplate === "industrial_innovation_blue" || activeTemplate === "walton_blue_dual");
     const totalSlideCount = taskSlides.length + 4; // Cover + TOC + Dashboard + Tasks + Top 5 Works
@@ -600,14 +624,41 @@ class PPTXGenerator {
       x: 1.35, y: 0.28, w: 6.8, h: 0.52,
       fontFace: font, fontSize: 13.5, bold: true, color: charcoalDark, valign: "middle"
     });
-    // Category pill
+    // Category pill / Project Badge
+    const catLower = category.toLowerCase();
+    const titleLower = (title || "").toLowerCase();
+    const statusLower = (status || "").toLowerCase();
+    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
+
+    let dualBadgeText = "PROCESS IMPROVEMENT";
+    let dualBadgeFill = "FEE2E2";
+    let dualBadgeBorder = "FCA5A5";
+    let dualTextColor = redPrimary;
+    let dualBadgeW = 2.2;
+    if (isProj) {
+      if (isCompletedProj) {
+        dualBadgeText = "STRATEGIC PROJECT • COMPLETED";
+        dualBadgeFill = "D1FAE5";
+        dualBadgeBorder = "6EE7B7";
+        dualTextColor = "047857";
+        dualBadgeW = 3.2;
+      } else {
+        dualBadgeText = "STRATEGIC PROJECT • ONGOING";
+        dualBadgeFill = "E0F2FE";
+        dualBadgeBorder = "7DD3FC";
+        dualTextColor = "0369A1";
+        dualBadgeW = 3.0;
+      }
+    }
+
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 8.3, y: 0.35, w: 2.2, h: 0.38,
-      fill: { color: "FEE2E2" }, line: { color: "FCA5A5", width: 0.5 }, rectRadius: 0.08
+      x: 10.5 - dualBadgeW, y: 0.35, w: dualBadgeW, h: 0.38,
+      fill: { color: dualBadgeFill }, line: { color: dualBadgeBorder, width: 0.5 }, rectRadius: 0.08
     });
-    slide.addText("PROCESS IMPROVEMENT", {
-      x: 8.3, y: 0.35, w: 2.2, h: 0.38,
-      fontFace: font, fontSize: 8.5, bold: true, color: redPrimary, align: "center", valign: "middle"
+    slide.addText(dualBadgeText, {
+      x: 10.5 - dualBadgeW, y: 0.35, w: dualBadgeW, h: 0.38,
+      fontFace: font, fontSize: 8, bold: true, color: dualTextColor, align: "center", valign: "middle"
     });
     slide.addText([
       { text: "SMALL CHANGES\n", options: { fontSize: 8, bold: true, color: textMuted } },
@@ -1870,12 +1921,35 @@ class PPTXGenerator {
     });
 
     // 2. LEFT COLUMN: CONTENT, OVERVIEW & IMPACT (w: 5.6)
+    const catLower = category.toLowerCase();
+    const titleLower = (rawTitle || "").toLowerCase();
+    const statusLower = (status || "").toLowerCase();
+    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
+
+    let badgeText = "PROCESS IMPROVEMENT PROJECT";
+    let badgeFill = redPrimary;
+    let badgeW = 2.8;
+    if (isProj) {
+      if (isCompletedProj) {
+        badgeText = "STRATEGIC PROJECT • COMPLETED";
+        badgeFill = "059669";
+        badgeW = 3.2;
+      } else {
+        badgeText = "STRATEGIC PROJECT • ONGOING";
+        badgeFill = "0284C7";
+        badgeW = 3.0;
+      }
+    } else if (task.project_type) {
+      badgeText = task.project_type.toUpperCase();
+    }
+
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 0.8, y: 1.05, w: 2.8, h: 0.32,
-      fill: { color: redPrimary }, line: { color: redPrimary }, rectRadius: 0.04
+      x: 0.8, y: 1.05, w: badgeW, h: 0.32,
+      fill: { color: badgeFill }, line: { color: badgeFill }, rectRadius: 0.04
     });
-    slide.addText("PROCESS IMPROVEMENT PROJECT", {
-      x: 0.8, y: 1.05, w: 2.8, h: 0.32,
+    slide.addText(badgeText, {
+      x: 0.8, y: 1.05, w: badgeW, h: 0.32,
       fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", valign: "middle"
     });
 
@@ -2157,12 +2231,33 @@ class PPTXGenerator {
 
     // 2. LEFT COLUMN: PROJECT DETAILS & CARDS (x: 0.8, w: 6.3)
     // Pill Category Badge
+    const catLower = category.toLowerCase();
+    const titleLower = (title || "").toLowerCase();
+    const statusLower = ((task.status || task.project_status || "")).toLowerCase();
+    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
+
+    let badgeText = category.toUpperCase();
+    let badgeFill = bluePrimary;
+    let badgeW = 2.8;
+    if (isProj) {
+      if (isCompletedProj) {
+        badgeText = "STRATEGIC PROJECT • COMPLETED";
+        badgeFill = "059669";
+        badgeW = 3.2;
+      } else {
+        badgeText = "STRATEGIC PROJECT • ONGOING";
+        badgeFill = "0284C7";
+        badgeW = 3.0;
+      }
+    }
+
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 0.8, y: 1.05, w: 2.8, h: 0.35,
-      fill: { color: bluePrimary }, line: { color: bluePrimary }, rectRadius: 0.17
+      x: 0.8, y: 1.05, w: badgeW, h: 0.35,
+      fill: { color: badgeFill }, line: { color: badgeFill }, rectRadius: 0.17
     });
-    slide.addText(category.toUpperCase(), {
-      x: 0.8, y: 1.05, w: 2.8, h: 0.35,
+    slide.addText(badgeText, {
+      x: 0.8, y: 1.05, w: badgeW, h: 0.35,
       fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", valign: "middle"
     });
 

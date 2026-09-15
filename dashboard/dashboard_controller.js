@@ -115,27 +115,27 @@ const DashboardController = {
     const bomData = BOMTracker.calculate(filteredTasks);
     const projectData = ProjectTracker.calculate(filteredTasks);
 
-    // 3. 8 Process Engineering Categories (Direct from Image 2)
-    let processCount = 0, toolsCount = 0, partsCount = 0, costCount = 0, manpowerCount = 0, bomCount = 0, completedProjCount = 0, ongoingProjCount = 0;
-
-    filteredTasks.forEach(t => {
+    // 2b. Canonical Projects from the "Projects" section
+    const projectTasks = allMonthTasks.filter(t => {
       const cat = (t.category || '').toLowerCase();
-      const title = (t.task_name || '').toLowerCase();
-      const status = (t.status || '').toLowerCase();
-
-      if (cat.includes('process') || title.includes('process')) processCount++;
-      if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
-      if (cat.includes('part') || cat.includes('component') || cat.includes('fg bom') || cat.includes('sfg') || title.includes('part')) partsCount++;
-      if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
-      if (cat.includes('manpower') || cat.includes('optimization') || title.includes('manpower') || title.includes('optimization')) manpowerCount++;
-      if (cat.includes('bom') || title.includes('bom')) bomCount++;
-
-      if (status.includes('complete') || status.includes('done')) {
-        completedProjCount++;
-      } else {
-        ongoingProjCount++;
-      }
+      const name = (t.task_name || '').toLowerCase();
+      return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
     });
+
+    const ongoingProjects = projectTasks.filter(t => {
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const cat = (t.category || '').toLowerCase();
+      return !status.includes('complete') && !cat.includes('completed project');
+    });
+
+    const completedProjects = projectTasks.filter(t => {
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const cat = (t.category || '').toLowerCase();
+      return status.includes('complete') || cat.includes('completed project');
+    });
+
+    let ongoingProjCount = ongoingProjects.length;
+    let completedProjCount = completedProjects.length;
 
     // Check top works manager for ongoing if needed
     if (ongoingProjCount === 0 && typeof TopWorksManager !== 'undefined') {
@@ -145,10 +145,15 @@ const DashboardController = {
       }
     }
 
-    // 4. Exact Category Distribution breakdown ("Kon category te kaj hoyese segulo")
+    // 3. Category Distribution breakdown from Task Entry
     const categoryCounts = {};
     filteredTasks.forEach(t => {
-      const cat = (t.category && t.category.trim()) || "Others";
+      const cat = (t.category && t.category.trim()) || "Process development";
+      const catLower = cat.toLowerCase();
+      // Projects are counted in the dedicated project cards below
+      if (catLower.includes('ongoing project') || catLower.includes('completed project')) {
+        return;
+      }
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     });
     const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
@@ -170,11 +175,9 @@ const DashboardController = {
       `<option value="${c}" ${this.currentFilters.category === c ? 'selected' : ''}>${c}</option>`
     ).join('');
 
-    // 8 Image 2 KPI Cards Definition
-    const image2Cards = [
-      {
-        id: "process_dev",
-        val: processCount,
+    // Metadata dictionary for known process engineering categories
+    const CATEGORY_META = {
+      "process development": {
         label: "Process Developed",
         icon: "⚙️",
         note: "Process Standardisation & SOP",
@@ -182,12 +185,9 @@ const DashboardController = {
         border: "#60A5FA",
         valColor: "#1D4ED8",
         labelColor: "#1E3A8A",
-        shadow: "rgba(59,130,246,0.16)",
-        filterCategory: "Process development"
+        shadow: "rgba(59,130,246,0.16)"
       },
-      {
-        id: "tools_dev",
-        val: toolsCount,
+      "major developments – tools": {
         label: "Tools Developed",
         icon: "🔧",
         note: "Jigs, Fixtures & Dies",
@@ -195,51 +195,129 @@ const DashboardController = {
         border: "#818CF8",
         valColor: "#4338CA",
         labelColor: "#312E81",
-        shadow: "rgba(99,102,241,0.16)",
-        filterCategory: "Major Developments – Tools"
+        shadow: "rgba(99,102,241,0.16)"
       },
-      {
-        id: "parts_dev",
-        val: partsCount,
-        label: "Parts Developed",
-        icon: "🔩",
-        note: "Components & Sheet Metal",
+      "major developments - tools": {
+        label: "Tools Developed",
+        icon: "🔧",
+        note: "Jigs, Fixtures & Dies",
+        bg: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+        border: "#818CF8",
+        valColor: "#4338CA",
+        labelColor: "#312E81",
+        shadow: "rgba(99,102,241,0.16)"
+      },
+      "major developments – materials": {
+        label: "Materials Developed",
+        icon: "🧪",
+        note: "Raw Materials & Chemical",
         bg: "linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)",
         border: "#34D399",
         valColor: "#047857",
         labelColor: "#064E3B",
-        shadow: "rgba(16,185,129,0.16)",
-        filterCategory: "Major Developments – Parts"
+        shadow: "rgba(16,185,129,0.16)"
       },
-      {
-        id: "cost_opt",
-        val: costCount,
-        label: "Cost Optimisation",
+      "major developments - materials": {
+        label: "Materials Developed",
+        icon: "🧪",
+        note: "Raw Materials & Chemical",
+        bg: "linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)",
+        border: "#34D399",
+        valColor: "#047857",
+        labelColor: "#064E3B",
+        shadow: "rgba(16,185,129,0.16)"
+      },
+      "major developments – parts": {
+        label: "Parts Developed",
+        icon: "🔩",
+        note: "Components & Sheet Metal",
+        bg: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)",
+        border: "#4ADE80",
+        valColor: "#15803D",
+        labelColor: "#14532D",
+        shadow: "rgba(34,197,94,0.16)"
+      },
+      "major developments - parts": {
+        label: "Parts Developed",
+        icon: "🔩",
+        note: "Components & Sheet Metal",
+        bg: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)",
+        border: "#4ADE80",
+        valColor: "#15803D",
+        labelColor: "#14532D",
+        shadow: "rgba(34,197,94,0.16)"
+      },
+      "major developments – process": {
+        label: "Major Process Dev",
+        icon: "⚡",
+        note: "Line Upgrades & Re-layout",
+        bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+        border: "#60A5FA",
+        valColor: "#1D4ED8",
+        labelColor: "#1E3A8A",
+        shadow: "rgba(59,130,246,0.16)"
+      },
+      "major developments - process": {
+        label: "Major Process Dev",
+        icon: "⚡",
+        note: "Line Upgrades & Re-layout",
+        bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+        border: "#60A5FA",
+        valColor: "#1D4ED8",
+        labelColor: "#1E3A8A",
+        shadow: "rgba(59,130,246,0.16)"
+      },
+      "major developments – chemical": {
+        label: "Chemical Development",
+        icon: "⚗️",
+        note: "SWAAT & Corrosion Trials",
+        bg: "linear-gradient(135deg, #FDF4FF 0%, #FAE8FF 100%)",
+        border: "#E879F9",
+        valColor: "#A21CAF",
+        labelColor: "#701A75",
+        shadow: "rgba(217,70,239,0.16)"
+      },
+      "major developments - chemical": {
+        label: "Chemical Development",
+        icon: "⚗️",
+        note: "SWAAT & Corrosion Trials",
+        bg: "linear-gradient(135deg, #FDF4FF 0%, #FAE8FF 100%)",
+        border: "#E879F9",
+        valColor: "#A21CAF",
+        labelColor: "#701A75",
+        shadow: "rgba(217,70,239,0.16)"
+      },
+      "cost savings (local)": {
+        label: "Cost Savings (Local)",
         icon: "💰",
         note: `Cost: ${savingsData.displayCumulativeYTD}/Yr`,
         bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
         border: "#FBBF24",
         valColor: "#B45309",
         labelColor: "#78350F",
-        shadow: "rgba(245,158,11,0.16)",
-        filterCategory: "Cost savings (Local)"
+        shadow: "rgba(245,158,11,0.16)"
       },
-      {
-        id: "manpower_opt",
-        val: manpowerCount,
-        label: "Manpower Optimization",
-        icon: "👥",
-        note: "Line Balancing & Automation",
-        bg: "linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)",
-        border: "#C084FC",
-        valColor: "#7E22CE",
-        labelColor: "#581C87",
-        shadow: "rgba(168,85,247,0.16)",
-        filterCategory: "Process optimization"
+      "cost savings (ibu)": {
+        label: "Cost Savings (IBU)",
+        icon: "💵",
+        note: "International Business Saving",
+        bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+        border: "#FBBF24",
+        valColor: "#B45309",
+        labelColor: "#78350F",
+        shadow: "rgba(245,158,11,0.16)"
       },
-      {
-        id: "bom_verif",
-        val: bomCount,
+      "cost saving": {
+        label: "Cost Saving",
+        icon: "💰",
+        note: `Cost: ${savingsData.displayCumulativeYTD}/Yr`,
+        bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+        border: "#FBBF24",
+        valColor: "#B45309",
+        labelColor: "#78350F",
+        shadow: "rgba(245,158,11,0.16)"
+      },
+      "bom verification": {
         label: "BOM Verification",
         icon: "📋",
         note: "BOM Audit & Physical Observation",
@@ -247,36 +325,159 @@ const DashboardController = {
         border: "#FB7185",
         valColor: "#BE123C",
         labelColor: "#881337",
-        shadow: "rgba(244,63,94,0.16)",
-        filterCategory: "BOM verification"
+        shadow: "rgba(244,63,94,0.16)"
       },
+      "fg bom/ sfg": {
+        label: "FG BOM / SFG",
+        icon: "📦",
+        note: "BOM Structure & Confirmations",
+        bg: "linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 100%)",
+        border: "#F472B6",
+        valColor: "#BE185D",
+        labelColor: "#831843",
+        shadow: "rgba(236,72,153,0.16)"
+      },
+      "new model(local)": {
+        label: "New Model (Local)",
+        icon: "✨",
+        note: "Model Introduction & Trial",
+        bg: "linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)",
+        border: "#A78BFA",
+        valColor: "#6D28D9",
+        labelColor: "#4C1D95",
+        shadow: "rgba(139,92,246,0.16)"
+      },
+      "process optimization": {
+        label: "Process Optimization",
+        icon: "👥",
+        note: "Line Balancing & Efficiency",
+        bg: "linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)",
+        border: "#C084FC",
+        valColor: "#7E22CE",
+        labelColor: "#581C87",
+        shadow: "rgba(168,85,247,0.16)"
+      },
+      "process extension": {
+        label: "Process Extension",
+        icon: "🏗️",
+        note: "Plant Capacity & Line Expansion",
+        bg: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+        border: "#38BDF8",
+        valColor: "#0369A1",
+        labelColor: "#0C4A6E",
+        shadow: "rgba(14,165,233,0.16)"
+      }
+    };
+
+    // 4. Build Dynamic Cards for Categories that have task entries
+    const dynamicCategoryCards = Object.entries(categoryCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([catName, cnt]) => {
+        const normKey = catName.toLowerCase().replace(/–/g, '-').trim();
+        const meta = CATEGORY_META[normKey] || CATEGORY_META[catName.toLowerCase()] || {
+          label: catName,
+          icon: "🏷️",
+          note: "Task Entry Category",
+          bg: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+          border: "#94A3B8",
+          valColor: "#334155",
+          labelColor: "#1E293B",
+          shadow: "rgba(100,116,139,0.16)"
+        };
+
+        return {
+          id: `cat_${normKey.replace(/[^a-z0-9]/g, '_')}`,
+          val: cnt,
+          label: meta.label,
+          icon: meta.icon,
+          note: meta.note,
+          bg: meta.bg,
+          border: meta.border,
+          valColor: meta.valColor,
+          labelColor: meta.labelColor,
+          shadow: meta.shadow,
+          filterCategory: catName
+        };
+      });
+
+    // Default starter categories if month has no tasks entered yet
+    if (dynamicCategoryCards.length === 0) {
+      dynamicCategoryCards.push(
+        {
+          id: "process_dev",
+          val: 0,
+          label: "Process Developed",
+          icon: "⚙️",
+          note: "Process Standardisation & SOP",
+          bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+          border: "#60A5FA",
+          valColor: "#1D4ED8",
+          labelColor: "#1E3A8A",
+          shadow: "rgba(59,130,246,0.16)",
+          filterCategory: "Process development"
+        },
+        {
+          id: "tools_dev",
+          val: 0,
+          label: "Tools Developed",
+          icon: "🔧",
+          note: "Jigs, Fixtures & Dies",
+          bg: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+          border: "#818CF8",
+          valColor: "#4338CA",
+          labelColor: "#312E81",
+          shadow: "rgba(99,102,241,0.16)",
+          filterCategory: "Major Developments – Tools"
+        },
+        {
+          id: "parts_dev",
+          val: 0,
+          label: "Parts Developed",
+          icon: "🔩",
+          note: "Components & Sheet Metal",
+          bg: "linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)",
+          border: "#34D399",
+          valColor: "#047857",
+          labelColor: "#064E3B",
+          shadow: "rgba(16,185,129,0.16)",
+          filterCategory: "Major Developments – Parts"
+        }
+      );
+    }
+
+    // Two dedicated Project Cards directly from "Projects" Section
+    const projectCards = [
       {
         id: "comp_proj",
         val: completedProjCount,
         label: "Completed Projects",
         icon: "🏆",
-        note: "Verified Finished Operations",
+        note: "From Projects Section",
         bg: "linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)",
         border: "#F87171",
         valColor: "#B91C1C",
         labelColor: "#7F1D1D",
         shadow: "rgba(239,68,68,0.16)",
-        filterCategory: "Completed Projects"
+        filterCategory: "Completed Projects",
+        isProjectLink: true
       },
       {
         id: "ongoing_proj",
         val: ongoingProjCount,
         label: "New Projects / Ongoing",
         icon: "🚀",
-        note: "Scope Target FY 26-27",
+        note: "From Projects Section",
         bg: "linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)",
         border: "#22D3EE",
         valColor: "#0E7490",
         labelColor: "#164E63",
         shadow: "rgba(6,182,212,0.16)",
-        filterCategory: "Project"
+        filterCategory: "Ongoing Projects",
+        isProjectLink: true
       }
     ];
+
+    const image2Cards = [...dynamicCategoryCards, ...projectCards];
 
     container.innerHTML = `
       <div class="space-y-6 text-slate-800">
@@ -422,7 +623,7 @@ const DashboardController = {
               <span class="text-xs font-mono font-black uppercase text-emerald-800">Verified Completed</span>
               <span class="text-xl">🏆</span>
             </div>
-            <div class="text-4xl font-black text-emerald-700 font-mono mt-2">${completedTasks}</div>
+            <div class="text-4xl font-black text-emerald-700 font-mono mt-2">${completedProjCount}</div>
             <div class="text-sm font-black text-slate-800 mt-1">Completed Operations</div>
           </div>
 
@@ -431,7 +632,7 @@ const DashboardController = {
               <span class="text-xs font-mono font-black uppercase text-amber-800">Active In-Execution</span>
               <span class="text-xl">⏳</span>
             </div>
-            <div class="text-4xl font-black text-amber-700 font-mono mt-2">${ongoingTasks}</div>
+            <div class="text-4xl font-black text-amber-700 font-mono mt-2">${ongoingProjCount}</div>
             <div class="text-sm font-black text-slate-800 mt-1">Ongoing Projects &amp; Trials</div>
           </div>
 
@@ -446,7 +647,7 @@ const DashboardController = {
 
         </div>
 
-        <!-- 8 COLORFUL PROCESS ENGINEERING DEVELOPMENT CARDS (IMAGE 2 REPLICA) -->
+        <!-- PROCESS ENGINEERING CORE WORK HIGHLIGHTS CARDS -->
         <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
           <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
             <div class="flex items-center gap-3">
@@ -455,10 +656,10 @@ const DashboardController = {
               </div>
               <div>
                 <h3 class="text-lg sm:text-xl font-black text-slate-900">
-                  Process Engineering Core Work Highlights (Image 2 Replica)
+                  Process Engineering Core Work Highlights
                 </h3>
                 <p class="text-xs sm:text-sm text-slate-500 font-medium">
-                  8 core development categories tracking plant modifications, tooling, and strategic projects.
+                  Dynamic category breakdown from task entry and active strategic projects.
                 </p>
               </div>
             </div>

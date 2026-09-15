@@ -402,14 +402,15 @@ class MonthWorkbookManager {
         : n.trim();
     };
 
+    const isHod = (canonical) => {
+      if (!canonical) return false;
+      const lower = canonical.toLowerCase();
+      return lower.includes("kamrul") || lower.includes("44819");
+    };
+
     const getOrInit = (rawName) => {
       const canonical = formatName(rawName);
       if (!canonical) return null;
-
-      // Kamrul is HOD, strictly exclude from ranking table
-      if (canonical.toLowerCase().includes("kamrul") || canonical.includes("44819")) {
-        return null;
-      }
 
       if (!personnelMap[canonical]) {
         personnelMap[canonical] = {
@@ -428,35 +429,45 @@ class MonthWorkbookManager {
 
       // 1. Assignee: 100% Actual Point, +1 Task Count, 75% WBS Point
       const assigneeName = t.assignee || t.engineer;
-      const assigneeEntry = getOrInit(assigneeName);
-      if (assigneeEntry) {
-        assigneeEntry.total_point += validPts;
-        assigneeEntry.total_task += 1;
-        assigneeEntry.wbs_point += Math.round(validPts * 0.75 * 100) / 100;
+      if (assigneeName && assigneeName.trim()) {
+        const assigneeEntry = getOrInit(assigneeName);
+        if (assigneeEntry) {
+          assigneeEntry.total_point += validPts;
+          assigneeEntry.total_task += 1;
+          assigneeEntry.wbs_point += Math.round(validPts * 0.75 * 100) / 100;
+        }
       }
 
       // 2. Supervisor: 25% WBS Point (added to existing personnel row, never a duplicate row!)
+      // HOD (Kamrul) is excluded from accumulating 25% supervisor WBS points from subordinate tasks
       const supName = t.supervisor;
       if (supName && supName.trim()) {
-        const supEntry = getOrInit(supName);
-        if (supEntry) {
-          supEntry.wbs_point += Math.round(validPts * 0.25 * 100) / 100;
+        const canonicalSup = formatName(supName);
+        if (!isHod(canonicalSup)) {
+          const supEntry = getOrInit(supName);
+          if (supEntry) {
+            supEntry.wbs_point += Math.round(validPts * 0.25 * 100) / 100;
+          }
         }
       }
     });
 
     // Sort by Total Point (Actual Point) descending (Image 1 Ranking)
+    // Kamrul is HOD, excluded from competitive engineer ranking table
     const ranking = Object.values(personnelMap)
-      .filter(r => !r.name.toLowerCase().includes("kamrul") && !r.name.includes("44819"))
+      .filter(r => !isHod(r.name) && (r.total_task > 0 || r.total_point > 0))
       .sort((a, b) => {
         if (b.total_point !== a.total_point) return b.total_point - a.total_point;
         if (b.wbs_point !== a.wbs_point) return b.wbs_point - a.wbs_point;
         return b.total_task - a.total_task;
       });
 
-    const totalTasksSum = ranking.reduce((sum, r) => sum + r.total_task, 0);
+    const totalTasksSum = tasks.length;
     const totalWbsSum = Math.round(ranking.reduce((sum, r) => sum + r.wbs_point, 0));
-    const totalActualSum = ranking.reduce((sum, r) => sum + r.total_point, 0);
+    const totalActualSum = tasks.reduce((sum, t) => {
+      const p = parseFloat(t.points);
+      return sum + ((!isNaN(p) && p > 0) ? p : 0);
+    }, 0);
 
     return {
       ranking,

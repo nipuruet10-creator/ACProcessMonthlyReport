@@ -21,10 +21,35 @@ const HTMLReportGenerator = {
   generateStandaloneHTML(reportData = {}, template = "walton_executive_crimson") {
     const activeTemplate = reportData.template || template || "walton_executive_crimson";
     const month = reportData.month || "SEPTEMBER 2026";
-    const taskSlides = reportData.slides || [];
+    const rawSlides = reportData.slides || [];
+
+    // Order slides: Standard tasks first, followed by Completed Projects & Ongoing Projects right before the final summary slide
+    const standardTaskSlides = [];
+    const completedProjectSlides = [];
+    const ongoingProjectSlides = [];
+
+    rawSlides.forEach(s => {
+      const cat = (s.category || '').toLowerCase();
+      const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
+      const status = (s.status || s.project_status || '').toLowerCase();
+      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjectSlides.push({ ...s, is_project: true, project_status: "Completed" });
+        } else {
+          ongoingProjectSlides.push({ ...s, is_project: true, project_status: "Ongoing" });
+        }
+      } else {
+        standardTaskSlides.push(s);
+      }
+    });
+
+    const orderedSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
+    const reportDataOrdered = { ...reportData, slides: orderedSlides };
 
     // Render the complete sequential deck via SlideLayoutEngine
-    const slides = SlideLayoutEngine.renderDeck(reportData, activeTemplate);
+    const slides = SlideLayoutEngine.renderDeck(reportDataOrdered, activeTemplate);
     const totalSlides = slides.length;
 
     // Generate readable titles for navigation dropdown
@@ -33,9 +58,20 @@ const HTMLReportGenerator = {
       "2. Table of Contents & Agenda",
       "3. Executive Management Dashboard"
     ];
-    taskSlides.forEach((t, i) => {
+    orderedSlides.forEach((t, i) => {
       const cleanTitle = (t.slide_title || t.task_name || `Task ${i + 1}`).replace(/<[^>]*>?/gm, '');
-      titles.push(`${i + 4}. [Task] ${cleanTitle}`);
+      const cat = (t.category || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || (t.task_name || '').toLowerCase().includes('project'));
+      let prefix = '[Task]';
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          prefix = '[Completed Project]';
+        } else {
+          prefix = '[Ongoing Project]';
+        }
+      }
+      titles.push(`${i + 4}. ${prefix} ${cleanTitle}`);
     });
     titles.push(`${totalSlides}. Top 5 Works & Projects Summary`);
 

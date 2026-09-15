@@ -105,13 +105,33 @@ const ExportController = {
       if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
       if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
       if (cat.includes('bom') || title.includes('bom')) bomCount++;
-
-      if (status.includes('complete') || status.includes('done')) {
-        completedCount++;
-      } else {
-        ongoingCount++;
-      }
     });
+
+    // Strategic projects counts directly from Projects section
+    const allRawTasks = (syncEngine && syncEngine.workbookMgr)
+      ? syncEngine.workbookMgr.getTasksForMonth(selectedMonth)
+      : [];
+
+    const projectTasks = allRawTasks.filter(t => {
+      const cat = (t.category || '').toLowerCase();
+      const name = (t.task_name || '').toLowerCase();
+      return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
+    });
+
+    const ongoingProjList = projectTasks.filter(t => {
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const cat = (t.category || '').toLowerCase();
+      return !status.includes('complete') && !cat.includes('completed project');
+    });
+
+    const completedProjList = projectTasks.filter(t => {
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const cat = (t.category || '').toLowerCase();
+      return status.includes('complete') || cat.includes('completed project');
+    });
+
+    completedCount = completedProjList.length;
+    ongoingCount = ongoingProjList.length;
 
     if (ongoingCount === 0 && topWorksData && topWorksData.ongoingTop5) {
       ongoingCount = topWorksData.ongoingTop5.filter(p => p.name && p.name.trim()).length;
@@ -128,29 +148,29 @@ const ExportController = {
       { val: `${ongoingCount}`, label: "New Projects / Ongoing", icon: "🚀", note: "Cost Save Scope: Target FY 26-27" }
     ];
 
-    // Order slides: Standard process tasks first, followed by Completed Projects & Ongoing Projects at the end of the deck
+    // Order slides: Standard process tasks first, followed by Completed Projects & Ongoing Projects right before the final summary slide
     const standardSlides = [];
-    const projectSlides = [];
+    const completedProjectSlides = [];
+    const ongoingProjectSlides = [];
 
     activeSlides.forEach(s => {
       const cat = (s.category || '').toLowerCase();
-      const title = (s.slide_title || s.task_name || '').toLowerCase();
-      const isProj = Boolean(s.is_project || cat.includes('ongoing project') || cat.includes('completed project') || cat === 'project' || title.includes('project'));
+      const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
+      const status = (s.status || s.project_status || '').toLowerCase();
+      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+
       if (isProj) {
-        projectSlides.push(s);
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjectSlides.push({ ...s, is_project: true, project_status: "Completed" });
+        } else {
+          ongoingProjectSlides.push({ ...s, is_project: true, project_status: "Ongoing" });
+        }
       } else {
         standardSlides.push(s);
       }
     });
 
-    // Completed projects then ongoing projects
-    projectSlides.sort((a, b) => {
-      const aDone = ((a.status || '').toLowerCase().includes('complete') || (a.category || '').toLowerCase().includes('completed')) ? 0 : 1;
-      const bDone = ((b.status || '').toLowerCase().includes('complete') || (b.category || '').toLowerCase().includes('completed')) ? 0 : 1;
-      return aDone - bDone;
-    });
-
-    const orderedSlides = [...standardSlides, ...projectSlides];
+    const orderedSlides = [...standardSlides, ...completedProjectSlides, ...ongoingProjectSlides];
 
     const reportData = {
       month: selectedMonth,

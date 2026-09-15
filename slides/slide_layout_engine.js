@@ -187,7 +187,11 @@ const SlideLayoutEngine = {
       ? HELPERS.formatPersonnelName(rawEng) 
       : rawEng;
     const category = slideData.category || "Process Development";
-    const status = slideData.status || "Completed";
+    const status = (slideData.status || slideData.project_status || "Completed");
+    const catLower = category.toLowerCase();
+    const titleLower = (rawTitle || "").toLowerCase();
+    const isProj = Boolean(slideData.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isCompletedProj = isProj && (status.toLowerCase().includes('complete') || catLower.includes('completed'));
     const description = slideData.description || slideData.ai_description || 
       "Developed and implemented an automatic foil cutting system for compressor jacket production. The system was designed, fabricated and handed over to production for regular use.";
     
@@ -283,10 +287,10 @@ const SlideLayoutEngine = {
           
           <!-- Top Pill Badge + Split Title -->
           <div class="flex-shrink-0">
-            <!-- Crimson Pill Badge -->
+            <!-- Pill Badge (Project Type / Category) -->
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-white font-bold text-xs uppercase tracking-wider mb-1" 
-                 style="background: linear-gradient(135deg, #C5161D 0%, #B91C1C 100%); box-shadow: 0 2px 4px rgba(197,22,29,0.2);">
-              <span>PROCESS IMPROVEMENT PROJECT</span>
+                 style="background: ${isProj ? (isCompletedProj ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)') : 'linear-gradient(135deg, #C5161D 0%, #B91C1C 100%)'}; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+              <span>${isProj ? (isCompletedProj ? '🏆 STRATEGIC PROJECT • COMPLETED' : '🚀 STRATEGIC PROJECT • ONGOING') : (slideData.project_type ? HELPERS.escapeHtml(slideData.project_type.toUpperCase()) : 'PROCESS IMPROVEMENT PROJECT')}</span>
             </div>
 
             <!-- Split Title with Red Left Accent Bar -->
@@ -3032,7 +3036,31 @@ const SlideLayoutEngine = {
     const activeTemplate = reportData.template || template || "walton_executive_crimson";
     const isBlue = (activeTemplate === "industrial_innovation_blue" || activeTemplate === "walton_blue_dual");
     const month = reportData.month || "SEPTEMBER 2026";
-    const taskSlides = reportData.slides || [];
+    const rawSlides = reportData.slides || [];
+
+    // Order slides: Standard tasks first, followed by Completed Projects & Ongoing Projects right before the final summary slide
+    const standardTaskSlides = [];
+    const completedProjectSlides = [];
+    const ongoingProjectSlides = [];
+
+    rawSlides.forEach(s => {
+      const cat = (s.category || '').toLowerCase();
+      const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
+      const status = (s.status || s.project_status || '').toLowerCase();
+      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjectSlides.push({ ...s, is_project: true, project_status: "Completed" });
+        } else {
+          ongoingProjectSlides.push({ ...s, is_project: true, project_status: "Ongoing" });
+        }
+      } else {
+        standardTaskSlides.push(s);
+      }
+    });
+
+    const taskSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
     const deck = [];
     const totalSlideCount = taskSlides.length + 4; // Cover + TOC + Dashboard + Tasks + Top 5 Works
 

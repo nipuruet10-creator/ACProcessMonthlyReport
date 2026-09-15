@@ -38,20 +38,53 @@ const SlidePreviewModal = {
     this.isDeckMode = true;
     this.currentMonth = reportData.month || "SEP-2026";
     this.deckHtmlList = SlideLayoutEngine.renderDeck(reportData, tmpl);
-    this.activeSlides = reportData.slides || [];
+    // Order slides: Standard tasks first, then Completed Projects, then Ongoing Projects
+    const standardTaskSlides = [];
+    const completedProjectSlides = [];
+    const ongoingProjectSlides = [];
+
+    (reportData.slides || []).forEach(s => {
+      const cat = (s.category || '').toLowerCase();
+      const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
+      const status = (s.status || s.project_status || '').toLowerCase();
+      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjectSlides.push({ ...s, is_project: true, project_status: "Completed" });
+        } else {
+          ongoingProjectSlides.push({ ...s, is_project: true, project_status: "Ongoing" });
+        }
+      } else {
+        standardTaskSlides.push(s);
+      }
+    });
+
+    const orderedSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
+    this.activeSlides = orderedSlides;
     this.currentSlideIndex = 0;
 
     const total = this.deckHtmlList.length;
-    const taskSlides = this.activeSlides;
 
     this.deckTitles = [
       "1. Executive Cover Page",
       "2. Table of Contents & Agenda",
       "3. Executive Management Dashboard"
     ];
-    taskSlides.forEach((t, i) => {
+    orderedSlides.forEach((t, i) => {
       const cleanTitle = (t.slide_title || t.task_name || `Task ${i + 1}`).replace(/<[^>]*>?/gm, '');
-      this.deckTitles.push(`${i + 4}. [Task] ${cleanTitle}`);
+      const cat = (t.category || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || (t.task_name || '').toLowerCase().includes('project'));
+      let prefix = '[Task]';
+      if (isProj) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          prefix = '[Completed Project]';
+        } else {
+          prefix = '[Ongoing Project]';
+        }
+      }
+      this.deckTitles.push(`${i + 4}. ${prefix} ${cleanTitle}`);
     });
     this.deckTitles.push(`${total}. Top 5 Works & Projects Summary`);
 
