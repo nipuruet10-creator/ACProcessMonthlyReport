@@ -158,6 +158,77 @@ const DashboardController = {
     });
     const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
 
+    // 2c. Requirement 3: Engineer-wise Task Entry & Monthly Report YES/NO Count
+    const engineerStatsMap = {};
+    allMonthTasks.forEach(t => {
+      const eng = (t.concern_engineer || '').trim() || 'Unassigned';
+      if (!engineerStatsMap[eng]) {
+        engineerStatsMap[eng] = {
+          name: eng,
+          total: 0,
+          reportYes: 0,
+          reportNo: 0,
+          completed: 0,
+          points: 0
+        };
+      }
+      engineerStatsMap[eng].total += 1;
+      if (t.monthly_report === 'YES') {
+        engineerStatsMap[eng].reportYes += 1;
+      } else {
+        engineerStatsMap[eng].reportNo += 1;
+      }
+      if (t.status === 'Completed') {
+        engineerStatsMap[eng].completed += 1;
+      }
+      engineerStatsMap[eng].points += (t.task_point || 0);
+    });
+
+    const sortedEngineerStats = Object.values(engineerStatsMap).sort((a, b) => b.total - a.total);
+    const overallMonthTasksTotal = allMonthTasks.length;
+    const overallMonthReportYes = allMonthTasks.filter(t => t.monthly_report === 'YES').length;
+    const overallMonthReportNo = overallMonthTasksTotal - overallMonthReportYes;
+    const overallMonthReportPct = overallMonthTasksTotal > 0 ? Math.round((overallMonthReportYes / overallMonthTasksTotal) * 100) : 0;
+
+    // 2d. Requirement 4: Presentation Readiness Audit & Top Deliverables
+    const reportEligibleTasks = allMonthTasks.filter(t => t.monthly_report === 'YES');
+    let auditPhotosAttached = 0;
+    let auditPhotosPending = 0;
+    const auditAttentionList = [];
+
+    reportEligibleTasks.forEach(t => {
+      let hasPic = false;
+      if (typeof photoManager !== 'undefined' && photoManager.getTaskPhotos) {
+        const p = photoManager.getTaskPhotos(t.task_id);
+        hasPic = Boolean(p && (p.before_photo || p.photo_1 || p.after_photo || p.photo_2));
+      }
+      if (!hasPic && (t.before_photo || t.photo_1 || t.photo || t.has_photo)) {
+        hasPic = true;
+      }
+
+      if (hasPic) {
+        auditPhotosAttached++;
+      } else {
+        auditPhotosPending++;
+        if (auditAttentionList.length < 6) {
+          auditAttentionList.push({
+            task_id: t.task_id,
+            name: t.task_name || 'Unnamed Task',
+            engineer: t.concern_engineer || 'Unassigned',
+            points: t.task_point || 0,
+            category: t.category || 'Process development'
+          });
+        }
+      }
+    });
+
+    const readinessScorePct = reportEligibleTasks.length > 0 ? Math.round((auditPhotosAttached / reportEligibleTasks.length) * 100) : 100;
+
+    const topEngineeringBreakthroughs = [...allMonthTasks]
+      .filter(t => t.task_point > 0 || (t.task_name && t.task_name.trim().length > 0))
+      .sort((a, b) => (b.task_point || 0) - (a.task_point || 0))
+      .slice(0, 5);
+
     // Dropdown options
     const masterEngineers = (typeof MasterDataManager !== 'undefined') 
       ? MasterDataManager.getEngineers() 
@@ -606,45 +677,87 @@ const DashboardController = {
 
         </div>
 
-        <!-- 4 HIGH-LEVEL MONTHLY TASK QUANTITY & EXECUTION METRIC CARDS -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-sans">
-          
-          <div class="bg-gradient-to-br from-blue-50 to-sky-100/70 border border-blue-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-black uppercase text-blue-800">Monthly Task Quantity</span>
-              <span class="text-xl">📋</span>
+        <!-- ENGINEER-WISE TASK ENTRY & MONTHLY REPORT SUMMARY (IMAGE 3 REQUIREMENT) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 mb-5 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+                👥
+              </div>
+              <div>
+                <h3 class="text-lg sm:text-xl font-black text-slate-900">
+                  Engineer Task Entries &amp; Monthly Report Summary (${this.currentFilters.month})
+                </h3>
+                <p class="text-xs sm:text-sm text-slate-500 font-medium">
+                  Summary of recorded engineering tasks vs. tasks approved for monthly executive presentation (Report = YES).
+                </p>
+              </div>
             </div>
-            <div class="text-4xl font-black text-blue-700 font-mono mt-2">${totalTasks}</div>
-            <div class="text-sm font-black text-slate-800 mt-1">Total Recorded Tasks</div>
+
+            <!-- Top Level Totals Pill Row -->
+            <div class="flex items-center gap-2 flex-wrap text-xs font-mono">
+              <span class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 font-bold border border-slate-200 shadow-sm">
+                Total Tasks: <strong class="text-slate-900">${overallMonthTasksTotal}</strong>
+              </span>
+              <span class="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 shadow-sm">
+                Report Selected (YES): <strong class="text-emerald-700">${overallMonthReportYes} (${overallMonthReportPct}%)</strong>
+              </span>
+              <span class="px-3.5 py-1.5 rounded-xl bg-amber-50 text-amber-800 font-bold border border-amber-200 shadow-sm">
+                Internal Only (NO): <strong class="text-amber-700">${overallMonthReportNo}</strong>
+              </span>
+            </div>
           </div>
 
-          <div class="bg-gradient-to-br from-emerald-50 to-teal-100/70 border border-emerald-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-black uppercase text-emerald-800">Verified Completed</span>
-              <span class="text-xl">🏆</span>
-            </div>
-            <div class="text-4xl font-black text-emerald-700 font-mono mt-2">${completedProjCount}</div>
-            <div class="text-sm font-black text-slate-800 mt-1">Completed Operations</div>
-          </div>
+          <!-- Cards Grid for Each Engineer -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            ${sortedEngineerStats.map(stat => {
+              const yesPct = stat.total > 0 ? Math.round((stat.reportYes / stat.total) * 100) : 0;
+              const isFiltered = (this.currentFilters.engineer && this.currentFilters.engineer.includes(stat.name));
+              return `
+                <div onclick="DashboardController.handleFilter('engineer', '${HELPERS.escapeHtml(stat.name)}')" 
+                     class="cursor-pointer bg-slate-50/70 hover:bg-white border ${isFiltered ? 'border-red-500 ring-2 ring-red-100 shadow-md' : 'border-slate-200'} rounded-2xl p-4 transition hover:shadow-md hover:border-slate-300 flex flex-col justify-between"
+                     title="Click to filter dashboard by ${HELPERS.escapeHtml(stat.name)}">
+                  <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                      <div class="flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold shadow-xs">
+                          👤
+                        </span>
+                        <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate max-w-[150px]" title="${HELPERS.escapeHtml(stat.name)}">
+                          ${HELPERS.escapeHtml(stat.name)}
+                        </h4>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-200/80 text-slate-700">
+                        ${stat.points} pts
+                      </span>
+                    </div>
 
-          <div class="bg-gradient-to-br from-amber-50 to-orange-100/70 border border-amber-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-black uppercase text-amber-800">Active In-Execution</span>
-              <span class="text-xl">⏳</span>
-            </div>
-            <div class="text-4xl font-black text-amber-700 font-mono mt-2">${ongoingProjCount}</div>
-            <div class="text-sm font-black text-slate-800 mt-1">Ongoing Projects &amp; Trials</div>
-          </div>
+                    <div class="grid grid-cols-2 gap-2 my-2 text-center">
+                      <div class="bg-white p-2 rounded-xl border border-slate-200">
+                        <div class="text-[10px] font-mono font-bold uppercase text-slate-400">Task Entries</div>
+                        <div class="text-xl font-black font-mono text-slate-900 mt-0.5">${stat.total}</div>
+                      </div>
+                      <div class="bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
+                        <div class="text-[10px] font-mono font-bold uppercase text-emerald-700">Report (YES)</div>
+                        <div class="text-xl font-black font-mono text-emerald-700 mt-0.5">${stat.reportYes}</div>
+                      </div>
+                    </div>
+                  </div>
 
-          <div class="bg-gradient-to-br from-purple-50 to-fuchsia-100/70 border border-purple-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-mono font-black uppercase text-purple-800">Presentation Ready</span>
-              <span class="text-xl">📊</span>
-            </div>
-            <div class="text-4xl font-black text-purple-700 font-mono mt-2">${selectedForReport}</div>
-            <div class="text-sm font-black text-slate-800 mt-1">Report Selected Slides</div>
+                  <!-- Mini Progress Bar -->
+                  <div class="mt-2 pt-2 border-t border-slate-200/60">
+                    <div class="flex items-center justify-between text-[11px] font-mono mb-1 text-slate-500">
+                      <span>Report Rate</span>
+                      <span class="font-bold text-slate-800">${yesPct}%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                      <div class="bg-emerald-500 h-full rounded-full transition-all" style="width: ${yesPct}%"></div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
-
         </div>
 
         <!-- PROCESS ENGINEERING CORE WORK HIGHLIGHTS CARDS -->
@@ -765,88 +878,138 @@ const DashboardController = {
 
         </div>
 
-        <!-- STRATEGIC PROJECTS & BOM AUDIT SECTION -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- NEW EXECUTIVE SECTIONS: PRESENTATION READINESS & HIGH-IMPACT DELIVERABLES (IMAGE 4 REPLACEMENT) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
           
-          <!-- Project Tracker -->
+          <!-- Card 1: Monthly Presentation Readiness & Quality Audit -->
           <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
-              <div>
-                <h3 class="text-xl font-black text-slate-900">Strategic Engineering Projects</h3>
-                <p class="text-xs sm:text-sm text-slate-500 font-medium">Milestones &amp; Line Automation Handover</p>
+            <div>
+              <div class="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+                    📋
+                  </div>
+                  <div>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-900">Monthly Report Presentation Readiness</h3>
+                    <p class="text-xs sm:text-sm text-slate-500 font-medium">Pre-Flight Audit for PPTX &amp; PDF Report Generation</p>
+                  </div>
+                </div>
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-mono font-black ${readinessScorePct >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
+                  ${readinessScorePct}% Ready
+                </span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 font-mono">
-                  ${projectData.ongoingCount} Ongoing
-                </span>
-                <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
-                  ${projectData.completedCount} Completed
-                </span>
+
+              <!-- Metrics Row -->
+              <div class="grid grid-cols-3 gap-3 my-3">
+                <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-center">
+                  <div class="text-[10px] font-mono font-bold uppercase text-slate-500">Report Queue</div>
+                  <div class="text-2xl font-black font-mono text-slate-900 mt-0.5">${reportEligibleTasks.length}</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">Selected Tasks</div>
+                </div>
+                <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-center">
+                  <div class="text-[10px] font-mono font-bold uppercase text-emerald-700">Photos Attached</div>
+                  <div class="text-2xl font-black font-mono text-emerald-700 mt-0.5">${auditPhotosAttached}</div>
+                  <div class="text-[10px] text-emerald-600 mt-0.5">Visual Evidence OK</div>
+                </div>
+                <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 text-center">
+                  <div class="text-[10px] font-mono font-bold uppercase text-amber-700">Photo Pending</div>
+                  <div class="text-2xl font-black font-mono text-amber-700 mt-0.5">${auditPhotosPending}</div>
+                  <div class="text-[10px] text-amber-600 mt-0.5">Needs Attachment</div>
+                </div>
+              </div>
+
+              <!-- Attention Checklist -->
+              <div class="mt-4">
+                <div class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>Photo &amp; Detail Checklist</span>
+                  <span class="text-[11px] font-normal text-slate-400">${auditPhotosPending === 0 ? 'All report items have photos!' : `${auditPhotosPending} items pending photos`}</span>
+                </div>
+                <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  ${auditAttentionList.length > 0 ? auditAttentionList.map(item => `
+                    <div class="bg-slate-50 hover:bg-amber-50/50 p-3 rounded-xl border border-slate-200 flex items-center justify-between transition text-xs">
+                      <div class="truncate mr-2">
+                        <div class="font-bold text-slate-800 truncate">${HELPERS.escapeHtml(item.name)}</div>
+                        <div class="text-[11px] text-slate-500">${HELPERS.escapeHtml(item.engineer)} &bull; <span class="font-mono text-amber-700">Missing Photo</span></div>
+                      </div>
+                      <button onclick="App.switchTab('monthly-input')" class="flex-shrink-0 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[10px] transition">
+                        Attach 📸
+                      </button>
+                    </div>
+                  `).join('') : `
+                    <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                      <span>✅</span> <span>All report-selected tasks have photo attachments verified. Ready to generate slides!</span>
+                    </div>
+                  `}
+                </div>
               </div>
             </div>
 
-            <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
-              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition">
-                <div>
-                  <h4 class="text-base font-black text-slate-900">Auto Brazing Fixture Development</h4>
-                  <p class="text-xs sm:text-sm text-slate-600 mt-0.5 font-medium">Engr. Sazzad &amp; Rafi &bull; Completed</p>
-                </div>
-                <span class="text-sm font-mono font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">৳ 5,00,000 / Yr</span>
-              </div>
-              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition">
-                <div>
-                  <h4 class="text-base font-black text-slate-900">Compressor Jacket Foil Cutting Automation</h4>
-                  <p class="text-xs sm:text-sm text-slate-600 mt-0.5 font-medium">Engr. Sazzad (50463) &bull; Ongoing (85%)</p>
-                </div>
-                <span class="text-xs sm:text-sm font-mono text-sky-700 font-bold bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200">Phase 2 Trial</span>
-              </div>
-              <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition">
-                <div>
-                  <h4 class="text-base font-black text-slate-900">Injection Robot Automation Project</h4>
-                  <p class="text-xs sm:text-sm text-slate-600 mt-0.5 font-medium">Engr. Abdullah (58102) &bull; Ongoing (70%)</p>
-                </div>
-                <span class="text-xs sm:text-sm font-mono text-indigo-700 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200">Cycle Optimization</span>
-              </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button onclick="App.switchTab('report-builder')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1">
+                <span>🛠️ Open Report Builder &rarr;</span>
+              </button>
+              <button onclick="ReportBuilderView.generateMonthlyReport()" class="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5">
+                <span>🚀 Generate Slides</span>
+              </button>
             </div>
           </div>
 
-          <!-- BOM Audit Tracker -->
+          <!-- Card 2: High-Impact Process Innovations & Milestones -->
           <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
-              <div>
-                <h3 class="text-xl font-black text-slate-900">BOM Verification &amp; Physical Audit</h3>
-                <p class="text-xs sm:text-sm text-slate-500 font-medium">RAC &amp; CAC Model Consumption Cross-Check</p>
+            <div>
+              <div class="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+                    🏆
+                  </div>
+                  <div>
+                    <h3 class="text-lg sm:text-xl font-black text-slate-900">Top Engineering Process Breakthroughs</h3>
+                    <p class="text-xs sm:text-sm text-slate-500 font-medium">Ranked High-Impact Deliverables (${this.currentFilters.month})</p>
+                  </div>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  By Task Points
+                </span>
               </div>
-              <span class="px-3.5 py-1.5 rounded-full text-xs font-mono font-black bg-amber-50 text-amber-700 border border-amber-200">
-                ${bomData.totalPhysicalObservations} Total Observations
-              </span>
+
+              <!-- Top Deliverables List -->
+              <div class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                ${topEngineeringBreakthroughs.map((item, idx) => `
+                  <div class="bg-slate-50 hover:bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition">
+                    <div class="flex items-center gap-3 truncate mr-2">
+                      <div class="w-7 h-7 rounded-xl ${idx === 0 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-200/80 text-slate-700 border-slate-300'} border flex items-center justify-center text-xs font-black font-mono flex-shrink-0">
+                        #${idx + 1}
+                      </div>
+                      <div class="truncate">
+                        <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate" title="${HELPERS.escapeHtml(item.task_name)}">
+                          ${HELPERS.escapeHtml(item.task_name)}
+                        </h4>
+                        <div class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span class="font-bold text-slate-700">${HELPERS.escapeHtml(item.concern_engineer)}</span>
+                          <span>&bull;</span>
+                          <span class="px-2 py-0.2 rounded bg-slate-200/70 text-slate-600 font-mono text-[10px]">${HELPERS.escapeHtml(item.category)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex flex-col items-end flex-shrink-0">
+                      <span class="px-2.5 py-1 rounded-lg text-xs font-black font-mono bg-red-50 text-red-700 border border-red-200">
+                        ${item.task_point} pts
+                      </span>
+                      <span class="text-[10px] font-bold mt-1 ${item.status === 'Completed' ? 'text-emerald-600' : 'text-sky-600'}">
+                        ${item.status}
+                      </span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 my-2">
-              <div class="bg-gradient-to-br from-sky-50 to-blue-50/50 p-4 rounded-2xl border border-sky-200">
-                <span class="text-xs font-mono text-sky-700 uppercase font-black">RAC Observations</span>
-                <div class="text-3xl font-black text-slate-900 mt-1 font-mono">${bomData.breakdown.rac.totalObservations}</div>
-                <div class="text-xs sm:text-[13px] text-slate-700 mt-2 space-y-1 font-mono font-medium">
-                  <div>Alternative Use: <span class="font-bold text-slate-900">${bomData.breakdown.rac.alternativeUse}</span></div>
-                  <div>Physically Not Used: <span class="font-bold text-slate-900">${bomData.breakdown.rac.physicallyNotUsed}</span></div>
-                  <div>Over-Consumption: <span class="font-bold text-slate-900">${bomData.breakdown.rac.overConsumption}</span></div>
-                </div>
-              </div>
-
-              <div class="bg-gradient-to-br from-indigo-50 to-purple-50/50 p-4 rounded-2xl border border-indigo-200">
-                <span class="text-xs font-mono text-indigo-700 uppercase font-black">CAC Observations</span>
-                <div class="text-3xl font-black text-slate-900 mt-1 font-mono">${bomData.breakdown.cac.totalObservations}</div>
-                <div class="text-xs sm:text-[13px] text-slate-700 mt-2 space-y-1 font-mono font-medium">
-                  <div>Alternative Use: <span class="font-bold text-slate-900">${bomData.breakdown.cac.alternativeUse}</span></div>
-                  <div>Physically Not Used: <span class="font-bold text-slate-900">${bomData.breakdown.cac.physicallyNotUsed}</span></div>
-                  <div>Over-Consumption: <span class="font-bold text-slate-900">${bomData.breakdown.cac.overConsumption}</span></div>
-                </div>
-              </div>
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span class="text-xs text-slate-400 font-mono">Assignee 100% &bull; Supervisor 25% WBS</span>
+              <button onclick="App.switchTab('monthly-input')" class="text-xs font-bold text-red-600 hover:text-red-800 transition flex items-center gap-1">
+                <span>View All Tasks in Grid &rarr;</span>
+              </button>
             </div>
-
-            <p class="text-xs sm:text-sm text-slate-500 mt-2 font-medium">
-              47 Model Verifications Completed &bull; 110 BOM Upload Summaries Processed
-            </p>
           </div>
 
         </div>

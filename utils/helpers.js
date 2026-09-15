@@ -133,9 +133,28 @@ const HELPERS = {
     const current = selectedMonth || (months && months[0] ? months[0] : 'SEP-2026');
     const safeMonths = Array.isArray(months) ? months : [current];
 
-    // Group months by year
+    const monthOrder = { "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12 };
+    const runningYear = 2026;
+    const runningMonthIndex = 9; // SEP-2026
+
+    // Exclude any 2025 months; strictly show Jan'2026 up to current running month (Sep'2026)
+    const filteredMonths = safeMonths.filter(m => {
+      const parts = String(m).toUpperCase().split('-');
+      if (parts.length !== 2) return false;
+      const yr = parseInt(parts[1], 10);
+      const mIdx = monthOrder[parts[0]] || 0;
+      if (isNaN(yr) || yr < runningYear) return false; // Strictly exclude 2025 and older
+      if (yr === runningYear) {
+        return mIdx <= runningMonthIndex || m === current;
+      }
+      return m === current;
+    });
+
+    const displayMonths = filteredMonths.length > 0 ? filteredMonths : [current];
+
+    // Group display months by year
     const groups = {};
-    safeMonths.forEach(m => {
+    displayMonths.forEach(m => {
       const parts = m.split('-');
       const yr = parts[1] || 'Other';
       if (!groups[yr]) groups[yr] = [];
@@ -163,12 +182,12 @@ const HELPERS = {
           <span class="px-1.5 py-0.2 rounded text-[9px] bg-white/20 text-white uppercase tracking-wider font-bold">Active</span>
         </button>
 
-        <!-- Previous Months Dropdown -->
+        <!-- Months Dropdown (Jan 2026 to Running Month) -->
         <div class="relative inline-flex items-center">
           <select onchange="if(this.value) { ${onselectJsMethodName}(this.value); }" 
-                  title="Select from previous or other months"
+                  title="Select month (Jan 2026 to running month)"
                   class="bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-700 shadow-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200 transition cursor-pointer">
-            <option value="" disabled>📂 Previous Months ▼</option>
+            <option value="" disabled>📂 Select Month ▼</option>
             ${optgroups}
           </select>
         </div>

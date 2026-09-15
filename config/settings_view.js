@@ -37,7 +37,7 @@ const SettingsView = {
           <span class="w-2 h-2 rounded-full bg-rose-400"></span> Connection Error
         </span>
       `;
-    }
+    const isUnlocked = (typeof authManager !== 'undefined') ? authManager.isInputUnlocked() : true;
 
     container.innerHTML = `
       <div class="space-y-6 max-w-4xl">
@@ -46,7 +46,54 @@ const SettingsView = {
             SYSTEM SETTINGS & INTEGRATIONS
           </span>
           <h2 class="text-2xl font-black text-white mt-1">Application Configuration</h2>
-          <p class="text-xs text-slate-400 mt-0.5">Manage Google Sheets multi-user cloud database, Gemini 3.8 Flash AI, and local data persistence.</p>
+          <p class="text-xs text-slate-400 mt-0.5">Manage security access, Google Sheets multi-user cloud database, Gemini 3.8 Flash AI, and local data persistence.</p>
+        </div>
+
+        <!-- Security, Admin Access & Sheet Protection Card -->
+        <div class="bg-slate-900 border border-amber-900/40 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg font-bold">
+                🔐
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  Security, Admin Access &amp; Sheet Protection
+                  ${isUnlocked ? `
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Admin Access Active (Unlocked)
+                    </span>
+                  ` : `
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                      <span class="w-2 h-2 rounded-full bg-rose-400"></span> Input Locked (Read-Only Mode)
+                    </span>
+                  `}
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Control editing permissions for Monthly Task Grid and protect reports from unauthorized edits.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-wrap items-center gap-3">
+            ${isUnlocked ? `
+              <button onclick="SettingsView.handleLock()" class="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 font-bold text-xs transition flex items-center gap-2 shadow">
+                <span>🔒</span> <span>Lock Input Section Now</span>
+              </button>
+              <button onclick="SettingsView.openChangePasswordModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition flex items-center gap-2 shadow">
+                <span>🔑</span> <span>Change Team Password</span>
+              </button>
+            ` : `
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
+                <input type="password" id="settings-admin-pass" placeholder="Enter team password..." class="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono flex-1" />
+                <button onclick="SettingsView.handleUnlock()" class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-1.5 shadow">
+                  <span>🔓</span> <span>Unlock Admin Access</span>
+                </button>
+                <button onclick="SettingsView.openChangePasswordModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition">
+                  <span>🔑</span> <span>Forgot Password / OTP</span>
+                </button>
+              </div>
+            `}
+          </div>
         </div>
 
         <!-- Google Sheets Cloud Database Card -->
@@ -659,7 +706,7 @@ function syncCostSavingsTable(costList) {
     alert("AI Cache cleared successfully.");
   },
 
-  resetWorkbooks() {
+    resetWorkbooks() {
     if (confirm("Reset all monthly workbooks back to original seed data? This will overwrite local edits.")) {
       localStorage.removeItem("walton_pd_month_workbooks_v1");
       localStorage.removeItem("walton_pd_month_workbooks_v2");
@@ -669,6 +716,55 @@ function syncCostSavingsTable(costList) {
       }
       alert("Workbooks reset. Reloading view.");
       window.location.reload();
+    }
+  },
+
+  handleLock() {
+    if (typeof authManager !== 'undefined') {
+      authManager.lockInput();
+      if (typeof window.showToast === 'function') {
+        window.showToast("🔒 Input section has been locked.", "info");
+      } else {
+        alert("🔒 Input section has been locked.");
+      }
+      this.render();
+      if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+        // Keep monthly input updated as well
+        MonthlyInputView.render();
+      }
+    }
+  },
+
+  async handleUnlock() {
+    const passInput = document.getElementById('settings-admin-pass');
+    const pass = passInput ? passInput.value.trim() : '';
+    if (!pass) {
+      alert("Please enter password to unlock.");
+      return;
+    }
+    if (typeof authManager !== 'undefined') {
+      const res = await authManager.unlockInput('admin', pass);
+      if (res && res.success) {
+        if (typeof window.showToast === 'function') {
+          window.showToast("🔓 Admin access unlocked successfully!", "success");
+        } else {
+          alert("🔓 Admin access unlocked successfully!");
+        }
+        this.render();
+        if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+          MonthlyInputView.render();
+        }
+      } else {
+        alert((res && res.error) || "Incorrect password.");
+      }
+    }
+  },
+
+  openChangePasswordModal() {
+    if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.openChangePasswordModal) {
+      MonthlyInputView.openChangePasswordModal();
+    } else {
+      alert("Password change modal unavailable.");
     }
   }
 };

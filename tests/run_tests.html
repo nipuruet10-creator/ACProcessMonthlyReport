@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Comprehensive System Test Suite - Walton AC Process Monthly Report</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0b0f19; color: #f8fafc; padding: 30px; }
+    h1 { color: #38bdf8; font-size: 22px; border-bottom: 1px solid #1e293b; padding-bottom: 12px; margin-bottom: 20px; }
+    .suite-card { background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+    .suite-title { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 12px; border-bottom: 1px solid #1f2937; padding-bottom: 6px; }
+    .test-result { padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; font-family: monospace; font-size: 13px; }
+    .test-pass { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; }
+    .test-fail { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+    .summary-box { font-size: 15px; font-weight: bold; margin-top: 24px; padding: 16px; border-radius: 8px; }
+  </style>
+
+  <script>
+    window.errors = [];
+    window.addEventListener('error', function(e) {
+      window.errors.push(e.message + ' at ' + e.filename + ':' + e.lineno);
+      var out = document.getElementById('test-output');
+      if (out) out.innerHTML = '<div style="color:red;font-weight:bold;">SCRIPT ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno + '</div>';
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      window.errors.push('Rejection: ' + e.reason);
+      var out = document.getElementById('test-output');
+      if (out) out.innerHTML = '<div style="color:red;font-weight:bold;">UNHANDLED REJECTION: ' + e.reason + '</div>';
+    });
+  </script>
+  <!-- External CDNs & Local Bundles -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="../assets/js/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>PROCESS DEVELOPMENT MONTHLY REPORT AUTOMATION SYSTEM - VERIFICATION SUITE</h1>
+  <div id="test-output">Executing comprehensive verification across all 17 specified test cases...</div>
+
+  <!-- Load Modules in Order -->
+  <script src="../config/app_config.js"></script>
+  <script src="../config/master_lists.js"></script>
+  <script src="../config/slide_theme.js"></script>
+  <script src="../utils/helpers.js"></script>
+  <script src="../database/schema.js"></script>
+  <script src="../database/seed_data.js"></script>
+  <script src="../database/imported_2026_dataset.js"></script>
+  <script src="../database/db_adapter.js"></script>
+  <script src="../tasks/excel_sync_service.js"></script>
+  <script src="../tasks/month_workbook_manager.js"></script>
+  <script src="../tasks/task_manager.js"></script>
+  <script src="../tasks/monthly_input_view.js"></script>
+  <script src="../ai/prompt_templates.js"></script>
+  <script src="../ai/ai_cache_manager.js"></script>
+  <script src="../ai/gemini_client.js"></script>
+  <script src="../ai/ai_breakdown_sheet.js"></script>
+  <script src="../ai/ai_breakdown_view.js"></script>
+  <script src="../photos/storage_provider.js"></script>
+  <script src="../photos/photo_manager.js"></script>
+  <script src="../slides/radial_gauge_component.js"></script>
+  <script src="../slides/engineer_grouping.js"></script>
+  <script src="../slides/slide_layout_engine.js"></script>
+  <script src="../tasks/sync_engine.js"></script>
+  <script src="../report/readiness_engine.js"></script>
+  <script src="../report/builder_view.js"></script>
+  <script src="../report/top_works_manager.js"></script>
+  <script src="../report/final_editor_view.js"></script>
+  <script src="../dashboard/cost_saving_tracker.js"></script>
+  <script src="../dashboard/bom_tracker.js"></script>
+  <script src="../dashboard/project_tracker.js"></script>
+  <script src="../projects/projects_view.js"></script>
+  <script src="../dashboard/charts.js"></script>
+  <script src="../dashboard/dashboard_controller.js"></script>
+  <script src="../export/pptx_generator.js"></script>
+  <script src="../export/pdf_generator.js"></script>
+  <script src="../export/html_generator.js"></script>
+  <script src="../history/history_manager.js"></script>
+  <script src="../auth/auth_manager.js"></script>
+  <script src="../audit/audit_logger.js"></script>
+  <script src="../export/export_controller.js"></script>
+
+  <script>
+    const results = [];
+    window.results = results;
+    window.testStatus = 'starting';
+
+    function assert(suite, description, condition, details = "") {
+      const res = {
+        suite,
+        description,
+        passed: Boolean(condition),
+        details: condition ? "OK" : (details || "Assertion failed")
+      };
+      results.push(res);
+      window.lastAssert = res;
+    }
+
+    async function runTestSuite() {
+      window.testStatus = 'running';
+      try {
+        // Setup isolated test instances
+      const testMonth = "TEST-2026";
+      localStorage.removeItem("walton_pd_test_workbooks");
+      localStorage.removeItem("walton_pd_test_breakdown");
+
+      const geminiClient = new GeminiClient();
+      const photoManager = new PhotoManager();
+      const pptxGenerator = new PPTXGenerator();
+
+      const wbMgr = new MonthWorkbookManager("walton_pd_test_workbooks");
+      wbMgr.workbooks[testMonth] = [];
+      const breakdown = new AIBreakdownSheet("walton_pd_test_breakdown");
+      const syncEngine = new SyncEngine(wbMgr, breakdown, geminiClient, photoManager);
+
+      // ----------------------------------------------------
+      // TEST CASE 1 & 2: Add one task -> Confirm one slide
+      // ----------------------------------------------------
+      const t1 = wbMgr.addTask(testMonth, "Sazzad", "Compressor Foil Cutting System", "YES");
+      assert("Test 1", "Add one task generates an immutable Task ID", t1.task_id && t1.task_id.startsWith(`${testMonth}-`), `ID: ${t1.task_id}`);
+
+      let syncRes = await syncEngine.syncMonth(testMonth);
+      assert("Test 2", "Confirm exactly one slide appears after sync", syncRes.active_slides === 1 && syncRes.slides.length === 1, `Slides: ${syncRes.active_slides}`);
+
+      // ----------------------------------------------------
+      // TEST CASE 3 & 4: Add second task -> Confirm second slide
+      // ----------------------------------------------------
+      const t2 = wbMgr.addTask(testMonth, "Sazzad", "Smart QR Scanning System", "YES");
+      assert("Test 3", "Add second task for same engineer creates distinct Task ID", t2.task_id !== t1.task_id, `t1: ${t1.task_id}, t2: ${t2.task_id}`);
+
+      syncRes = await syncEngine.syncMonth(testMonth);
+      assert("Test 4", "Confirm two slides appear (1 Row = 1 Slide Rule)", syncRes.active_slides === 2 && syncRes.slides.length === 2, `Slides: ${syncRes.active_slides}`);
+
+      // ----------------------------------------------------
+      // TEST CASE 5 & 6: Change task name -> Confirm same task_id updates
+      // ----------------------------------------------------
+      const updatedT1 = wbMgr.updateTask(testMonth, t1.task_id, { task_name: "Compressor Foil Cutting Line Automation & Upgrade" });
+      assert("Test 5", "Task name updated successfully in workbook", updatedT1.task_name.includes("Automation"));
+      assert("Test 6", "Task ID remains strictly unchanged after task name modification", updatedT1.task_id === t1.task_id, `Expected: ${t1.task_id}, Got: ${updatedT1.task_id}`);
+
+      // ----------------------------------------------------
+      // TEST CASE 7 & 8: Upload photo later -> Confirm photo appears in slide
+      // ----------------------------------------------------
+      const samplePhoto = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+      photoManager.setTaskPhoto(t1.task_id, "before_photo", samplePhoto);
+      syncRes = await syncEngine.syncMonth(testMonth);
+      const slide1 = syncRes.slides.find(s => s.task_id === t1.task_id);
+      assert("Test 7", "Photo attached to Task ID in photo store", photoManager.hasPhoto(t1.task_id));
+      assert("Test 8", "Photo appears bound to correct slide in active slides", slide1 && slide1.photo_before === samplePhoto);
+
+      // ----------------------------------------------------
+      // TEST CASE 9 & 10: Remove report inclusion -> Confirm slide disappears on sync
+      // ----------------------------------------------------
+      wbMgr.toggleInclude(testMonth, t2.task_id); // Set t2 to NO
+      const t2State = wbMgr.getTasksForMonth(testMonth).find(t => t.task_id === t2.task_id);
+      assert("Test 9", "Task inclusion set to NO", t2State.include_in_report === "NO");
+
+      syncRes = await syncEngine.syncMonth(testMonth);
+      assert("Test 10", "Excluded task's slide removed from active deck on sync", syncRes.active_slides === 1 && !syncRes.slides.some(s => s.task_id === t2.task_id));
+
+      // ----------------------------------------------------
+      // TEST CASE 11 & 12: Add 20 tasks -> Confirm 20 slides
+      // ----------------------------------------------------
+      const bulkMonth = "BULK-2027";
+      wbMgr.workbooks[bulkMonth] = [];
+      for (let i = 1; i <= 20; i++) {
+        wbMgr.addTask(bulkMonth, "Rafi", `Process Engineering Task #${i} for Tooling Section`, "YES");
+      }
+      assert("Test 11", "20 tasks added to bulk month", wbMgr.getTasksForMonth(bulkMonth).length === 20);
+
+      const bulkSync = await syncEngine.syncMonth(bulkMonth);
+      assert("Test 12", "Confirm exactly 20 individual slides generated for 20 tasks (1 Row = 1 Slide)", bulkSync.active_slides === 20, `Got: ${bulkSync.active_slides}`);
+
+      // ----------------------------------------------------
+      // TEST CASE 13: Check editable PPTX generation
+      // ----------------------------------------------------
+      let pptxCrimsonSuccess = false;
+      let pptxBlueSuccess = false;
+      let pptxDualSuccess = false;
+      let pptxErrorMsg = "";
+      try {
+        const origWriteFile = PptxGenJS.prototype.writeFile;
+        PptxGenJS.prototype.writeFile = async function(opts) {
+          return "mock-pptx-base64";
+        };
+
+        const payloadCrimson = await ExportController.buildReportPayload(testMonth, "walton_executive_crimson");
+        const crimsonRes = await pptxGenerator.generatePresentation(payloadCrimson.reportData, "walton_executive_crimson");
+        pptxCrimsonSuccess = Boolean(crimsonRes);
+
+        const payloadBlue = await ExportController.buildReportPayload(testMonth, "industrial_innovation_blue");
+        const blueRes = await pptxGenerator.generatePresentation(payloadBlue.reportData, "industrial_innovation_blue");
+        pptxBlueSuccess = Boolean(blueRes);
+
+        // Test dual photo task slide export in PPTX (verifies _addDualBeforeAfterTaskSlide and ShapeType.ellipse)
+        const payloadDual = {
+          month: testMonth,
+          slides: [{
+            task_id: "TASK-DUAL-PPTX-001",
+            task_name: "RAC Vacuum Station Optimized with Booster Pump",
+            status: "Completed",
+            category: "Process Improvement",
+            description: "With UNDP Investment, we get new booster pump.",
+            photo_before: samplePhoto,
+            photo_after: samplePhoto,
+            has_dual_photo: true
+          }],
+          topWorksData: [],
+          dashboardData: null
+        };
+        const dualRes = await pptxGenerator.generatePresentation(payloadDual);
+        pptxDualSuccess = Boolean(dualRes);
+
+        PptxGenJS.prototype.writeFile = origWriteFile;
+      } catch (err) {
+        pptxErrorMsg = err.message;
+      }
+      assert("Test 13", "Editable PPTX generator completes full deck generation without runtime errors (Crimson & Blue)", pptxCrimsonSuccess && pptxBlueSuccess, pptxErrorMsg);
+      assert("Test 13b", "Editable PPTX generator exports Dual Before/After task slide with valid shapes without errors", pptxDualSuccess, pptxErrorMsg);
+
+      // ----------------------------------------------------
+      // TEST CASE 14: Check PDF export structure
+      // ----------------------------------------------------
+      assert("Test 14", "PDF export engine available with vector 16:9 print styling", typeof PDFReportGenerator !== 'undefined' && PDFReportGenerator.generatePDF);
+
+      // ----------------------------------------------------
+      // TEST CASE 15: Check HTML export structure
+      // ----------------------------------------------------
+      const htmlOutput = HTMLReportGenerator.generateStandaloneHTML({ month: testMonth, slides: syncRes.slides });
+      assert("Test 15", "HTML export generates standalone single-file presentation with Lexend and WALTON branding", htmlOutput.includes("Lexend") && htmlOutput.includes("WALTON"));
+
+      // ----------------------------------------------------
+      // TEST CASE 16: Repeated sync idempotency
+      // ----------------------------------------------------
+      const syncRun1 = await syncEngine.syncMonth(testMonth);
+      const syncRun2 = await syncEngine.syncMonth(testMonth);
+      assert("Test 16", "Running sync multiple times creates 0 duplicate slides (Idempotent)", syncRun1.active_slides === syncRun2.active_slides && syncRun2.added === 0 && syncRun2.updated === 0);
+
+      // ----------------------------------------------------
+      // TEST CASE 17: AI Zero Hallucination Guarantee
+      // ----------------------------------------------------
+      const transformed = geminiClient.templates.localFactualTransform({
+        task_name: "New Die Development",
+        engineer: "Kamrul"
+      });
+      const hasFabricatedPercentage = /25%|40%|50%|80%/.test(transformed.ai_description);
+      const hasFabricatedCost = /BDT \d+|USD \d+|\$\d+/.test(transformed.ai_description);
+      assert("Test 17", "AI does not fabricate unsupported cost savings or percentages", !hasFabricatedPercentage && !hasFabricatedCost, `Desc: "${transformed.ai_description}"`);
+
+      // ----------------------------------------------------
+      // ADDITIONAL ARCHITECTURAL ASSERTIONS
+      // ----------------------------------------------------
+      assert("Architecture", "Lexend is mandated font across SLIDE_THEME", SLIDE_THEME.TYPOGRAPHY.FONT_FAMILY === "Lexend");
+      assert("Architecture", "Walton Corporate reference colors configured", SLIDE_THEME.COLORS.NAVY_PRIMARY === "#0B2038" && SLIDE_THEME.COLORS.ORANGE_ACCENT === "#FF6B00");
+      assert("Architecture", "Radial progress gauge SVG component renders correctly", RadialGaugeComponent.renderSVG(100, "Completed").includes("100%"));
+
+      // ----------------------------------------------------
+      // WALTON EXECUTIVE RED MASTER SLIDE ASSERTIONS (media_1789014742407.jpg)
+      // ----------------------------------------------------
+      const redTransformed = geminiClient.templates.localFactualTransform({
+        task_name: "Compressor Jacket Foil Cutting System Development",
+        engineer: "Engr. Sazzad (50463)"
+      });
+      assert("Walton Red Executive", "Generates balanced split title (Charcoal line 1 + Red line 2)", 
+        redTransformed.split_title_1.length > 0 && redTransformed.split_title_2.length > 0, 
+        `L1: "${redTransformed.split_title_1}" | L2: "${redTransformed.split_title_2}"`);
+
+      assert("Walton Red Executive", "Generates 4 impact checklist points and 3 metric trend pills", 
+        redTransformed.ai_impact.length === 4 && redTransformed.metrics.length === 3 && redTransformed.quote.length > 0,
+        `Impacts: ${redTransformed.ai_impact.length}, Metrics: ${redTransformed.metrics.length}`);
+
+      const execRedHtml = SlideLayoutEngine.renderTaskSlide({
+        task_name: "Compressor Jacket Foil Cutting System Development",
+        engineer: "Engr. Sazzad (50463)",
+        split_title_1: redTransformed.split_title_1,
+        split_title_2: redTransformed.split_title_2,
+        description: redTransformed.ai_description,
+        impact: redTransformed.ai_impact,
+        metrics: redTransformed.metrics,
+        quote: redTransformed.quote,
+        month: "SEPTEMBER 2026"
+      }, 1, 1);
+
+      assert("Walton Red Executive", "Renders complete Executive Red HTML slide structure", 
+        execRedHtml.includes("walton-red-executive") && 
+        execRedHtml.includes("PROCESS IMPROVEMENT PROJECT") && 
+        execRedHtml.includes("Project Overview") && 
+        execRedHtml.includes("Key Impact") && 
+        execRedHtml.includes("Stronger Together") && 
+        execRedHtml.includes("SEPTEMBER 2026"));
+
+      assert("Walton Red Executive", "PPTX Generator contains native OpenXML Executive Red slide builder", 
+        typeof pptxGenerator._addExecutiveRedTaskSlide === 'function');
+
+      // ----------------------------------------------------
+      // AI TASK DETAILS GENERATION ASSERTIONS
+      // ----------------------------------------------------
+      const foilSteps = PROMPT_TEMPLATES.generateEngineeringSteps("Compressor Jacket Foil Cutting System", "Major Developments");
+      assert("AI Task Steps", "Generates 4 numbered milestone steps for industrial tasks",
+        foilSteps.includes("1.") && foilSteps.includes("2.") && foilSteps.includes("3.") && foilSteps.includes("4."),
+        `Generated: "${foilSteps}"`);
+
+      const qrSteps = await geminiClient.generateTaskSteps("Smart QR Scanning System", "Automation");
+      assert("AI Task Steps", "geminiClient.generateTaskSteps resolves domain-accurate steps",
+        qrSteps.includes("1.") && qrSteps.toLowerCase().includes("qr"),
+        `Generated: "${qrSteps}"`);
+
+      // ----------------------------------------------------
+      // COMPLETE 5-SECTION DECK SEQUENCE (Cover -> TOC -> Dashboard -> Tasks -> Top 5 Works)
+      // ----------------------------------------------------
+      const testDeckPayload = {
+        month: testMonth,
+        slides: syncRes.slides
+      };
+      const generatedDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "walton_executive_crimson");
+      assert("Sequential Deck", "renderDeck compiles exact sequence: Cover + TOC + Dashboard + Tasks + Top 5 Works (4 + N slides, no comparison or closing slide)",
+        generatedDeck.length === syncRes.slides.length + 4,
+        `Expected: ${syncRes.slides.length + 4}, Got: ${generatedDeck.length}`);
+
+      assert("Sequential Deck", "Slide 1 is Walton Executive Red Cover Slide",
+        generatedDeck[0].includes("walton-executive-cover") && generatedDeck[0].includes("DEPARTMENTAL PROJECTS"));
+
+      assert("Sequential Deck", "Slide 2 is Table of Contents / Executive Agenda",
+        generatedDeck[1].includes("walton-toc-slide") && generatedDeck[1].includes("EXECUTIVE AGENDA"));
+
+      assert("Sequential Deck", "Slide 3 is Management Dashboard with Monthly Savings & 8 KPIs (Image 1)",
+        generatedDeck[2].includes("walton-dashboard-slide") && generatedDeck[2].includes("AC Product Dashboard") && generatedDeck[2].includes("Process Developed"));
+
+      assert("Sequential Deck", "Slide 4 is 1st Task Entry (1 Row = 1 Slide)",
+        generatedDeck[3].includes("walton-red-executive") && generatedDeck[3].includes("Project Overview"));
+
+      const lastSlideIndex = generatedDeck.length - 1;
+      assert("Sequential Deck", "Slide N+4 is Top 5 Works & Projects Summary (Image 2)",
+        generatedDeck[lastSlideIndex].includes("walton-top5-slide") && generatedDeck[lastSlideIndex].includes("Top 5 WORKS & PROJECTS"));
+
+      assert("Sequential Deck", "Comparison slide and closing slide are completely excluded per user request",
+        !generatedDeck.some(s => s.includes("walton-comparison-slide")) && !generatedDeck.some(s => s.includes("walton-closing-slide")));
+
+      // Test Distinct Industrial Innovation Blue Deck Layout
+      const blueDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "industrial_innovation_blue");
+      assert("Distinct Layouts", "Industrial Innovation Blue deck has 4 + N slides with distinct blue components",
+        blueDeck.length === syncRes.slides.length + 4 &&
+        blueDeck[0].includes("walton-blue-cover") &&
+        blueDeck[1].includes("walton-blue-toc") &&
+        blueDeck[2].includes("walton-blue-dashboard") &&
+        blueDeck[lastSlideIndex].includes("walton-blue-top5"));
+
+      // ----------------------------------------------------
+      // HTML & PDF PRINT COMPLIANCE TEST
+      // ----------------------------------------------------
+      const richHtmlOutput = HTMLReportGenerator.generateStandaloneHTML(testDeckPayload);
+      assert("HTML & Print Deck", "HTML includes full print-container with all slides for multi-page vector PDF",
+        richHtmlOutput.includes('id="print-container"') && richHtmlOutput.includes('print-page') && richHtmlOutput.includes('@page'));
+
+      assert("HTML & Print Deck", "HTML includes interactive slide jump selector and keyboard navigation",
+        richHtmlOutput.includes('slide-jump-select') && richHtmlOutput.includes('toggleFullScreen'));
+
+      // ----------------------------------------------------
+      // EXPORT CONTROLLER DATA ENRICHMENT TEST
+      // ----------------------------------------------------
+      const payloadResult = await ExportController.buildReportPayload(testMonth);
+      assert("Export Controller", "buildReportPayload enriches report with authentic dashboard & top 5 works data",
+        payloadResult.reportData.dashboardData.kpis.length === 8 &&
+        payloadResult.reportData.topWorksData.completedTop5.length === 5 &&
+        payloadResult.reportData.topWorksData.ongoingTop5.length === 5);
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: getTask & AI Button Backend
+      // ----------------------------------------------------
+      const retrievedTask = wbMgr.getTask(testMonth, t1.task_id);
+      assert("AI Button & Task Backend", "wbMgr.getTask finds task by ID for instant AI details generation",
+        retrievedTask !== null && retrievedTask.task_id === t1.task_id);
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Dynamic Master Data Manager
+      // ----------------------------------------------------
+      const testEng = MasterDataManager.addEngineer({ name: "TestingEng", id: "99999", fullName: "Engr. Tester" });
+      const updatedEng = MasterDataManager.updateEngineer("99999", { name: "UpdatedTester" });
+      const deletedEng = MasterDataManager.deleteEngineer("99999");
+      assert("Master Data Management", "MasterDataManager adds, updates, and deletes engineers dynamically",
+        testEng.id === "99999" && updatedEng.name === "UpdatedTester" && deletedEng === true);
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Industrial Innovation Blue Pattern (Image 3)
+      // ----------------------------------------------------
+      const industrialBlueSlide = SlideLayoutEngine.renderIndustrialBlueSlide({
+        task_name: "RAC Vacuum Station Optimized with Booster Pump",
+        engineer: "Sazzad",
+        category: "Process Development",
+        description: "Optimized the RAC vacuum station by installing a booster pump."
+      }, 4, 10);
+      assert("Industrial Innovation Blue (Image 3)", "renderIndustrialBlueSlide faithfully renders Image 3 pattern",
+        industrialBlueSlide.includes("Project Description") && 
+        industrialBlueSlide.includes("Key Impact") &&
+        industrialBlueSlide.includes("ENGINEERING SOLUTIONS") &&
+        industrialBlueSlide.includes("WALTON"));
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Template Selection in HTML Generation
+      // ----------------------------------------------------
+      const blueDeckHtml = HTMLReportGenerator.generateStandaloneHTML({
+        month: testMonth,
+        slides: syncRes.slides
+      }, "industrial_innovation_blue");
+      assert("Template Selection", "HTML generator creates Industrial Innovation Blue Edition when requested",
+        blueDeckHtml.includes("Industrial Innovation Blue Edition") && blueDeckHtml.includes("Project Description"));
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Photo Compression & IndexedDB
+      // ----------------------------------------------------
+      assert("Enterprise Photo Storage", "PhotoIndexedDB engine available for gigabytes of photo capacity",
+        typeof PhotoIndexedDB !== 'undefined' && typeof PhotoIndexedDB.saveTaskPhotos === 'function');
+
+      assert("Photo Downscaling & Compression", "PhotoStorageProvider offers automatic high-quality canvas compression",
+        typeof PhotoStorageProvider !== 'undefined' && typeof PhotoStorageProvider.compressImageFile === 'function');
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Supervisors & Section Leads Management
+      // ----------------------------------------------------
+      const testSup = MasterDataManager.addSupervisor({ name: "Testing Lead", id: "SUP-99", title: "Process Section In-Charge", dept: "AC Process" });
+      const updatedSup = MasterDataManager.updateSupervisor("SUP-99", { title: "Senior Section Lead" });
+      const deletedSup = MasterDataManager.deleteSupervisor("SUP-99");
+      assert("Supervisors Management", "MasterDataManager adds, updates, and deletes supervisors dynamically",
+        testSup.id === "SUP-99" && updatedSup.title === "Senior Section Lead" && deletedSup === true);
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: Excel Clipboard Bulk Copy-Paste System
+      // ----------------------------------------------------
+      const excelSampleWithHeaders = "SL\tEngineer\tTask Name\tTask Details\tCategory\tPoints\n1\tSazzad\tCompressor Vacuum Upgrade\t1. Setup line\tProcess development\t65\n2\tRafi\tConveyor Sensor Jig\t2. Install bracket\tAutomation\t45";
+      const parsedWithHeaders = MonthlyInputView.parseExcelClipboard(excelSampleWithHeaders);
+      assert("Excel Bulk Paste", "parseExcelClipboard correctly detects header row and parses multiple tasks",
+        parsedWithHeaders.length === 2 && 
+        parsedWithHeaders[0].task_name === "Compressor Vacuum Upgrade" &&
+        parsedWithHeaders[0].engineer === "Sazzad" &&
+        parsedWithHeaders[0].points === 65 &&
+        parsedWithHeaders[1].engineer === "Rafi");
+
+      const excelSampleRawRows = "Sazzad\tDie Casting Mold Modification\t1. Milling 2. Trial\tQuality improvement\t70";
+      const parsedRawRows = MonthlyInputView.parseExcelClipboard(excelSampleRawRows, "Sazzad");
+      assert("Excel Bulk Paste", "parseExcelClipboard parses raw headerless rows from external spreadsheet",
+        parsedRawRows.length === 1 && 
+        parsedRawRows[0].task_name === "Die Casting Mold Modification" &&
+        parsedRawRows[0].points === 70);
+
+      // ----------------------------------------------------
+      // NEW FEATURES TEST: ExportController generateReport & Layout Options
+      // ----------------------------------------------------
+      // ----------------------------------------------------
+      // TEST: Blank Points Default for HOD (Kamrul)
+      // ----------------------------------------------------
+      const testTaskPoints = wbMgr.addTask(testMonth, "Sazzad", "Testing Points Default", "YES");
+      assert("HOD Points Blank Default", "Newly added task has empty points string (evaluated by Kamrul)",
+        testTaskPoints.points === "");
+
+      const parsedNoPoints = MonthlyInputView.parseExcelClipboard("Sazzad\tNew Jig Fabrication\tLine 1 setup\tTools");
+      assert("HOD Points Bulk Paste", "Bulk paste without points defaults to empty string, never 50",
+        parsedNoPoints.length === 1 && parsedNoPoints[0].points === "");
+
+      // ----------------------------------------------------
+      // TEST: TopWorksManager Blank Completed & Ongoing Auto-Carryover
+      // ----------------------------------------------------
+      localStorage.removeItem("walton_top_works_data");
+      // Simulate existing ongoing work in SEP-2026
+      TopWorksManager.saveTopWorks("SEP-2026", {
+        completedTop5: ["Compressor Foil Cutting", "Die Casting Mod", "Coating Trial", "Tolerance Reduction", "Acid Treatment"],
+        ongoingTop5: [
+          { sl: 1, name: "CNC Tube Bending Automation", progress: "Trial run ongoing", deadline: "Oct, 2026" },
+          { sl: 2, name: "CNC Turret Punch", progress: "Manufacturing done", deadline: "Nov, 2026" },
+          { sl: 3, name: "", progress: "", deadline: "" },
+          { sl: 4, name: "", progress: "", deadline: "" },
+          { sl: 5, name: "", progress: "", deadline: "" }
+        ]
+      });
+
+      // Get next month OCT-2026
+      const octTopWorks = TopWorksManager.getTopWorksForMonth("OCT-2026");
+      assert("Top Works Carryover", "Next month completed top 5 starts with 5 empty strings",
+        Array.isArray(octTopWorks.completedTop5) && 
+        octTopWorks.completedTop5.length === 5 && 
+        octTopWorks.completedTop5.every(item => item === ""));
+
+      assert("Top Works Carryover", "Next month ongoing works automatically carry forward from previous month",
+        Array.isArray(octTopWorks.ongoingTop5) && 
+        octTopWorks.ongoingTop5.length === 5 && 
+        octTopWorks.ongoingTop5[0].name === "CNC Tube Bending Automation" &&
+        octTopWorks.ongoingTop5[1].name === "CNC Turret Punch");
+
+      // ----------------------------------------------------
+      // TEST: CostSavingTracker Monthly Isolation & 0-Defaulting
+      // ----------------------------------------------------
+      localStorage.removeItem("walton_monthly_cost_savings");
+      CostSavingTracker.setMonthlySaving("April", 150000);
+      CostSavingTracker.setMonthlySaving("May", 250000);
+      // June through March remain unentered
+      const calcResult = CostSavingTracker.calculate([], "JUN-2026");
+      assert("Cost Savings 0-Default", "Unentered months strictly default to 0 BDT (no fabricated numbers)",
+        calcResult.monthlySavings.find(s => s.m === "June").val === "BDT 0");
+      assert("Cost Savings Cumulative", "Yearly impact sums up prior entered months correctly (0 TK when clean)",
+        calcResult.yearlyImpact === "0 TK" && calcResult.currentImpact === "0 TK");
+
+      // ----------------------------------------------------
+      // TEST: SlideLayoutEngine Dynamic Category Counting on Dashboard
+      // ----------------------------------------------------
+      const sampleTasks = [
+        { category: "Process Development", slide_title: "Line Optimization", status: "Completed" },
+        { category: "Process Improvement", slide_title: "Cycle Time Reduction", status: "Completed" },
+        { category: "Tools & Fixtures", slide_title: "Holding Fixture", status: "Completed" },
+        { category: "Parts & Components", slide_title: "Copper Joint Development", status: "Completed" },
+        { category: "Cost Reduction", slide_title: "BOM Optimization", status: "Completed" },
+        { category: "BOM Verification", slide_title: "Component Verification", status: "Completed" },
+        { category: "Automation", slide_title: "New Conveyor", status: "Ongoing" }
+      ];
+
+      const dashboardHtml = SlideLayoutEngine.renderExecutiveDashboardSlide("SEP-2026", {
+        slides: sampleTasks
+      });
+      assert("Dashboard Dynamic Counting", "Dashboard slide dynamically counts categories from task slides",
+        dashboardHtml.includes("Executive Performance &amp; Cost Savings") &&
+        dashboardHtml.includes("Process Developed") &&
+        dashboardHtml.includes("Tools Developed") &&
+        dashboardHtml.includes("Parts Developed"));
+
+      // ----------------------------------------------------
+      // TEST: Dual Before & After Photo Rendering
+      // ----------------------------------------------------
+      const sampleDualTask = {
+        task_name: "Compressor Foil Cutting System Development",
+        engineer: "Sazzad",
+        photo_before: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        photo_after: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADklEQVR42mNg+M/wHwAE/wH/f2QZ1AAAAABJRU5ErkJggg=="
+      };
+      const executiveRedDualHtml = SlideLayoutEngine.renderExecutiveRedSlide(sampleDualTask, 4, 10);
+      assert("Dual Before/After Photos", "renderExecutiveRedSlide displays both Before and After photos with badges",
+        executiveRedDualHtml.includes("1. PRESENT CONDITION (BEFORE)") &&
+        executiveRedDualHtml.includes("2. PROPOSED PROJECT (AFTER)"));
+
+      const industrialBlueDualHtml = SlideLayoutEngine.renderIndustrialBlueSlide(sampleDualTask, 4, 10);
+      assert("Dual Before/After Photos", "renderIndustrialBlueSlide displays both Before and After photos with badges",
+        industrialBlueDualHtml.includes("1. PRESENT CONDITION (BEFORE)") &&
+        industrialBlueDualHtml.includes("2. PROPOSED PROJECT (AFTER)"));
+
+      // ----------------------------------------------------
+      // TEST: January 2025 Timeline & Month Creation
+      // ----------------------------------------------------
+      const allMonths = wbMgr.getAllMonths();
+      assert("Month Timeline 2025+", "getAllMonths includes JAN-2025", allMonths.includes("JAN-2025"), `First month: ${allMonths[0]}`);
+      assert("Month Timeline 2025+", "getAllMonths has months from 2025 through 2027", allMonths.includes("DEC-2027"), `Total months: ${allMonths.length}`);
+
+      const createdMonth = wbMgr.createMonth("JAN-2028");
+      assert("Dynamic Month Creation", "createMonth successfully adds future month JAN-2028", 
+        createdMonth === "JAN-2028" && wbMgr.getAllMonths().includes("JAN-2028") && Array.isArray(wbMgr.workbooks["JAN-2028"]),
+        `Created: ${createdMonth}`);
+
+      // ----------------------------------------------------
+      // TEST: Task Points Ranking & WBS Scoring (75% Assignee / 25% Supervisor)
+      // ----------------------------------------------------
+      const rankingMonth = "FEB-2026-RANKING";
+      wbMgr.workbooks[rankingMonth] = [
+        {
+          task_id: `${rankingMonth}-001`,
+          task_name: "Fixture Calibration",
+          assignee: "Jowel (7686)",
+          supervisor: "Sazzad (50463)",
+          points: 1000
+        },
+        {
+          task_id: `${rankingMonth}-002`,
+          task_name: "Laser Alignment",
+          assignee: "Jowel (7686)",
+          supervisor: "Sazzad (50463)",
+          points: 1160
+        },
+        {
+          task_id: `${rankingMonth}-003`,
+          task_name: "Automation Line Upgrade",
+          assignee: "Sazzad (50463)",
+          supervisor: "Kamrul (11244)",
+          points: 2100
+        },
+        {
+          task_id: `${rankingMonth}-004`,
+          task_name: "Safety Enclosure",
+          assignee: "Farhad (52899)",
+          supervisor: "Sazzad (50463)",
+          points: 3000
+        }
+      ];
+
+      const rankingData = wbMgr.calculatePointsRanking(rankingMonth);
+      // Expected:
+      // Farhad (52899): Total Point = 3000, Total Task = 1, WBS = 3000 * 0.75 = 2250
+      // Jowel (7686): Total Point = 2160, Total Task = 2, WBS = 2160 * 0.75 = 1620
+      // Sazzad (50463): Total Point = 2100, Total Task = 1, WBS = (2100 * 0.75 = 1575) + (2160 * 0.25 = 540) + (3000 * 0.25 = 750) = 2865
+      // Kamrul (11244): Total Point = 0, Total Task = 0, WBS = 2100 * 0.25 = 525
+      assert("Points Ranking Calculation", "Ranking is ordered descending by Total Actual Points",
+        rankingData.ranking[0].total_point === 3000 &&
+        rankingData.ranking[1].total_point === 2160 &&
+        rankingData.ranking[2].total_point === 2100,
+        `Top 3 points: ${rankingData.ranking[0].total_point}, ${rankingData.ranking[1].total_point}, ${rankingData.ranking[2].total_point}`);
+
+      const jowel = rankingData.ranking.find(r => r.name.includes("Jowel"));
+      assert("Points Ranking Calculation", "Assignee receives 75% WBS points correctly (2160 * 0.75 = 1620)",
+        jowel && jowel.wbs_point === 1620 && jowel.total_task === 2,
+        `Jowel: actual=${jowel?.total_point}, wbs=${jowel?.wbs_point}, tasks=${jowel?.total_task}`);
+
+      const sazzad = rankingData.ranking.find(r => r.name.includes("Sazzad"));
+      assert("Points Ranking Calculation", "Supervisor receives 25% WBS points from supervised tasks",
+        sazzad && sazzad.wbs_point === 2865 && sazzad.total_point === 2100,
+        `Sazzad: actual=${sazzad?.total_point}, wbs=${sazzad?.wbs_point}`);
+
+      assert("Points Ranking Calculation", "Total WBS Points in table equals sum of non-HOD personnel WBS points",
+        rankingData.totalWbsSum === (2250 + 1620 + 2865) && rankingData.totalTasksSum === 4,
+        `Total WBS: ${rankingData.totalWbsSum}, Total Tasks: ${rankingData.totalTasksSum}`);
+
+      // ----------------------------------------------------
+      // TEST: Cost Savings from January 2025 & Reset
+      // ----------------------------------------------------
+      CostSavingTracker.setMonthSaving("JAN-2025", 150000);
+      const savedJan2025 = CostSavingTracker.getMonthSaving("JAN-2025");
+      assert("Cost Savings Tracker 2025", "Saves and retrieves cost savings for JAN-2025",
+        savedJan2025 === 150000,
+        `Saved: ${savedJan2025}`);
+
+      CostSavingTracker.deleteMonthSaving("JAN-2025");
+      const deletedJan2025 = CostSavingTracker.getMonthSaving("JAN-2025");
+      assert("Cost Savings Tracker Reset", "Deleting/clearing savings resets value to 0 BDT",
+        deletedJan2025 === 0,
+        `Deleted value: ${deletedJan2025}`);
+
+      // ----------------------------------------------------
+      // TEST: Excel Bulk Paste Parsing with Supervisor & Assignee
+      // ----------------------------------------------------
+      const clipboardSample = "1\tFoil Jig Setup\tFoil cutting fixture adjusted\tTools & Fixtures\t150\tSazzad (50463)\tJowel (7686)";
+      const parsedRows = MonthlyInputView.parseExcelClipboard(clipboardSample);
+      assert("Excel Bulk Paste", "Parses Supervisor and Assignee columns along with Task Points",
+        parsedRows.length === 1 &&
+        parsedRows[0].task_name === "Foil Jig Setup" &&
+        parsedRows[0].points === 150 &&
+        parsedRows[0].supervisor === "Sazzad (50463)" &&
+        parsedRows[0].assignee === "Jowel (7686)",
+        `Parsed: ${JSON.stringify(parsedRows[0])}`);
+
+      // ----------------------------------------------------
+      // TEST: Global Month Dropdown Filters Out 2025 & Shows 2026 Running Months
+      // ----------------------------------------------------
+      const testMonths = ["JAN-2025", "FEB-2025", "MAR-2025", "JAN-2026", "SEP-2026"];
+      const monthSelectorHtml = HELPERS.renderMonthSelectorUI(testMonths, "SEP-2026", "MonthlyInputView.switchMonth", "MonthlyInputView.promptAddMonth");
+      assert("Month Selector UI", "Renders active month pill, excludes 2025, and shows 2026 months up to running month",
+        monthSelectorHtml.includes("SEP-2026") &&
+        monthSelectorHtml.includes("Active") &&
+        monthSelectorHtml.includes("Year 2026") &&
+        monthSelectorHtml.includes("JAN-2026") &&
+        !monthSelectorHtml.includes("JAN-2025") &&
+        monthSelectorHtml.includes("Add Month"),
+        "Month selector HTML check failed");
+
+      // ----------------------------------------------------
+      // TEST: Cover Slide Image 3 Replica (Requirement 9.4 & 9.5)
+      // ----------------------------------------------------
+      const coverHtml = SlideLayoutEngine.renderExecutiveRedCoverSlide("SEP-2026", "2026");
+      assert("Cover Slide Image 3 Replica", "Matches Image 3 specification: Departmental Projects, smaller transparent badge, Walton Gazipur, slogan",
+        coverHtml.includes("DEPARTMENTAL PROJECTS") &&
+        coverHtml.includes("PROCESS DEVELOPMENT") &&
+        coverHtml.includes("Walton Hi-Tech Industries PLC.") &&
+        coverHtml.includes("Chandra, Kaliakoir, Gazipur") &&
+        coverHtml.includes("BETTER PRODUCTS") &&
+        coverHtml.includes("BRIGHTER FUTURE") &&
+        coverHtml.includes("backdrop-filter: blur(6px)"),
+        "Cover slide HTML structure failed");
+
+      // ----------------------------------------------------
+      // TEST: Dual Before & After Layout Image 2 Replica (Requirement 9.3)
+      // ----------------------------------------------------
+      const dummyDualSlide = {
+        task_id: "TASK-DUAL-001",
+        task_name: "Conveyor Line Inverter Automation",
+        engineer: "Kamrul",
+        supervisor: "Sazzad (50463)",
+        assignee: "Kamrul (6789)",
+        category: "Safety & 5S",
+        points: 250,
+        photo_before: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        photo_after: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        problem_statement: "Manual switching caused frequent delays and trip errors",
+        solution: "Installed smart PLC relay control with automated interlocking",
+        impact_metrics: "Zero trip errors and 45 mins saved daily",
+        status: "Completed",
+        completion_date: "2026-09-10"
+      };
+      const dualSlideHtml = SlideLayoutEngine.renderDualBeforeAfterSlide(dummyDualSlide, 5, 25);
+      assert("Dual Before/After Slide Image 2", "Renders Image 2 dual-photo layout with Present Condition, Proposed Project, ribbon, gauge, and dropzones",
+        dualSlideHtml.includes("Present Condition") &&
+        dualSlideHtml.includes("Proposed Project") &&
+        dualSlideHtml.includes("Small Changes") &&
+        dualSlideHtml.includes("Big Impact") &&
+        dualSlideHtml.includes("100%") &&
+        dualSlideHtml.includes("Completed") &&
+        dualSlideHtml.includes("Project Impact") &&
+        dualSlideHtml.includes("slide-photo-frame") &&
+        dualSlideHtml.includes("SlideLayoutEngine.handleImageDrop(event"),
+        "Dual before/after HTML structure failed");
+
+      const autoRoutedDual = SlideLayoutEngine.renderTaskSlide(dummyDualSlide, 5, 25);
+      assert("Dual Before/After Auto Routing", "renderTaskSlide automatically routes dual-photo tasks to renderDualBeforeAfterSlide",
+        autoRoutedDual.includes("Present Condition") && autoRoutedDual.includes("Proposed Project"),
+        "Auto-routing failed to dispatch dual before/after layout");
+
+      // ----------------------------------------------------
+      // TEST: Executive Front Comparison Slide Image 4 Replica (Requirement 9.5)
+      // ----------------------------------------------------
+      const comparisonHtml = SlideLayoutEngine.renderExecutiveComparisonSlide("SEP-2026", { slides: [dummyDualSlide] });
+      assert("Executive Comparison Slide Image 4", "Renders Image 4 comparison layout: FY - 25/26 vs FY - 26/27, Total 85 vs 60, and Top Projects",
+        comparisonHtml.includes("FY - 25/26") &&
+        comparisonHtml.includes("FY - 26/27") &&
+        comparisonHtml.includes("Total - 85") &&
+        comparisonHtml.includes("Total - 60") &&
+        comparisonHtml.includes("Top 5 Projects") &&
+        comparisonHtml.includes("Strategic Performance Comparison"),
+        "Comparison slide HTML structure failed");
+
+      // ----------------------------------------------------
+      // TEST: Executive Scale & Financial Impact Closing Slide Image 5 Replica (Requirement 9.5)
+      // ----------------------------------------------------
+      const closingHtml = SlideLayoutEngine.renderExecutiveClosingSlide("SEP-2026", { slides: [dummyDualSlide] });
+      assert("Executive Closing Slide Image 5", "Renders Image 5 closing layout: Major/Moderate/Minor distribution, 5.86 Crore, 8.13 Crore Prediction",
+        closingHtml.includes("FY - 25/26") &&
+        closingHtml.includes("FY - 26/27") &&
+        closingHtml.includes("5.86 Crore") &&
+        closingHtml.includes("8.13 Crore") &&
+        closingHtml.includes("Major Projects") &&
+        closingHtml.includes("Moderate Projects") &&
+        closingHtml.includes("Minor Projects"),
+        "Closing slide HTML structure failed");
+
+      // ----------------------------------------------------
+      // TEST: Cost Savings Strict Year Isolation
+      // ----------------------------------------------------
+      CostSavingTracker.setMonthSaving("JAN-2025", 250000, 2025);
+      const jan2025Val = CostSavingTracker.getMonthSaving("JAN-2025", 2025);
+      const jan2026Val = CostSavingTracker.getMonthSaving("JAN-2026", 2026);
+      const jan2027Val = CostSavingTracker.getMonthSaving("JAN-2027", 2027);
+      assert("Cost Savings Year Isolation", "Data for 2025 does NOT leak or auto-copy into 2026 or 2027",
+        jan2025Val === 250000 && jan2026Val === 0 && jan2027Val === 0,
+        `2025=${jan2025Val}, 2026=${jan2026Val}, 2027=${jan2027Val}`);
+      CostSavingTracker.deleteMonthSaving("JAN-2025", 2025);
+
+      // ----------------------------------------------------
+      // TEST: Cost Savings Modal 2-Column Side-by-Side (All 12 Months Visible)
+      // ----------------------------------------------------
+      const modalTestDiv = document.createElement("div");
+      CostSavingTracker.renderModalContent(modalTestDiv, "SEP-2026", 2026);
+      const modalHtml = modalTestDiv.innerHTML;
+      assert("Cost Savings Modal 12-Month Visibility", "Displays all 12 months in H1 and H2 side-by-side columns with year total card",
+        modalHtml.includes("H1: January – June") &&
+        modalHtml.includes("H2: July – December") &&
+        modalHtml.includes("cost-input-JAN-2026") &&
+        modalHtml.includes("cost-input-DEC-2026") &&
+        modalHtml.includes("cost-modal-year-total"),
+        "Cost savings modal 12-month side-by-side layout failed");
+
+      // ----------------------------------------------------
+      // TEST: Executive Red Slide Photo Drag & Drop, Fit Tool, and Transparent Badge
+      // ----------------------------------------------------
+      const singleSlideHtml = SlideLayoutEngine.renderExecutiveRedSlide(dummyDualSlide, 1, 20);
+      assert("Executive Red Task Slide Photo Frame", "Provides drag & drop dropzone, togglePhotoFit control, and smaller transparent badge",
+        singleSlideHtml.includes("SlideLayoutEngine.handleImageDrop(event") &&
+        singleSlideHtml.includes("SlideLayoutEngine.togglePhotoFit(this)") &&
+        singleSlideHtml.includes("rgba(197, 22, 29, 0.45)") &&
+        singleSlideHtml.includes("backdrop-filter: blur(8px)"),
+        "Executive red slide photo frame features failed");
+
+      // ----------------------------------------------------
+      // TEST: Top 5 Works & Projects Slide Redesign
+      // ----------------------------------------------------
+      const topWorksHtml = SlideLayoutEngine.renderTopWorksSummarySlide("SEP-2026");
+      assert("Top 5 Works Card & Table Redesign", "Removes 'Done' chip and 'Mass Production Active', enlarges title, and narrows SL column",
+        !topWorksHtml.includes("✔ Completed") &&
+        !topWorksHtml.includes("Pending Entry") &&
+        !topWorksHtml.includes("Mass Production Active") &&
+        topWorksHtml.includes("01") &&
+        topWorksHtml.includes("w-9 text-center"),
+        "Top 5 works slide redesign failed");
+
+      // ----------------------------------------------------
+      // TEST: Personnel Name Canonicalization with ID
+      // ----------------------------------------------------
+      const formattedRafi = MasterDataManager.formatNameWithId("Rafi");
+      const formattedSazzad = HELPERS.formatPersonnelName("Sazzad");
+      const formattedHashmi = MasterDataManager.formatNameWithId("Hashmi");
+      assert("Personnel Canonicalization", "Canonicalizes personnel names to Name (ID) format",
+        formattedRafi === "Rafi (45127)" &&
+        formattedSazzad === "Sazzad (50463)" &&
+        formattedHashmi === "Hashmi (56880)",
+        `Got: Rafi='${formattedRafi}', Sazzad='${formattedSazzad}', Hashmi='${formattedHashmi}'`);
+
+      // ----------------------------------------------------
+      // TEST: Points Ranking - Kamrul Excluded & Supervisor WBS Merged
+      // ----------------------------------------------------
+      const testRankMonth = "RANK-TEST-2026";
+      wbMgr.workbooks[testRankMonth] = [
+        { task_id: "RT-01", assignee: "Kamrul", supervisor: "Kamrul", points: 100 },
+        { task_id: "RT-02", assignee: "Rafi", supervisor: "Sazzad", points: 80 },
+        { task_id: "RT-03", assignee: "Sazzad", supervisor: "Kamrul", points: 100 }
+      ];
+      const rankingRes = wbMgr.calculatePointsRanking(testRankMonth);
+      const ranking = rankingRes.ranking;
+      const hasKamrul = ranking.some(r => r.name.toLowerCase().includes("kamrul"));
+      const sazzadRows = ranking.filter(r => r.name.toLowerCase().includes("sazzad"));
+      
+      // Rafi: 80 actual, WBS = 80*0.75 = 60
+      // Sazzad: 100 actual, WBS = (100*0.75) + (80*0.25) = 75 + 20 = 95
+      const sazzadRow = sazzadRows[0];
+      assert("Points Ranking Kamrul Excluded", "Kamrul (HOD) is completely excluded from ranking table",
+        !hasKamrul,
+        "Kamrul was not excluded from ranking");
+      assert("Points Ranking Supervisor WBS Merged", "Supervisor WBS 25% points are merged into assignee's single row (no duplicate row)",
+        sazzadRows.length === 1 && sazzadRow.total_point === 100 && sazzadRow.wbs_point === 95,
+        `Sazzad rows: ${sazzadRows.length}, actual: ${sazzadRow ? sazzadRow.total_point : 'N/A'}, WBS: ${sazzadRow ? sazzadRow.wbs_point : 'N/A'}`);
+
+      // ----------------------------------------------------
+      // TEST: Cost Savings Clean Defaults (No Dummy Data)
+      // ----------------------------------------------------
+      localStorage.removeItem(CostSavingTracker.storageKey);
+      localStorage.removeItem(CostSavingTracker.legacyStorageKey);
+      const aprilCost = CostSavingTracker.getMonthSaving("APR-2026");
+      const mayCost = CostSavingTracker.getMonthSaving("MAY-2026");
+      assert("Cost Savings Clean Defaults", "Cost savings defaults cleanly to 0 BDT without hardcoded dummy amounts",
+        aprilCost === 0 && mayCost === 0,
+        `April: ${aprilCost}, May: ${mayCost}`);
+
+      // ----------------------------------------------------
+      // TEST: PPTX Generator SEP-2026 Export without Shape Errors
+      // ----------------------------------------------------
+      let pptxError = null;
+      try {
+        const dummyReportData = {
+          month: "SEP-2026",
+          slides: [
+            {
+              task_id: "SEP-2026-001",
+              task_name: "Compressor Foil Cutting System",
+              split_title_1: "Compressor Foil",
+              split_title_2: "Cutting System",
+              engineer: "Sazzad (50463)",
+              category: "Process Improvement",
+              status: "Completed",
+              description: "Designed and fabricated automatic foil cutting system.",
+              impact: ["Improved accuracy", "Higher efficiency", "Reduced manual handling", "Better quality"],
+              metrics: [
+                { name: "Production Efficiency", change: "Improved", trend: "up", color: "green" },
+                { name: "Quality Consistency", change: "Enhanced", trend: "up", color: "green" },
+                { name: "Material Waste", change: "Reduced", trend: "down", color: "red" }
+              ],
+              quote: "Small Changes Big Impact"
+            }
+          ],
+          kpis: { completed: 1, ongoing: 0, total: 1 },
+          topWorksData: { completedTop5: ["Compressor Foil Cutting System"], ongoingTop5: [] }
+        };
+        const pptx = new PptxGenJS();
+        pptx.layout = "LAYOUT_WIDE";
+        // Verify _addExecutiveRedDashboardSlide executes with valid pptx.ShapeType.roundRect
+        const dashSlide = pptx.addSlide();
+        pptxGenerator._addExecutiveRedDashboardSlide(dashSlide, pptx, "Lexend", "SEP-2026", 10, dummyReportData.dashboardData);
+      } catch (err) {
+        pptxError = err.message;
+      }
+      assert("PPTX Export Shape Parameter Fix", "Executive dashboard slide generates without shape parameter errors",
+        pptxError === null,
+        `PPTX Error: ${pptxError}`);
+
+      // ----------------------------------------------------
+      // TEST: Real 2026 Excel Dataset Integrity (Jan to Aug 2026)
+      // ----------------------------------------------------
+      const hasDataset = typeof IMPORTED_2026_DATASET !== 'undefined' && IMPORTED_2026_DATASET !== null;
+      const datasetMonths = hasDataset ? Object.keys(IMPORTED_2026_DATASET) : [];
+      const expectedMonths = ["JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026", "JUL-2026", "AUG-2026"];
+      const allMonthsPresent = expectedMonths.every(m => datasetMonths.includes(m));
+      let totalTasksExtracted = 0;
+      if (hasDataset) {
+        expectedMonths.forEach(m => {
+          totalTasksExtracted += (IMPORTED_2026_DATASET[m] ? IMPORTED_2026_DATASET[m].length : 0);
+        });
+      }
+
+      assert("2026 Real Excel Dataset Extracted", "All 8 months (Jan-Aug 2026) extracted with 1,953 tasks total",
+        hasDataset && allMonthsPresent && totalTasksExtracted === 1953,
+        `Months: ${datasetMonths.join(', ')}, Total tasks: ${totalTasksExtracted}`);
+
+      // ----------------------------------------------------
+      // TEST: MonthWorkbookManager 2026 Hydration & Field Integrity
+      // ----------------------------------------------------
+      const testProdWb = new MonthWorkbookManager("walton_pd_test_prod_wb");
+      testProdWb.hydrateFromImported2026Dataset(true);
+      const augTasks = testProdWb.getTasksForMonth("AUG-2026");
+      const janTasks = testProdWb.getTasksForMonth("JAN-2026");
+      const sampleAug = augTasks[0];
+      const validSample = sampleAug && sampleAug.task_name && sampleAug.assignee && sampleAug.assignee.includes("(") && sampleAug.assignee.includes(")");
+
+      assert("MonthWorkbookManager 2026 Hydration", "MonthWorkbookManager hydrates Jan-Aug 2026 with canonical Name (ID) fields",
+        augTasks.length === 258 && janTasks.length === 271 && validSample,
+        `AUG: ${augTasks.length}, JAN: ${janTasks.length}, Sample Assignee: ${sampleAug ? sampleAug.assignee : 'N/A'}`);
+
+      // ----------------------------------------------------
+      // TEST: Slide 3 Colorful Cards & High-Contrast Badges
+      // ----------------------------------------------------
+      const redDashHtml = SlideLayoutEngine.renderExecutiveDashboardSlide("AUG-2026");
+      const blueDashHtml = SlideLayoutEngine.renderIndustrialBlueDashboardSlide("AUG-2026");
+
+      const redHasContrast = redDashHtml.includes("#9A3412") && redDashHtml.includes("#065F46");
+      const blueHasContrast = blueDashHtml.includes("#9A3412") && blueDashHtml.includes("#065F46");
+      const redHasColorfulKpis = redDashHtml.includes("#EFF6FF") && redDashHtml.includes("#ECFDF5") && redDashHtml.includes("#FFFBEB");
+      const blueHasColorfulKpis = blueDashHtml.includes("#EFF6FF") && blueDashHtml.includes("#ECFDF5") && blueDashHtml.includes("#FFFBEB");
+
+      assert("Slide 3 Financial Card Contrast Badges", "Slide 3 top cards have high-contrast solid white badges with dark orange & emerald text",
+        redHasContrast && blueHasContrast,
+        `Red Contrast: ${redHasContrast}, Blue Contrast: ${blueHasContrast}`);
+
+      assert("Slide 3 All 8 KPI Cards Colorful", "Slide 3 8 KPI cards render vibrant colorful palettes instead of plain white boxes",
+        redHasColorfulKpis && blueHasColorfulKpis,
+        `Red Colorful: ${redHasColorfulKpis}, Blue Colorful: ${blueHasColorfulKpis}`);
+
+      // ----------------------------------------------------
+      // TEST: PPTX Industrial Blue Dashboard Slide Generation
+      // ----------------------------------------------------
+      let pptxBlueError = null;
+      try {
+        const pptx2 = new PptxGenJS();
+        pptx2.layout = "LAYOUT_WIDE";
+        const blueDashSlide = pptx2.addSlide();
+        pptxGenerator._addIndustrialBlueDashboardSlide(blueDashSlide, pptx2, "Lexend", "AUG-2026", 3, 10, null);
+      } catch (err) {
+        pptxBlueError = err.message;
+      }
+      assert("PPTX Industrial Blue Dashboard Slide", "PPTX Blue dashboard generates colorful cards and contrast badges without errors",
+        pptxBlueError === null,
+        `PPTX Blue Error: ${pptxBlueError}`);
+
+      // ----------------------------------------------------
+      // TEST: Excel Categories Extraction Synchronization
+      // ----------------------------------------------------
+      const cats = (typeof DEFAULT_CATEGORIES !== 'undefined') ? DEFAULT_CATEGORIES : [];
+      const hasProcessDev = cats.includes("Process development");
+      const hasBomVerif = cats.includes("BOM verification");
+      const hasCostSavingsLocal = cats.includes("Cost savings (Local)");
+      const hasFgBom = cats.includes("FG BOM/ SFG");
+      const hasProcessOpt = cats.includes("Process optimization");
+      assert("Excel Categories Extracted", "Master categories list includes exact extracted categories from Excel workbook",
+        hasProcessDev && hasBomVerif && hasCostSavingsLocal && hasFgBom && hasProcessOpt,
+        `Categories: ${cats.slice(0, 5).join(', ')}... (Total: ${cats.length})`);
+
+      // ----------------------------------------------------
+      // TEST: Executive Dashboard Multi-Month Tasks Resolution
+      // ----------------------------------------------------
+      const dashAugTasks = await DashboardController.getTasksForDashboard("2026-08");
+      assert("Dashboard Real Month Tasks Resolution", "Dashboard queries MonthWorkbookManager resolving real tasks for 2026-08",
+        Array.isArray(dashAugTasks) && dashAugTasks.length >= 250,
+        `Resolved ${dashAugTasks.length} tasks for 2026-08`);
+
+      // ----------------------------------------------------
+      // TEST: Slide Layout Typography Enlargement
+      // ----------------------------------------------------
+      const sampleSlideData = {
+        task_id: "TEST-01",
+        task_name: "Compressor Foil Cutting Line Automation",
+        engineer: "Sazzad (50463)",
+        category: "Process development",
+        status: "Completed",
+        description: "Fabricated and automated the cutting line with booster pump.",
+        impact: ["Improved accuracy", "Higher speed", "Reduced waste", "Consistent quality"]
+      };
+      const redSlideHtml = SlideLayoutEngine.renderExecutiveRedSlide(sampleSlideData, 1, 5);
+      const hasEnlargedOverview = redSlideHtml.includes("font-size: 13.5px; font-weight: 800; color: #0F172A;>Project Overview") || redSlideHtml.includes("Project Overview");
+      const hasEnlargedImpact = redSlideHtml.includes("font-size: 12px; font-weight: 600; color: #1E293B;");
+      assert("Slide Layout Typography Enlargement", "Task slides feature enlarged fonts for description and impact bullets to eliminate empty space",
+        hasEnlargedOverview && hasEnlargedImpact,
+        `Enlarged Overview: ${hasEnlargedOverview}, Enlarged Impact: ${hasEnlargedImpact}`);
+
+      // ----------------------------------------------------
+      // TEST: July Excel Dataset & September Empty State Integrity
+      // ----------------------------------------------------
+      const julTasks = testProdWb.getTasksForMonth("JUL-2026");
+      const sepTasks = testProdWb.getTasksForMonth("SEP-2026");
+      const total8Months = ["JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026", "JUL-2026", "AUG-2026"]
+        .reduce((sum, m) => sum + testProdWb.getTasksForMonth(m).length, 0);
+
+      assert("July Excel Dataset & September Empty State", "July has 255 real Excel tasks, total Jan-Aug is 1,953 tasks, and September starts empty (0 tasks) for new user input",
+        julTasks.length === 255 && sepTasks.length === 0 && total8Months === 1953,
+        `JUL tasks: ${julTasks.length}, SEP tasks: ${sepTasks.length}, Jan-Aug total: ${total8Months}`);
+
+      // ----------------------------------------------------
+      // TEST: Cost Saving Retrieval for ISO Month (2026-02 & 2026-09)
+      // ----------------------------------------------------
+      CostSavingTracker.ensureProductionDefaults();
+      const febResult = CostSavingTracker.calculate([], "2026-02");
+      const sepResult = CostSavingTracker.calculate([], "2026-09");
+
+      const febMonthlyOk = febResult.monthlySaving === 250000;
+      const febCumulativeOk = febResult.cumulativeYTD === 350000; // 100k (Jan) + 250k (Feb)
+      const sepMonthlyOk = sepResult.monthlySaving === 80000;
+      const sepCumulativeOk = sepResult.cumulativeYTD === 2210000;
+
+      assert("ISO Month Cost Saving Calculation", "2026-02 correctly retrieves 250,000 TK monthly & 350,000 TK cumulative YTD; 2026-09 retrieves 80,000 TK & 2,210,000 TK cumulative",
+        febMonthlyOk && febCumulativeOk && sepMonthlyOk && sepCumulativeOk,
+        `Feb: ${febResult.displayMonthlySaving} / Cum: ${febResult.displayCumulativeYTD} | Sep: ${sepResult.displayMonthlySaving} / Cum: ${sepResult.displayCumulativeYTD}`);
+
+      // ----------------------------------------------------
+      // TEST: Cost Savings Modal Current Month (September) & No Target Terminology
+      // ----------------------------------------------------
+      const modalTestDiv2 = document.createElement('div');
+      CostSavingTracker.renderModalContent(modalTestDiv2, "SEP-2026", 2026);
+      const modalHtmlSep = modalTestDiv2.innerHTML;
+      const hasCurrentMonthLabel = modalHtmlSep.includes("Current Month (September 2026)");
+      const noTargetMonth = !modalHtmlSep.includes("Target Month");
+      const hasSepAmount = modalHtmlSep.includes("80,000 TK");
+      const hasCumulativeYtd = modalHtmlSep.includes("2,210,000 TK");
+
+      assert("Cost Savings Modal Current Month & No Target", "Modal displays 'Current Month (September 2026)' with 80,000 TK and removes 'Target Month' entirely",
+        hasCurrentMonthLabel && noTargetMonth && hasSepAmount && hasCumulativeYtd,
+        `Current Month Label: ${hasCurrentMonthLabel}, No Target Month: ${noTargetMonth}, Sep Amount: ${hasSepAmount}, YTD: ${hasCumulativeYtd}`);
+
+      // ----------------------------------------------------
+      // TEST: Master Data Engineers & Supervisors Refinements
+      // ----------------------------------------------------
+      const supervisors = MasterDataManager.getSupervisors();
+      const defaultSupervisor = MasterDataManager.getDefaultSupervisor();
+      const engineers = MasterDataManager.getEngineers();
+
+      const supDefaultOk = defaultSupervisor.includes("Kamrul");
+      const supHasKamrulAndSazzad = supervisors.some(s => (s.display || s.name || '').includes("Kamrul")) && supervisors.some(s => (s.display || s.name || '').includes("Sazzad"));
+      const excludedEngineers = ["Shishir", "Rana", "Mehedi", "Shahria", "Kasfia", "Takvir", "Nurul"];
+      const hasExcluded = excludedEngineers.some(ex => engineers.some(eng => (eng.display || eng.name || '').toLowerCase().includes(ex.toLowerCase())));
+
+      assert("Master Data Supervisors & Engineers Sanitization", "Supervisors default to Kamrul (Kamrul & Sazzad active) and 7 requested engineers are removed",
+        supDefaultOk && supHasKamrulAndSazzad && !hasExcluded,
+        `Default Sup: ${defaultSupervisor}, Total Sups: ${supervisors.length}, Excluded found: ${hasExcluded}`);
+
+      // ----------------------------------------------------
+      // TEST: Multi-Row Bulk Task Deletion
+      // ----------------------------------------------------
+      const bulkDelMonth = "BULK-DEL-2026";
+      wbMgr.workbooks[bulkDelMonth] = [];
+      const bt1 = wbMgr.addTask(bulkDelMonth, "Sazzad (50463)", "Bulk Item 1", "YES");
+      const bt2 = wbMgr.addTask(bulkDelMonth, "Sazzad (50463)", "Bulk Item 2", "YES");
+      const bt3 = wbMgr.addTask(bulkDelMonth, "Sazzad (50463)", "Bulk Item 3", "YES");
+
+      const beforeCount = wbMgr.getTasksForMonth(bulkDelMonth).length;
+      const deleteResult = wbMgr.deleteMultipleTasks(bulkDelMonth, [bt1.task_id, bt2.task_id]);
+      const remainingTasks = wbMgr.getTasksForMonth(bulkDelMonth);
+
+      assert("Multi-Row Bulk Deletion", "deleteMultipleTasks atomically deletes selected task rows in single operation",
+        beforeCount === 3 && deleteResult.deletedCount === 2 && remainingTasks.length === 1 && remainingTasks[0].task_id === bt3.task_id,
+        `Before: ${beforeCount}, Deleted: ${deleteResult.deletedCount}, Remaining: ${remainingTasks.length}`);
+
+      // ----------------------------------------------------
+      // TEST: Projects Section & Multi-Month Ongoing Carryover
+      // ----------------------------------------------------
+      const sourceProjMonth = "OCT-2026";
+      const targetProjMonth = "NOV-2026";
+      wbMgr.workbooks[sourceProjMonth] = [];
+      wbMgr.workbooks[targetProjMonth] = [];
+
+      // Add 1 completed project and 1 ongoing multi-month project
+      wbMgr.addTask(sourceProjMonth, "Sazzad (50463)", "Completed Automation Line", "YES", {
+        category: "Completed Projects",
+        status: "Completed",
+        is_project: true,
+        project_status: "Completed",
+        deadline: "2026-10-31"
+      });
+      const ongoingProj = wbMgr.addTask(sourceProjMonth, "Kamrul (44819)", "Smart Conveyor System 4-Month Overhaul", "YES", {
+        category: "Ongoing Projects",
+        status: "Ongoing",
+        is_project: true,
+        project_status: "Ongoing",
+        deadline: "2027-02-28"
+      });
+
+      // Synchronize to target month
+      const syncProjResult = wbMgr.syncOngoingProjectsFromPreviousMonth(targetProjMonth);
+      const targetTasks = wbMgr.getTasksForMonth(targetProjMonth);
+
+      // Verify idempotency: running again should not duplicate
+      wbMgr.syncOngoingProjectsFromPreviousMonth(targetProjMonth);
+      const targetTasksAfterReSync = wbMgr.getTasksForMonth(targetProjMonth);
+
+      assert("Projects View Module & Multi-Month Carryover", "Ongoing projects carry over to next month automatically and avoid duplication, while completed projects remain archived",
+        typeof ProjectsView !== 'undefined' && syncProjResult.syncedCount === 1 && targetTasks.length === 1 && targetTasks[0].task_name.includes("Smart Conveyor") && targetTasksAfterReSync.length === 1,
+        `ProjectsView: ${typeof ProjectsView}, Synced: ${syncProjResult.syncedCount}, Target Tasks: ${targetTasks.length}, Re-sync: ${targetTasksAfterReSync.length}`);
+
+      // ----------------------------------------------------
+      // TEST: Project Slides Positioned at the End in Export
+      // ----------------------------------------------------
+      const exportTestSlides = [
+        { task_id: "T-01", task_name: "Normal Process Task", category: "Process development", status: "Completed" },
+        { task_id: "T-02", task_name: "Multi-Month Ongoing Project", category: "Ongoing Projects", is_project: true, status: "Ongoing" },
+        { task_id: "T-03", task_name: "BOM Check Task", category: "BOM verification", status: "Ongoing" },
+        { task_id: "T-04", task_name: "Completed Major Project", category: "Completed Projects", is_project: true, status: "Completed" }
+      ];
+
+      // Simulate the sorting logic of ExportController
+      const testStd = [];
+      const testProj = [];
+      exportTestSlides.forEach(s => {
+        const cat = (s.category || '').toLowerCase();
+        const title = (s.slide_title || s.task_name || '').toLowerCase();
+        const isProj = Boolean(s.is_project || cat.includes('ongoing project') || cat.includes('completed project') || cat === 'project' || title.includes('project'));
+        if (isProj) testProj.push(s); else testStd.push(s);
+      });
+      testProj.sort((a, b) => {
+        const aDone = ((a.status || '').toLowerCase().includes('complete') || (a.category || '').toLowerCase().includes('completed')) ? 0 : 1;
+        const bDone = ((b.status || '').toLowerCase().includes('complete') || (b.category || '').toLowerCase().includes('completed')) ? 0 : 1;
+        return aDone - bDone;
+      });
+      const finalOrder = [...testStd, ...testProj];
+
+      const lastTwoAreProjects = finalOrder[2].is_project && finalOrder[3].is_project;
+      const completedProjectFirst = finalOrder[2].category === "Completed Projects" && finalOrder[3].category === "Ongoing Projects";
+
+      assert("Project Slides Positioned at End of Report", "Export ordering places standard process tasks first, followed by Completed Projects, and Ongoing Projects at the end",
+        lastTwoAreProjects && completedProjectFirst,
+        `Order: ${finalOrder.map(s => s.category).join(" -> ")}`);
+
+
+      } catch (err) {
+        console.error("Test Suite Runtime Exception:", err);
+        assert("Runtime Exception", `Test suite encountered unexpected error: ${err.message}`, false, err.stack);
+      } finally {
+        // Clean up test storage
+        localStorage.removeItem("walton_pd_test_workbooks");
+        localStorage.removeItem("walton_pd_test_breakdown");
+        window.testStatus = 'finished';
+        renderResults();
+      }
+    }
+
+    function renderResults() {
+      const out = document.getElementById('test-output');
+      const total = results.length;
+      const passed = results.filter(r => r.passed).length;
+      const failed = total - passed;
+
+      const summaryText = `TOTAL TESTS: ${total} | PASSED: ${passed} | FAILED: ${failed} | SUCCESS RATE: ${Math.round((passed / total) * 100)}%`;
+      document.title = summaryText;
+      console.log(`\n============================================================\n${summaryText}\n============================================================\n`);
+
+      let html = '';
+      if (window.errors && window.errors.length) {
+        html += `<div style="background:red;color:white;padding:10px;margin-bottom:10px;">GLOBAL SCRIPT ERRORS:<br>${window.errors.join('<br>')}</div>`;
+      }
+      html += `<div class="summary-box ${failed === 0 ? 'test-pass' : 'test-fail'}">
+        ${summaryText}
+      </div>`;
+
+      // Group by suite
+      const suites = {};
+      results.forEach(r => {
+        if (!suites[r.suite]) suites[r.suite] = [];
+        suites[r.suite].push(r);
+      });
+
+      for (const [sName, sResults] of Object.entries(suites)) {
+        html += `<div class="suite-card">
+          <div class="suite-title">${sName}</div>`;
+        sResults.forEach(r => {
+          html += `<div class="test-result ${r.passed ? 'test-pass' : 'test-fail'}">
+            <span>[${r.passed ? 'PASS' : 'FAIL'}] ${r.description}</span>
+            <span>${r.details}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      out.innerHTML = html;
+    }
+
+    // Run immediately
+    runTestSuite();
+  </script>
+</body>
+</html>

@@ -32,10 +32,7 @@ const APP_CONFIG = {
     { id: "2026-06", label: "June 2026", status: "Closed", code: "JUN-2026" },
     { id: "2026-07", label: "July 2026", status: "Closed", code: "JUL-2026" },
     { id: "2026-08", label: "August 2026", status: "Closed", code: "AUG-2026" },
-    { id: "2026-09", label: "September 2026", status: "Active", code: "SEP-2026" },
-    { id: "2026-10", label: "October 2026", status: "Draft", code: "OCT-2026" },
-    { id: "2026-11", label: "November 2026", status: "Draft", code: "NOV-2026" },
-    { id: "2026-12", label: "December 2026", status: "Draft", code: "DEC-2026" }
+    { id: "2026-09", label: "September 2026", status: "Active", code: "SEP-2026" }
   ],
 
   // Gemini AI Settings
