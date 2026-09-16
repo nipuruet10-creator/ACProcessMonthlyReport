@@ -229,7 +229,7 @@ const MonthlyInputView = {
     }
   },
 
-  copyTaskToManagementReport(taskId) {
+  toggleManagementReportCopy(taskId) {
     if (!window.appState || !window.appState.workbookMgr) return;
     const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
     if (!task) return;
@@ -240,20 +240,30 @@ const MonthlyInputView = {
       return;
     }
 
-    const result = mgr.copyFromMonthlyTask(this.selectedMonth, task);
-    if (result && result.alreadyExists) {
-      if (typeof window.showToast === 'function') {
-        window.showToast(`Notice: "${task.task_name}" is already in Management Report`, "info");
-      } else {
-        alert(`Notice: "${task.task_name}" is already in Management Report`);
+    const isCopied = mgr.isTaskInManagementReport ? mgr.isTaskInManagementReport(this.selectedMonth, task) : false;
+    if (isCopied) {
+      if (confirm(`Remove "${task.task_name}" from the Management Report (${this.selectedMonth})?`)) {
+        mgr.deleteBySourceTaskId(this.selectedMonth, taskId, task.task_name);
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Removed "${task.task_name}" from Management Report`, "info");
+        } else {
+          alert(`Removed "${task.task_name}" from Management Report`);
+        }
+        this.render();
       }
     } else {
+      const result = mgr.copyFromMonthlyTask(this.selectedMonth, task);
       if (typeof window.showToast === 'function') {
         window.showToast(`👔 Copied "${task.task_name}" to Management Report!`, "success");
       } else {
         alert(`👔 Copied "${task.task_name}" to Management Report!`);
       }
+      this.render();
     }
+  },
+
+  copyTaskToManagementReport(taskId) {
+    return this.toggleManagementReportCopy(taskId);
   },
 
   copySelectedToManagementReport() {
@@ -279,6 +289,7 @@ const MonthlyInputView = {
     const selectAllCb = document.getElementById('task-select-all');
     if (selectAllCb) selectAllCb.checked = false;
     this.updateBulkDeleteButton();
+    this.render();
   },
 
   async deleteSelectedTasks() {
@@ -1151,7 +1162,7 @@ const MonthlyInputView = {
     if (kpiTop && ranking.length > 0) kpiTop.textContent = `${ranking[0].name} (${ranking[0].total_point} pts)`;
   },
 
-  renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors) {
+  renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors, copiedSourceIds = null, copiedNames = null) {
     const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id) : {};
     const rawThumb = (photos && (photos.before_photo || photos.photo_1 || photos.after_photo)) || t.photo_1 || t.photo_2;
     const hasPhoto = Boolean(rawThumb);
@@ -1159,6 +1170,16 @@ const MonthlyInputView = {
     const currentSup = HELPERS.formatPersonnelName(t.supervisor || "Kamrul (44819)");
     const currentAssignee = HELPERS.formatPersonnelName(t.assignee || t.engineer || (engineers[0] ? engineers[0].display : "Sazzad (50463)"));
     const isLastRow = (idx === totalCount - 1);
+
+    // Determine whether task is in Executive Management Report
+    let isCopied = false;
+    if (copiedSourceIds && copiedSourceIds.has(t.task_id)) {
+      isCopied = true;
+    } else if (copiedNames && copiedNames.has((t.task_name || '').trim().toLowerCase())) {
+      isCopied = true;
+    } else if (window.managementReportMgr && window.managementReportMgr.isTaskInManagementReport) {
+      isCopied = window.managementReportMgr.isTaskInManagementReport(this.selectedMonth, t);
+    }
 
     return `
       <tr class="hover:bg-slate-50/80 transition group">
@@ -1284,17 +1305,28 @@ const MonthlyInputView = {
 
         <!-- Actions: Copy to Management Report & Delete Row -->
         <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-          <div class="flex items-center justify-center gap-1">
-            <button onclick="MonthlyInputView.copyTaskToManagementReport('${t.task_id}')" 
-                    title="Copy this task to Management Report" 
-                    class="p-1 rounded-lg hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 transition text-xs font-bold"
-                    aria-label="Copy to Management Report">
-              👔
-            </button>
+          <div class="flex items-center justify-center gap-1.5">
+            ${isCopied ? `
+              <button onclick="MonthlyInputView.toggleManagementReportCopy('${t.task_id}')" 
+                      title="This task is included in Executive Management Report (${this.selectedMonth}). Click to remove." 
+                      class="group inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-rose-50 border border-indigo-200 hover:border-rose-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
+                <span class="text-indigo-700 group-hover:hidden flex items-center gap-1 font-black">
+                  <span>👔</span> <span>Copied</span> <span class="text-[9px] text-emerald-600 font-black">✔</span>
+                </span>
+                <span class="hidden group-hover:inline text-rose-600 font-black">✕ Remove</span>
+              </button>
+            ` : `
+              <button onclick="MonthlyInputView.toggleManagementReportCopy('${t.task_id}')" 
+                      title="Copy this task into Executive Management Report" 
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
+                <span>👔</span>
+                <span>Copy</span>
+              </button>
+            `}
             <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
                     onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
                     title="Delete Row (or press Tab on last row to auto-insert new row)" 
-                    class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
+                    class="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
               ✕
             </button>
           </div>
@@ -1407,6 +1439,12 @@ const MonthlyInputView = {
     const tasks = this.filterEngineer 
       ? allTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
       : allTasks;
+
+    // Fetch tasks currently copied to Executive Management Report for this month
+    const mgmtMgr = window.managementReportMgr || (typeof ManagementReportManager !== 'undefined' ? new ManagementReportManager() : null);
+    const mgmtTasks = mgmtMgr ? mgmtMgr.getTasksForMonth(month) : [];
+    const copiedSourceIds = new Set(mgmtTasks.map(t => t.source_task_id || t.task_id || t.id).filter(Boolean));
+    const copiedNames = new Set(mgmtTasks.map(t => (t.task_name || '').trim().toLowerCase()).filter(Boolean));
 
     const personnel = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getAllPersonnel)
       ? MasterDataManager.getAllPersonnel()
@@ -1625,7 +1663,7 @@ const MonthlyInputView = {
                   <th class="py-2.5 px-3 w-40 border-r border-slate-300">Assignee</th>
                   <th class="py-2.5 px-3 w-32 text-center border-r border-slate-300">Photo</th>
                   <th class="py-2.5 px-3 w-20 text-center border-r border-slate-300">Report</th>
-                  <th class="py-2.5 px-2 w-12 text-center">Del</th>
+                  <th class="py-2.5 px-2 w-28 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="monthly-input-tbody" class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">
@@ -1666,7 +1704,7 @@ const MonthlyInputView = {
                       </td>
                     </tr>
                   `
-                ) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors)).join('')}
+                ) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors, copiedSourceIds, copiedNames)).join('')}
               </tbody>
             </table>
           </div>
@@ -1887,7 +1925,7 @@ const MonthlyInputView = {
   },
 
   // ---------------------------------------------------------------------------
-  // Change Password & Email OTP Verification Modal
+  // Change Password Modal (Direct Change, Master PIN & Optional Email OTP)
   // ---------------------------------------------------------------------------
 
   openChangePasswordModal() {
@@ -1899,91 +1937,96 @@ const MonthlyInputView = {
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm';
 
     modal.innerHTML = `
-      <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div class="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200 font-sans">
         <!-- Accent Top Strip -->
-        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 to-rose-500"></div>
+        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-500 to-indigo-600"></div>
 
         <div class="flex items-start justify-between gap-3 mb-4">
           <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg font-bold">
+            <div class="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold shadow-xs">
               🔑
             </div>
             <div>
-              <h3 class="text-base font-extrabold text-slate-800">Change Team Password</h3>
-              <p class="text-[11px] text-slate-400 font-mono">Email Verification Required</p>
+              <h3 class="text-base font-extrabold text-slate-900">Change Team Password</h3>
+              <p class="text-[11px] text-slate-400 font-mono">Direct Change &bull; Master PIN &bull; Email</p>
             </div>
           </div>
-          <button onclick="MonthlyInputView.closeChangePasswordModal()" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm font-bold transition">
+          <button onclick="MonthlyInputView.closeChangePasswordModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm font-bold transition">
             ✕
           </button>
         </div>
 
-        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
-          For security, a 6-digit verification code will be sent to the authorized admin email:
-          <strong class="text-slate-800 font-mono">nipu.ruet10@gmail.com</strong>.
-        </p>
-
-        <!-- Step 1: Request OTP -->
-        <div id="otp-request-step" class="mb-4">
-          <button 
-            type="button" 
-            id="otp-send-btn"
-            onclick="MonthlyInputView.handleRequestOtp()" 
-            class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow transition flex items-center justify-center gap-2">
-            <span>📧</span>
-            <span>Send 6-Digit Code to nipu.ruet10@gmail.com</span>
+        <!-- Navigation Tabs -->
+        <div class="flex items-center p-1 bg-slate-100 rounded-2xl mb-4 text-xs font-bold">
+          <button type="button" id="tab-btn-direct" onclick="MonthlyInputView.switchPasswordModalTab('direct')"
+                  class="flex-1 py-1.5 rounded-xl bg-white text-slate-800 shadow-xs transition flex items-center justify-center gap-1.5">
+            <span>⚡</span> <span>Direct / Master PIN</span>
           </button>
-          <div id="otp-send-status" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium"></div>
+          <button type="button" id="tab-btn-otp" onclick="MonthlyInputView.switchPasswordModalTab('otp')"
+                  class="flex-1 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5">
+            <span>📧</span> <span>Email OTP</span>
+          </button>
         </div>
 
-        <!-- Step 2: Enter Code & New Password -->
-        <div id="otp-verify-step" class="space-y-3 pt-3 border-t border-slate-100">
-          <div>
-            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              6-Digit Verification Code
-            </label>
-            <input 
-              type="text" 
-              id="otp-input-code" 
-              maxlength="6"
-              placeholder="e.g. 482915" 
-              class="w-full text-center tracking-[6px] font-mono text-base font-black py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
-            >
+        <!-- METHOD 1: Direct Change / Master PIN (Default, No email needed) -->
+        <div id="section-direct-change" class="space-y-3.5">
+          <div class="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 leading-relaxed">
+            💡 <strong>Instant Change:</strong> Enter current password or Walton Master PIN: <strong class="font-mono text-slate-900 font-black">50463</strong>. No email OTP required!
           </div>
 
           <div>
             <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              New Password (min. 6 characters)
+              Current Password or Master PIN <span class="text-red-500">*</span>
             </label>
             <div class="relative">
               <input 
                 type="password" 
-                id="otp-new-password" 
-                placeholder="Enter new team password" 
-                class="w-full px-3.5 pr-10 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+                id="direct-current-password" 
+                placeholder="Current pass or 50463" 
+                class="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
               >
               <button 
                 type="button" 
-                onclick="MonthlyInputView.togglePasswordVisibility('otp-new-password', 'otp-pass-toggle-icon')" 
+                onclick="MonthlyInputView.togglePasswordVisibility('direct-current-password', 'direct-curr-toggle-icon')" 
                 class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-                <span id="otp-pass-toggle-icon">👁️</span>
+                <span id="direct-curr-toggle-icon">👁️</span>
               </button>
             </div>
           </div>
 
           <div>
             <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Confirm New Password
+              New Password (min. 6 characters) <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <input 
+                type="password" 
+                id="direct-new-password" 
+                placeholder="Enter new team password" 
+                class="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+              >
+              <button 
+                type="button" 
+                onclick="MonthlyInputView.togglePasswordVisibility('direct-new-password', 'direct-new-toggle-icon')" 
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                <span id="direct-new-toggle-icon">👁️</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Confirm New Password <span class="text-red-500">*</span>
             </label>
             <input 
               type="password" 
-              id="otp-confirm-password" 
+              id="direct-confirm-password" 
               placeholder="Re-enter new password" 
-              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
             >
           </div>
 
-          <div id="otp-verify-error" class="hidden p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium"></div>
+          <div id="direct-change-error" class="hidden p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium"></div>
 
           <div class="flex items-center gap-2 pt-2">
             <button 
@@ -1994,12 +2037,98 @@ const MonthlyInputView = {
             </button>
             <button 
               type="button" 
-              id="otp-verify-submit-btn"
-              onclick="MonthlyInputView.handleVerifyAndSavePassword()" 
+              id="direct-change-submit-btn"
+              onclick="MonthlyInputView.handleDirectChangePassword()" 
               class="w-2/3 py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-md shadow-red-200 transition flex items-center justify-center gap-1.5">
               <span>✔</span>
               <span>Save New Password</span>
             </button>
+          </div>
+        </div>
+
+        <!-- METHOD 2: Email OTP Recovery (Optional) -->
+        <div id="section-otp-change" class="hidden space-y-3.5">
+          <p class="text-xs text-slate-600 leading-relaxed">
+            A 6-digit verification code will be sent to the authorized admin email:
+            <strong class="text-slate-800 font-mono">nipu.ruet10@gmail.com</strong>.
+          </p>
+
+          <div id="otp-request-step">
+            <button 
+              type="button" 
+              id="otp-send-btn"
+              onclick="MonthlyInputView.handleRequestOtp()" 
+              class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow transition flex items-center justify-center gap-2">
+              <span>📧</span>
+              <span>Send 6-Digit Code to nipu.ruet10@gmail.com</span>
+            </button>
+            <div id="otp-send-status" class="hidden mt-2 p-2.5 rounded-xl text-xs font-medium"></div>
+          </div>
+
+          <div id="otp-verify-step" class="space-y-3 pt-3 border-t border-slate-100">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                6-Digit Verification Code
+              </label>
+              <input 
+                type="text" 
+                id="otp-input-code" 
+                maxlength="6"
+                placeholder="e.g. 482915" 
+                class="w-full text-center tracking-[6px] font-mono text-base font-black py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+              >
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                New Password (min. 6 characters)
+              </label>
+              <div class="relative">
+                <input 
+                  type="password" 
+                  id="otp-new-password" 
+                  placeholder="Enter new team password" 
+                  class="w-full px-3.5 pr-10 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+                >
+                <button 
+                  type="button" 
+                  onclick="MonthlyInputView.togglePasswordVisibility('otp-new-password', 'otp-pass-toggle-icon')" 
+                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                  <span id="otp-pass-toggle-icon">👁️</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Confirm New Password
+              </label>
+              <input 
+                type="password" 
+                id="otp-confirm-password" 
+                placeholder="Re-enter new password" 
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
+              >
+            </div>
+
+            <div id="otp-verify-error" class="hidden p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium"></div>
+
+            <div class="flex items-center gap-2 pt-2">
+              <button 
+                type="button" 
+                onclick="MonthlyInputView.closeChangePasswordModal()" 
+                class="w-1/3 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs transition">
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                id="otp-verify-submit-btn"
+                onclick="MonthlyInputView.handleVerifyAndSavePassword()" 
+                class="w-2/3 py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-md shadow-red-200 transition flex items-center justify-center gap-1.5">
+                <span>✔</span>
+                <span>Verify &amp; Save</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2009,9 +2138,107 @@ const MonthlyInputView = {
     document.body.appendChild(modal);
   },
 
+  switchPasswordModalTab(tab) {
+    const directSec = document.getElementById('section-direct-change');
+    const otpSec = document.getElementById('section-otp-change');
+    const directBtn = document.getElementById('tab-btn-direct');
+    const otpBtn = document.getElementById('tab-btn-otp');
+
+    if (!directSec || !otpSec) return;
+
+    if (tab === 'direct') {
+      directSec.classList.remove('hidden');
+      otpSec.classList.add('hidden');
+      if (directBtn) {
+        directBtn.className = 'flex-1 py-1.5 rounded-xl bg-white text-slate-800 shadow-xs transition flex items-center justify-center gap-1.5 font-bold';
+      }
+      if (otpBtn) {
+        otpBtn.className = 'flex-1 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5 font-bold';
+      }
+    } else {
+      directSec.classList.add('hidden');
+      otpSec.classList.remove('hidden');
+      if (otpBtn) {
+        otpBtn.className = 'flex-1 py-1.5 rounded-xl bg-white text-slate-800 shadow-xs transition flex items-center justify-center gap-1.5 font-bold';
+      }
+      if (directBtn) {
+        directBtn.className = 'flex-1 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 transition flex items-center justify-center gap-1.5 font-bold';
+      }
+    }
+  },
+
   closeChangePasswordModal() {
     const modal = document.getElementById('change-password-modal');
     if (modal) modal.remove();
+  },
+
+  async handleDirectChangePassword() {
+    const currEl = document.getElementById('direct-current-password');
+    const newEl = document.getElementById('direct-new-password');
+    const confirmEl = document.getElementById('direct-confirm-password');
+    const errorEl = document.getElementById('direct-change-error');
+    const btn = document.getElementById('direct-change-submit-btn');
+
+    const curr = currEl ? currEl.value.trim() : '';
+    const newPass = newEl ? newEl.value.trim() : '';
+    const confirmPass = confirmEl ? confirmEl.value.trim() : '';
+
+    if (!curr) {
+      if (errorEl) {
+        errorEl.textContent = 'Please enter current password or Walton Master PIN: 50463.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (!newPass || newPass.length < 6) {
+      if (errorEl) {
+        errorEl.textContent = 'New password must be at least 6 characters long.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (newPass !== confirmPass) {
+      if (errorEl) {
+        errorEl.textContent = 'Passwords do not match. Please re-check.';
+        errorEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> <span>Saving Password...</span>';
+    }
+
+    try {
+      const res = await authManager.changePasswordDirect(curr, newPass);
+      if (res && res.success) {
+        this.closeChangePasswordModal();
+        if (typeof window.showToast === 'function') {
+          window.showToast("🎉 Password changed successfully! Input section unlocked.", "success");
+        } else {
+          alert("Password changed successfully! Input section unlocked.");
+        }
+        await this.render();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = (res && res.error) ? res.error : 'Incorrect password or Master PIN.';
+          errorEl.classList.remove('hidden');
+        }
+      }
+    } catch (e) {
+      if (errorEl) {
+        errorEl.textContent = e.message;
+        errorEl.classList.remove('hidden');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✔</span> <span>Save New Password</span>';
+      }
+    }
   },
 
   async handleRequestOtp() {
@@ -2032,7 +2259,7 @@ const MonthlyInputView = {
           status.classList.remove('hidden');
         } else {
           status.className = 'mt-2 p-2.5 rounded-xl text-xs font-medium bg-red-50 border border-red-200 text-red-600';
-          status.textContent = res.error || 'Failed to send code. Make sure Google Sheets Web App is connected.';
+          status.textContent = res.error || 'Failed to send code. Make sure Google Sheets Web App is connected, or use Direct Change tab.';
           status.classList.remove('hidden');
         }
       }

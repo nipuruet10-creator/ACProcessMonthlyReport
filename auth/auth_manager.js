@@ -80,7 +80,23 @@ class AuthManager {
   }
 
   /**
-   * Unlocks the Input Section with username & password
+   * Checks whether a code is an authorized Walton Admin Master PIN / Recovery Key
+   */
+  isMasterPin(code) {
+    if (!code) return false;
+    const clean = String(code).trim();
+    const authorizedPins = [
+      "50463",            // Engr. Md. Sazzad Hossain
+      "44819",            // Kamrul Hasan
+      "walton2026",       // Walton Team Key
+      "ACprocess@20226",  // Default System Password
+      "admin50463"
+    ];
+    return authorizedPins.includes(clean);
+  }
+
+  /**
+   * Unlocks the Input Section with username & password (supports password or Master PIN)
    */
   async unlockInput(username, password, remember = true) {
     const cleanUser = (username || '').trim().toLowerCase();
@@ -94,9 +110,11 @@ class AuthManager {
       return { success: false, error: "Invalid username. Default user is 'admin'." };
     }
 
-    // 1. Check against local active password
+    // 1. Check against local active password, default password, or master PIN
     const currentExpected = this.getActivePassword();
-    let isMatch = (cleanPass === currentExpected) || (cleanPass === INPUT_AUTH_CONFIG.DEFAULT_PASS);
+    let isMatch = (cleanPass === currentExpected) || 
+                  (cleanPass === INPUT_AUTH_CONFIG.DEFAULT_PASS) ||
+                  this.isMasterPin(cleanPass);
 
     // 2. If mismatch but connected to Google Apps Script, verify with cloud backend
     if (!isMatch && typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
@@ -145,6 +163,59 @@ class AuthManager {
       HELPERS.storage.set(INPUT_AUTH_CONFIG.STORAGE_KEY_CUSTOM_PASS, newPassword);
     }
   }
+  async changePasswordDirect(currentPasswordOrPin, newPassword) {
+    const cleanCurrent = (currentPasswordOrPin || '').trim();
+    const cleanNew = (newPassword || '').trim();
+
+    if (!cleanCurrent) {
+      return { success: false, error: "Please enter your current password or Walton Master PIN (50463)." };
+    }
+
+    if (!cleanNew || cleanNew.length < 6) {
+      return { success: false, error: "New password must be at least 6 characters long." };
+    }
+
+    const currentExpected = this.getActivePassword();
+    const isValidCurrent = (cleanCurrent === currentExpected) || 
+                          (cleanCurrent === INPUT_AUTH_CONFIG.DEFAULT_PASS) || 
+                          this.isMasterPin(cleanCurrent);
+
+    if (!isValidCurrent) {
+      return { 
+        success: false, 
+        error: "Incorrect current password or Master PIN. You can use Master PIN: 50463 if you forgot your password." 
+      };
+    }
+
+    // Persist new password locally
+    this.setCustomPasswordLocally(cleanNew);
+
+    // Auto-unlock the session with the new password
+    this._inMemoryUnlocked = true;
+    if (typeof HELPERS !== 'undefined' && HELPERS.storage) {
+      HELPERS.storage.set(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION, {
+        unlocked: true,
+        user: INPUT_AUTH_CONFIG.DEFAULT_USER,
+        timestamp: Date.now()
+      });
+    }
+
+    // Try cloud sync in background if Google Sheets is connected
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
+      try {
+        if (GoogleSheetsSync.updateRemotePassword) {
+          GoogleSheetsSync.updateRemotePassword(cleanNew).catch(e => console.warn("Cloud pass update:", e));
+        }
+      } catch (e) {
+        // Ignore background sync errors
+      }
+    }
+
+    return { 
+      success: true, 
+      message: "Password changed successfully! You can now use your new password." 
+    };
+  }
 
   /**
    * Requests a 6-digit OTP verification code sent to nipu.ruet10@gmail.com
@@ -153,7 +224,7 @@ class AuthManager {
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.requestAuthOtp) {
       return await GoogleSheetsSync.requestAuthOtp(INPUT_AUTH_CONFIG.ADMIN_EMAIL);
     }
-    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings.");
+    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN 50463.");
   }
 
   /**
@@ -178,7 +249,7 @@ class AuthManager {
       }
     }
 
-    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings.");
+    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN 50463.");
   }
 
   // ---------------------------------------------------------------------------

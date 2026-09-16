@@ -461,6 +461,17 @@ const ManagementReportView = {
       window.managementReportMgr.deleteTask(this.selectedMonth, taskId);
       if (typeof window.showToast === 'function') window.showToast("Removed task from Management Report", "info");
       this.render();
+
+      // Trigger sync event for MonthlyInputView
+      try {
+        window.dispatchEvent(new CustomEvent('mgmt-report-updated', { detail: { month: this.selectedMonth } }));
+        const monthlyContainer = document.getElementById('monthly-input-view-container');
+        if (monthlyContainer && monthlyContainer.innerHTML.length > 50 && typeof MonthlyInputView !== 'undefined') {
+          MonthlyInputView.render();
+        }
+      } catch (e) {
+        // Ignore
+      }
     }
   },
 

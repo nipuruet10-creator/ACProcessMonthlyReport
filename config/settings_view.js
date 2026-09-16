@@ -40,6 +40,7 @@ const SettingsView = {
           <span class="w-2 h-2 rounded-full bg-rose-400"></span> Connection Error
         </span>
       `;
+    }
     const isUnlocked = (typeof authManager !== 'undefined') ? authManager.isInputUnlocked() : true;
 
     container.innerHTML = `

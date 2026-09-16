@@ -1242,6 +1242,42 @@
       assert("OpenRouter Free Model Selection", "geminiClient defaults or supports free model options", 
         activeModel.includes(':free'), `Active model: ${activeModel}`);
 
+      // ----------------------------------------------------
+      // TEST: Direct Password Change & Master PIN Authentication
+      // ----------------------------------------------------
+      assert("AuthManager Master PIN Recognition", "isMasterPin validates Walton admin recovery keys",
+        authManager.isMasterPin("50463") === true && authManager.isMasterPin("44819") === true && authManager.isMasterPin("walton2026") === true && authManager.isMasterPin("invalid") === false);
+
+      const directChangeRes = await authManager.changePasswordDirect("50463", "waltonTest@2026");
+      assert("AuthManager Direct Password Change", "changePasswordDirect succeeds using Master PIN without requiring email OTP",
+        directChangeRes && directChangeRes.success === true && authManager.getActivePassword() === "waltonTest@2026");
+
+      // Reset back to default for clean tests
+      authManager.setCustomPasswordLocally("ACprocess@20226");
+
+      // ----------------------------------------------------
+      // TEST: Management Report Task Indicator & Deletion Sync
+      // ----------------------------------------------------
+      const testCheckTask = { task_id: "SYNC-TEST-01", task_name: "Fixture Calibration Test Task" };
+      const copiedSync = ManagementReportManager.copyFromMonthlyTask(testMgmtMonth, testCheckTask);
+      assert("ManagementReportManager Copy Check", "isTaskInManagementReport returns true when task is copied",
+        ManagementReportManager.isTaskInManagementReport(testMgmtMonth, testCheckTask) === true);
+
+      const removedSync = ManagementReportManager.deleteBySourceTaskId(testMgmtMonth, "SYNC-TEST-01");
+      assert("ManagementReportManager deleteBySourceTaskId", "deleteBySourceTaskId removes task and updates status",
+        removedSync === true && ManagementReportManager.isTaskInManagementReport(testMgmtMonth, testCheckTask) === false);
+
+      // ----------------------------------------------------
+      // TEST: Management Slide Layout Optimization (Zero Whitespace)
+      // ----------------------------------------------------
+      const parsedSteps = ManagementHTMLGenerator._parseMilestones("1. Alignment\n2. Cutting\n3. Verification");
+      assert("ManagementHTMLGenerator _parseMilestones", "_parseMilestones creates structured step objects",
+        Array.isArray(parsedSteps) && parsedSteps.length === 3 && parsedSteps[0].num === "01");
+
+      const parsedOutcomes = ManagementHTMLGenerator._parseImpacts("Cycle Time: Reduced 20%\nCost: Saved 5L");
+      assert("ManagementHTMLGenerator _parseImpacts", "_parseImpacts creates structured outcome cards",
+        Array.isArray(parsedOutcomes) && parsedOutcomes.length === 2 && parsedOutcomes[0].title === "Cycle Time");
+
       // Cleanup test created tasks
       if (addedMgmtTask) ManagementReportManager.deleteTask(testMgmtMonth, addedMgmtTask.id);
       if (copiedTask) ManagementReportManager.deleteTask(testMgmtMonth, copiedTask.id);

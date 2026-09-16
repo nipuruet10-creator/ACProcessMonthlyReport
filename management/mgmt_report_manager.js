@@ -175,10 +175,44 @@ class ManagementReportManager {
   deleteTask(month, taskId) {
     const m = this.normalizeMonth(month);
     const tasks = this.reports[m] || [];
-    const filtered = tasks.filter(t => t.task_id !== taskId);
+    const filtered = tasks.filter(t => t.task_id !== taskId && t.id !== taskId);
     this.reports[m] = filtered;
     this.save();
     return filtered.length < tasks.length;
+  }
+
+  /**
+   * Deletes a task from Management Report by its source monthly task ID or task name
+   */
+  deleteBySourceTaskId(month, sourceTaskId, taskName = "") {
+    const m = this.normalizeMonth(month);
+    const tasks = this.reports[m] || [];
+    const cleanName = (taskName || "").trim().toLowerCase();
+    const filtered = tasks.filter(t => {
+      const matchId = sourceTaskId && (t.source_task_id === sourceTaskId || t.task_id === sourceTaskId || t.id === sourceTaskId);
+      const matchName = cleanName && t.task_name && t.task_name.trim().toLowerCase() === cleanName;
+      return !(matchId || matchName);
+    });
+    const removed = filtered.length < tasks.length;
+    this.reports[m] = filtered;
+    this.save();
+    return removed;
+  }
+
+  /**
+   * Checks whether a task is already present in the Management Report
+   */
+  isTaskInManagementReport(month, taskOrId) {
+    if (!taskOrId) return false;
+    const m = this.normalizeMonth(month);
+    const tasks = this.getTasksForMonth(m);
+    const sourceId = typeof taskOrId === 'string' ? taskOrId : (taskOrId.task_id || taskOrId.id || "");
+    const taskName = (typeof taskOrId === 'object' && (taskOrId.task_name || taskOrId.task || taskOrId.title) ? (taskOrId.task_name || taskOrId.task || taskOrId.title) : (typeof taskOrId === 'string' ? taskOrId : "")).trim().toLowerCase();
+
+    return tasks.some(t => 
+      (sourceId && (t.source_task_id === sourceId || t.task_id === sourceId || t.id === sourceId)) ||
+      (taskName && t.task_name && t.task_name.trim().toLowerCase() === taskName)
+    );
   }
 
   /**
@@ -476,6 +510,8 @@ class ManagementReportManager {
   static addTask(month, data) { return this.getInstance().addTask(month, data); }
   static updateTask(month, id, data) { return this.getInstance().updateTask(month, id, data); }
   static deleteTask(month, id) { return this.getInstance().deleteTask(month, id); }
+  static deleteBySourceTaskId(month, sourceTaskId, taskName) { return this.getInstance().deleteBySourceTaskId(month, sourceTaskId, taskName); }
+  static isTaskInManagementReport(month, taskOrId) { return this.getInstance().isTaskInManagementReport(month, taskOrId); }
   static copyFromMonthlyTask(month, t) { return this.getInstance().copyFromMonthlyTask(month, t); }
   static bulkCopyFromMonthlyTasks(month, list) { return this.getInstance().bulkCopyFromMonthlyTasks(month, list); }
   static getTasksSequencedByConcern(month) { return this.getInstance().getTasksSequencedByConcern(month); }
