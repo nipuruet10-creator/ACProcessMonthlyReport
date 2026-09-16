@@ -73,6 +73,10 @@
   <script src="../export/pptx_generator.js"></script>
   <script src="../export/pdf_generator.js"></script>
   <script src="../export/html_generator.js"></script>
+  <script src="../management/mgmt_report_manager.js"></script>
+  <script src="../export/management_pptx_generator.js"></script>
+  <script src="../export/management_html_generator.js"></script>
+  <script src="../management/mgmt_report_view.js"></script>
   <script src="../history/history_manager.js"></script>
   <script src="../auth/auth_manager.js"></script>
   <script src="../audit/audit_logger.js"></script>
@@ -1144,6 +1148,104 @@
       const matchesSazzad = isMatchSazzad(testSupervisorTask.assignee) || isMatchSazzad(testSupervisorTask.engineer);
       assert("Task Reassignment Isolation", "Tasks assigned to other concerns do not match supervisor's assignee tab filter", matchesSazzad === false);
 
+      // ----------------------------------------------------
+      // TEST: Management Report Manager CRUD & Sequencing
+      // ----------------------------------------------------
+      assert("Management Report Module", "ManagementReportManager is loaded and initialized", 
+        typeof ManagementReportManager !== 'undefined' && typeof ManagementReportManager.getTasks === 'function');
+
+      const testMgmtMonth = '2026-03';
+      const initialMgmtTasks = ManagementReportManager.getTasks(testMgmtMonth);
+      assert("Management Report Data", "Initial management report returns tasks for 2026-03", 
+        Array.isArray(initialMgmtTasks) && initialMgmtTasks.length > 0, `Count: ${initialMgmtTasks.length}`);
+
+      // Test addTask
+      const newMgmtTask = {
+        task_title: "Automated Leak Detection Integration",
+        category: "Automation",
+        engineer: "Sazzad (50463)",
+        department: "Process Development",
+        status: "Completed",
+        cost_impact_bdt: 175000,
+        timeline_start: "2026-03-01",
+        timeline_end: "2026-03-15",
+        summary: "Zero-defect robotic sniffer integration.",
+        highlights: ["Eliminated 100% helium waste", "Cycle time reduced by 14s"]
+      };
+      const addedMgmtTask = ManagementReportManager.addTask(testMgmtMonth, newMgmtTask);
+      assert("Management Report Add Task", "addTask creates task with valid id and timestamp", 
+        addedMgmtTask && addedMgmtTask.id && addedMgmtTask.task_title === newMgmtTask.task_title);
+
+      // Test copyFromMonthlyTask
+      const mockMonthlyTask = {
+        id: "TSK-MOCK-001",
+        task: "Compressor Terminal O-Ring Automation",
+        category: "Machine Development",
+        engineer: "Rafi (45127)",
+        status: "Completed",
+        details: "Automated pneumatic press tooling with safety curtain.",
+        cost_saving: 85000
+      };
+      const copiedTask = ManagementReportManager.copyFromMonthlyTask(testMgmtMonth, mockMonthlyTask);
+      assert("Management Report Copy", "copyFromMonthlyTask maps monthly fields to management task schema", 
+        copiedTask && copiedTask.source_task_id === "TSK-MOCK-001" && copiedTask.cost_impact_bdt === 85000 && copiedTask.engineer === "Rafi (45127)");
+
+      // Test Concern Sequencing
+      const sequencedTasks = ManagementReportManager.getTasksSequencedByConcern(testMgmtMonth);
+      let isConcernSequenced = true;
+      const seenEngineers = new Set();
+      let lastEng = null;
+      for (const t of sequencedTasks) {
+        if (t.engineer !== lastEng) {
+          if (seenEngineers.has(t.engineer)) {
+            isConcernSequenced = false;
+            break;
+          }
+          seenEngineers.add(t.engineer);
+          lastEng = t.engineer;
+        }
+      }
+      assert("Management Report Concern Sequencing", "getTasksSequencedByConcern groups all slides for the same concern engineer consecutively", 
+        isConcernSequenced, `Engineers seen: ${Array.from(seenEngineers).join(' -> ')}`);
+
+      // Test Summary Calculation
+      const mgmtSummary = ManagementReportManager.getSummary(testMgmtMonth);
+      assert("Management Report Summary", "getSummary auto-calculates total tasks and total BDT savings", 
+        mgmtSummary && mgmtSummary.totalTasks >= 2 && mgmtSummary.totalSavingsBDT > 0 && typeof mgmtSummary.byConcern === 'object',
+        `Tasks: ${mgmtSummary?.totalTasks}, Total BDT: ${mgmtSummary?.totalSavingsBDT}`);
+
+      // ----------------------------------------------------
+      // TEST: Management PPTX & HTML Deck Generators
+      // ----------------------------------------------------
+      assert("Management PPTX Generator", "ManagementPPTXGenerator.generateDeck returns pptxgen presentation", 
+        typeof ManagementPPTXGenerator !== 'undefined' && typeof ManagementPPTXGenerator.generateDeck === 'function');
+      
+      const pptxDeck = ManagementPPTXGenerator.generateDeck(testMgmtMonth, sequencedTasks, mgmtSummary);
+      assert("Management PPTX Generation", "generateDeck produces presentation with slides", 
+        pptxDeck && pptxDeck.slides && pptxDeck.slides.length >= 4, `Slide count: ${pptxDeck?.slides?.length}`);
+
+      assert("Management HTML Generator", "ManagementHTMLGenerator.generateHTMLDeck produces standalone 16:9 interactive presentation", 
+        typeof ManagementHTMLGenerator !== 'undefined' && typeof ManagementHTMLGenerator.generateHTMLDeck === 'function');
+      
+      const htmlDeck = ManagementHTMLGenerator.generateHTMLDeck(testMgmtMonth, sequencedTasks, mgmtSummary);
+      assert("Management HTML Deck Content", "HTML Deck contains Walton header, executive summary table, and sequenced slides", 
+        typeof htmlDeck === 'string' && htmlDeck.includes('EXECUTIVE MANAGEMENT REPORT') && htmlDeck.includes('WALTON HI-TECH INDUSTRIES PLC') && htmlDeck.includes('THANK YOU'),
+        `HTML length: ${htmlDeck?.length} chars`);
+
+      // ----------------------------------------------------
+      // TEST: OpenRouter Free AI API Integration
+      // ----------------------------------------------------
+      assert("OpenRouter Integration in GeminiClient", "geminiClient supports OpenRouter provider and free models", 
+        typeof geminiClient.callOpenRouter === 'function' && typeof geminiClient.testOpenRouterConnection === 'function' && typeof geminiClient.generateManagementImpact === 'function');
+      
+      const activeModel = typeof geminiClient.getOpenRouterModel === 'function' ? geminiClient.getOpenRouterModel() : (geminiClient.openRouterModel || '');
+      assert("OpenRouter Free Model Selection", "geminiClient defaults or supports free model options", 
+        activeModel.includes(':free'), `Active model: ${activeModel}`);
+
+      // Cleanup test created tasks
+      if (addedMgmtTask) ManagementReportManager.deleteTask(testMgmtMonth, addedMgmtTask.id);
+      if (copiedTask) ManagementReportManager.deleteTask(testMgmtMonth, copiedTask.id);
+
       } catch (err) {
         console.error("Test Suite Runtime Exception:", err);
         assert("Runtime Exception", `Test suite encountered unexpected error: ${err.message}`, false, err.stack);
@@ -1165,6 +1267,7 @@
       const summaryText = `TOTAL TESTS: ${total} | PASSED: ${passed} | FAILED: ${failed} | SUCCESS RATE: ${Math.round((passed / total) * 100)}%`;
       document.title = summaryText;
       console.log(`\n============================================================\n${summaryText}\n============================================================\n`);
+      results.filter(r => !r.passed).forEach(r => console.error("TEST_FAILURE:", r.suite, "|", r.description, "|", r.details));
 
       let html = '';
       if (window.errors && window.errors.length) {

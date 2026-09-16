@@ -47,9 +47,6 @@
 
   <!-- Custom Stylesheet -->
   <link rel="stylesheet" href="assets/css/app.css">
-
-  <!-- Vercel Web Analytics -->
-  <script type="module" src="assets/js/analytics.js"></script>
 </head>
 <body class="min-h-screen bg-[#F4F6F9] text-slate-800 flex flex-col antialiased selection:bg-red-600 selection:text-white font-sans">
 
@@ -105,6 +102,9 @@
         <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
           📋 Monthly Input
         </button>
+        <button onclick="App.switchTab('mgmt-report')" data-tab="mgmt-report" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+          👔 Management Report
+        </button>
         <button onclick="App.switchTab('projects')" data-tab="projects" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
           🚀 Projects
         </button>
@@ -141,6 +141,9 @@
 
     <!-- View 2: Monthly Input (Single Source of Truth) -->
     <div id="monthly-input-view-container" class="view-container"></div>
+
+    <!-- View 2c: Dedicated Executive Management Report View -->
+    <div id="mgmt-report-view-container" class="view-container hidden"></div>
 
     <!-- View 2b: Dedicated Projects View -->
     <div id="projects-view-container" class="view-container hidden"></div>
@@ -221,6 +224,10 @@
   <script src="export/pptx_generator.js"></script>
   <script src="export/pdf_generator.js"></script>
   <script src="export/html_generator.js"></script>
+  <script src="management/mgmt_report_manager.js"></script>
+  <script src="export/management_pptx_generator.js"></script>
+  <script src="export/management_html_generator.js"></script>
+  <script src="management/mgmt_report_view.js"></script>
   <script src="history/history_manager.js"></script>
   <script src="history/version_view.js"></script>
   <script src="audit/audit_logger.js"></script>

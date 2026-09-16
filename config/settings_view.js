@@ -11,6 +11,9 @@ const SettingsView = {
     if (!container) return;
 
     const currentGeminiKey = HELPERS.storage.get(APP_CONFIG.AI.STORAGE_KEY_API_KEY, "");
+    const aiProvider = (typeof geminiClient !== 'undefined') ? geminiClient.getProvider() : (HELPERS.storage.get("walton_pd_ai_provider", "openrouter") || "openrouter");
+    const openRouterKey = (typeof geminiClient !== 'undefined') ? geminiClient.getOpenRouterKey() : (HELPERS.storage.get("walton_pd_openrouter_api_key", "") || "");
+    const openRouterModel = (typeof geminiClient !== 'undefined') ? geminiClient.getOpenRouterModel() : (HELPERS.storage.get("walton_pd_openrouter_model", "google/gemini-2.0-flash-exp:free") || "google/gemini-2.0-flash-exp:free");
     const currentGasUrl = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getWebAppUrl() : "";
     const syncStatus = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getStatus() : { status: 'OFFLINE' };
 
@@ -182,30 +185,118 @@ const SettingsView = {
           </div>
         </div>
 
-        <!-- Gemini API Key Configuration Card -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-              ⚡
-            </div>
-            <div>
-              <h3 class="text-sm font-bold text-white">Google Gemini 3.8 Flash API Integration</h3>
-              <p class="text-xs text-slate-400">Used for technical summary rewriting and zero-fabrication impact synthesis.</p>
+        <!-- AI Engine & OpenRouter Free API Integration Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-lg font-bold">
+                🤖
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  AI Intelligence &amp; OpenRouter Free API Integration
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    100% Free Models Available
+                  </span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Powers technical milestone generation, executive impact synthesis, and management report rewriting.</p>
+              </div>
             </div>
           </div>
 
+          <!-- Provider Selector Radio Pills -->
           <div>
-            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Gemini API Key</label>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-2">Active AI Provider</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label onclick="SettingsView.setAIProvider('openrouter')" class="cursor-pointer border ${aiProvider === 'openrouter' ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-950/60'} rounded-xl p-3 flex items-start gap-2.5 transition hover:border-indigo-400">
+                <input type="radio" name="ai_provider" value="openrouter" ${aiProvider === 'openrouter' ? 'checked' : ''} class="mt-0.5 text-indigo-600 focus:ring-0" />
+                <div>
+                  <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>OpenRouter API</span>
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300">FREE</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Gemini 2.0 Flash Free, Llama 3.3, DeepSeek, Qwen</p>
+                </div>
+              </label>
+
+              <label onclick="SettingsView.setAIProvider('gemini')" class="cursor-pointer border ${aiProvider === 'gemini' ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800 bg-slate-950/60'} rounded-xl p-3 flex items-start gap-2.5 transition hover:border-cyan-400">
+                <input type="radio" name="ai_provider" value="gemini" ${aiProvider === 'gemini' ? 'checked' : ''} class="mt-0.5 text-cyan-600 focus:ring-0" />
+                <div>
+                  <div class="text-xs font-bold text-white">Google Gemini Direct</div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Direct Google AI Studio API key</p>
+                </div>
+              </label>
+
+              <label onclick="SettingsView.setAIProvider('offline')" class="cursor-pointer border ${aiProvider === 'offline' ? 'border-slate-500 bg-slate-800/40' : 'border-slate-800 bg-slate-950/60'} rounded-xl p-3 flex items-start gap-2.5 transition hover:border-slate-400">
+                <input type="radio" name="ai_provider" value="offline" ${aiProvider === 'offline' ? 'checked' : ''} class="mt-0.5 text-slate-400 focus:ring-0" />
+                <div>
+                  <div class="text-xs font-bold text-white">Local Rule Engine</div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Deterministic 100% offline rule templates</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- OpenRouter Configuration Panel -->
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                <span>🌐</span> OpenRouter Configuration &amp; Free Models
+              </span>
+              <a href="https://openrouter.ai/keys" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1">
+                <span>Get Free Key on openrouter.ai</span> <span>↗</span>
+              </a>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">OpenRouter API Key</label>
+                <div class="flex items-center gap-2">
+                  <input type="password" id="settings-openrouter-key" value="${HELPERS.escapeHtml(openRouterKey)}" placeholder="sk-or-v1-..."
+                         class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono" />
+                  <button onclick="SettingsView.saveOpenRouterKey()" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow">
+                    Save Key
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Select Free AI Model</label>
+                <select id="settings-openrouter-model" onchange="SettingsView.saveOpenRouterModel(this.value)"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+                  <option value="google/gemini-2.0-flash-exp:free" ${openRouterModel === 'google/gemini-2.0-flash-exp:free' ? 'selected' : ''}>google/gemini-2.0-flash-exp:free (Fast &amp; Accurate - Recommended)</option>
+                  <option value="meta-llama/llama-3.3-70b-instruct:free" ${openRouterModel === 'meta-llama/llama-3.3-70b-instruct:free' ? 'selected' : ''}>meta-llama/llama-3.3-70b-instruct:free (High Capability)</option>
+                  <option value="deepseek/deepseek-chat:free" ${openRouterModel === 'deepseek/deepseek-chat:free' ? 'selected' : ''}>deepseek/deepseek-chat:free (Process &amp; Reasoning)</option>
+                  <option value="qwen/qwen-2.5-coder-32b-instruct:free" ${openRouterModel === 'qwen/qwen-2.5-coder-32b-instruct:free' ? 'selected' : ''}>qwen/qwen-2.5-coder-32b-instruct:free (Technical)</option>
+                  <option value="mistralai/mistral-small-24b-instruct-2501:free" ${openRouterModel === 'mistralai/mistral-small-24b-instruct-2501:free' ? 'selected' : ''}>mistralai/mistral-small-24b-instruct-2501:free</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+              <div class="flex items-center gap-2">
+                <button onclick="SettingsView.testAIConnection()" id="btn-test-ai" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow">
+                  <span>⚡</span> <span>Test AI Connection</span>
+                </button>
+                <div id="ai-test-result" class="text-xs"></div>
+              </div>
+              <span class="text-[11px] text-slate-500">Zero API cost with OpenRouter Free models</span>
+            </div>
+          </div>
+
+          <!-- Gemini Direct Key (Optional / Alternative) -->
+          <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-slate-300">Google Gemini Direct API Key (Optional Alternative)</label>
+              <span class="text-[11px] text-slate-500">Google AI Studio Direct Endpoint</span>
+            </div>
             <div class="flex items-center gap-3">
               <input type="password" id="settings-gemini-key" value="${HELPERS.escapeHtml(currentGeminiKey)}" placeholder="AIzaSy..." 
-                     class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono" />
-              <button onclick="SettingsView.saveGeminiKey()" class="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white shadow">
+                     class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono" />
+              <button onclick="SettingsView.saveGeminiKey()" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white shadow">
                 Save Key
               </button>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">
-              If left blank, the system automatically uses deterministic rule-based local transformation with 100% offline capability.
-            </p>
           </div>
         </div>
 
@@ -693,6 +784,73 @@ function syncCostSavingsTable(costList) {
     }).catch(() => {
       prompt("Copy the Google Apps Script code below:", scriptCode);
     });
+  },
+
+  setAIProvider(provider) {
+    if (typeof geminiClient !== 'undefined') {
+      geminiClient.setProvider(provider);
+    } else {
+      HELPERS.storage.set("walton_pd_ai_provider", provider);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(`AI Provider set to: ${provider.toUpperCase()}`, "info");
+    }
+    this.render();
+  },
+
+  saveOpenRouterKey() {
+    const key = (document.getElementById('settings-openrouter-key') ? document.getElementById('settings-openrouter-key').value : '').trim();
+    if (typeof geminiClient !== 'undefined') {
+      geminiClient.setOpenRouterKey(key);
+    } else {
+      HELPERS.storage.set("walton_pd_openrouter_api_key", key);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(key ? "✅ OpenRouter API Key saved!" : "OpenRouter API Key removed.", "success");
+    } else {
+      alert(key ? "OpenRouter API Key saved!" : "OpenRouter API Key removed.");
+    }
+  },
+
+  saveOpenRouterModel(model) {
+    if (typeof geminiClient !== 'undefined') {
+      geminiClient.setOpenRouterModel(model);
+    } else {
+      HELPERS.storage.set("walton_pd_openrouter_model", model);
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(`Active AI Model: ${model}`, "info");
+    }
+  },
+
+  async testAIConnection() {
+    const btn = document.getElementById('btn-test-ai');
+    const resDiv = document.getElementById('ai-test-result');
+    if (btn) btn.disabled = true;
+    if (resDiv) resDiv.innerHTML = '<span class="text-amber-400 font-mono animate-pulse">Testing connection...</span>';
+
+    const key = (document.getElementById('settings-openrouter-key') ? document.getElementById('settings-openrouter-key').value : '').trim();
+    const model = (document.getElementById('settings-openrouter-model') ? document.getElementById('settings-openrouter-model').value : '').trim();
+
+    if (!key) {
+      if (resDiv) resDiv.innerHTML = '<span class="text-rose-400 font-bold">Please enter your OpenRouter key first!</span>';
+      if (btn) btn.disabled = false;
+      return;
+    }
+
+    if (typeof geminiClient !== 'undefined') {
+      geminiClient.setOpenRouterKey(key);
+      if (model) geminiClient.setOpenRouterModel(model);
+      const res = await geminiClient.testOpenRouterConnection(key, model);
+      if (res.success) {
+        if (resDiv) resDiv.innerHTML = `<span class="text-emerald-400 font-bold font-mono">✅ Connected! (${res.latency}ms) &bull; ${res.model}</span>`;
+      } else {
+        if (resDiv) resDiv.innerHTML = `<span class="text-rose-400 font-mono">❌ ${HELPERS.escapeHtml(res.error || 'Connection failed')} (${res.latency}ms)</span>`;
+      }
+    } else {
+      if (resDiv) resDiv.innerHTML = '<span class="text-emerald-400 font-bold">Key saved locally</span>';
+    }
+    if (btn) btn.disabled = false;
   },
 
   saveGeminiKey() {

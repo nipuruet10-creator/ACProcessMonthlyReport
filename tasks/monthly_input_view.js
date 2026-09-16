@@ -194,18 +194,32 @@ const MonthlyInputView = {
 
   updateBulkDeleteButton() {
     const checked = document.querySelectorAll('.task-row-checkbox:checked');
-    const btn = document.getElementById('bulk-delete-btn');
+    const delBtn = document.getElementById('bulk-delete-btn');
+    const copyBtn = document.getElementById('bulk-copy-mgmt-btn');
     const countSpan = document.getElementById('selected-task-count');
+    const copyCountSpan = document.getElementById('selected-mgmt-task-count');
     const selectAllCb = document.getElementById('task-select-all');
 
     if (countSpan) countSpan.textContent = checked.length;
-    if (btn) {
+    if (copyCountSpan) copyCountSpan.textContent = checked.length;
+
+    if (delBtn) {
       if (checked.length > 0) {
-        btn.classList.remove('hidden');
-        btn.classList.add('inline-flex');
+        delBtn.classList.remove('hidden');
+        delBtn.classList.add('inline-flex');
       } else {
-        btn.classList.add('hidden');
-        btn.classList.remove('inline-flex');
+        delBtn.classList.add('hidden');
+        delBtn.classList.remove('inline-flex');
+      }
+    }
+
+    if (copyBtn) {
+      if (checked.length > 0) {
+        copyBtn.classList.remove('hidden');
+        copyBtn.classList.add('inline-flex');
+      } else {
+        copyBtn.classList.add('hidden');
+        copyBtn.classList.remove('inline-flex');
       }
     }
 
@@ -213,6 +227,58 @@ const MonthlyInputView = {
     if (selectAllCb && allCheckboxes.length > 0) {
       selectAllCb.checked = (checked.length === allCheckboxes.length);
     }
+  },
+
+  copyTaskToManagementReport(taskId) {
+    if (!window.appState || !window.appState.workbookMgr) return;
+    const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
+    if (!task) return;
+
+    const mgr = window.managementReportMgr || (typeof ManagementReportManager !== 'undefined' ? new ManagementReportManager() : null);
+    if (!mgr) {
+      alert("Management Report Manager is not initialized.");
+      return;
+    }
+
+    const result = mgr.copyFromMonthlyTask(this.selectedMonth, task);
+    if (result && result.alreadyExists) {
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Notice: "${task.task_name}" is already in Management Report`, "info");
+      } else {
+        alert(`Notice: "${task.task_name}" is already in Management Report`);
+      }
+    } else {
+      if (typeof window.showToast === 'function') {
+        window.showToast(`👔 Copied "${task.task_name}" to Management Report!`, "success");
+      } else {
+        alert(`👔 Copied "${task.task_name}" to Management Report!`);
+      }
+    }
+  },
+
+  copySelectedToManagementReport() {
+    const checked = Array.from(document.querySelectorAll('.task-row-checkbox:checked'));
+    if (checked.length === 0) return;
+
+    if (!window.appState || !window.appState.workbookMgr) return;
+    const mgr = window.managementReportMgr || (typeof ManagementReportManager !== 'undefined' ? new ManagementReportManager() : null);
+    if (!mgr) return;
+
+    const tasksToCopy = checked.map(cb => window.appState.workbookMgr.getTask(this.selectedMonth, cb.value)).filter(Boolean);
+    const results = mgr.bulkCopyFromMonthlyTasks(this.selectedMonth, tasksToCopy);
+    const newCopies = results.filter(r => !r.alreadyExists).length;
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`👔 Copied ${newCopies} task(s) to Management Report!`, "success");
+    } else {
+      alert(`👔 Copied ${newCopies} task(s) to Management Report!`);
+    }
+
+    // Uncheck checkboxes
+    checked.forEach(cb => { cb.checked = false; });
+    const selectAllCb = document.getElementById('task-select-all');
+    if (selectAllCb) selectAllCb.checked = false;
+    this.updateBulkDeleteButton();
   },
 
   async deleteSelectedTasks() {
@@ -1216,14 +1282,22 @@ const MonthlyInputView = {
           </button>
         </td>
 
-        <!-- Delete Row & Auto Row Trigger on Tab/Enter -->
+        <!-- Actions: Copy to Management Report & Delete Row -->
         <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-          <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
-                  onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
-                  title="Delete Row (or press Tab on last row to auto-insert new row)" 
-                  class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition">
-            ✕
-          </button>
+          <div class="flex items-center justify-center gap-1">
+            <button onclick="MonthlyInputView.copyTaskToManagementReport('${t.task_id}')" 
+                    title="Copy this task to Management Report" 
+                    class="p-1 rounded-lg hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 transition text-xs font-bold"
+                    aria-label="Copy to Management Report">
+              👔
+            </button>
+            <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
+                    onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
+                    title="Delete Row (or press Tab on last row to auto-insert new row)" 
+                    class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
+              ✕
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -1509,10 +1583,15 @@ const MonthlyInputView = {
                 TASK MANAGEMENT ENTRY GRID ${this.filterEngineer ? `&bull; Showing ${this.filterEngineer} (${tasks.length})` : ''}
               </h3>
 
-              <!-- Dynamic Multi-Row Bulk Delete Button -->
-              <button id="bulk-delete-btn" onclick="MonthlyInputView.deleteSelectedTasks()" class="hidden px-3 py-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition items-center gap-1.5 animate-pulse">
-                <span>🗑️</span> <span>Delete Selected (<span id="selected-task-count">0</span>)</span>
-              </button>
+              <!-- Dynamic Multi-Row Bulk Actions -->
+              <div class="flex items-center gap-2">
+                <button id="bulk-copy-mgmt-btn" onclick="MonthlyInputView.copySelectedToManagementReport()" class="hidden px-3 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition items-center gap-1.5">
+                  <span>👔</span> <span>Copy to Mgmt Report (<span id="selected-mgmt-task-count">0</span>)</span>
+                </button>
+                <button id="bulk-delete-btn" onclick="MonthlyInputView.deleteSelectedTasks()" class="hidden px-3 py-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition items-center gap-1.5 animate-pulse">
+                  <span>🗑️</span> <span>Delete Selected (<span id="selected-task-count">0</span>)</span>
+                </button>
+              </div>
             </div>
             <span class="text-xs text-slate-400 font-mono hidden md:inline">
               Excel Grid Mode &bull; Direct cell editing &bull; ⬇️ Fill Down &bull; Ctrl+D point copy &bull; Multi-select delete

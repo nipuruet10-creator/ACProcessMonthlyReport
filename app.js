@@ -124,6 +124,8 @@ const App = {
       if (typeof DashboardController !== 'undefined') await DashboardController.render('dashboard-view-container');
     } else if (tabId === 'monthly-input') {
       if (typeof MonthlyInputView !== 'undefined') await MonthlyInputView.render('monthly-input-view-container');
+    } else if (tabId === 'mgmt-report') {
+      if (typeof ManagementReportView !== 'undefined') await ManagementReportView.render('mgmt-report-view-container');
     } else if (tabId === 'projects') {
       if (typeof ProjectsView !== 'undefined') await ProjectsView.render('projects-view-container');
     } else if (tabId === 'ai-breakdown') {
