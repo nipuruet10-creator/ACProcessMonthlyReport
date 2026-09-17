@@ -17,7 +17,7 @@ class GeminiClient {
     this.STORAGE_KEY_PROVIDER = "walton_pd_ai_provider";
     this.STORAGE_KEY_OPENROUTER_KEY = "walton_pd_openrouter_api_key";
     this.STORAGE_KEY_OPENROUTER_MODEL = "walton_pd_openrouter_model";
-    this.DEFAULT_OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
+    this.DEFAULT_OPENROUTER_MODEL = "openrouter/free";
   }
 
   getProvider() {
@@ -148,7 +148,18 @@ class GeminiClient {
 
         // Sort free models nicely
         freeModels.sort((a, b) => a.name.localeCompare(b.name));
-        return { freeModels, otherModels, all: [...freeModels, ...otherModels] };
+        // Prepend OpenRouter Free Models Auto-Router at the very top
+        freeModels.unshift(
+          { id: "openrouter/free", name: "OpenRouter: Free Models Auto-Router (100% Free - Recommended)", isFree: true },
+          { id: "openrouter/auto", name: "OpenRouter: Auto Router (Best Fit)", isFree: true }
+        );
+        const seen = new Set();
+        const uniqueFree = freeModels.filter(m => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+        return { freeModels: uniqueFree, otherModels, all: [...uniqueFree, ...otherModels] };
       }
     } catch (e) {
       console.warn("Could not dynamically load OpenRouter models, using verified catalog:", e.message);
@@ -156,7 +167,9 @@ class GeminiClient {
 
     // Fallback verified models
     const fallbackFree = [
-      { id: "google/gemini-2.0-flash-exp:free", name: "Google: Gemini 2.0 Flash (Fast & Accurate - Recommended)", isFree: true },
+      { id: "openrouter/free", name: "OpenRouter: Free Models Auto-Router (100% Free - Recommended)", isFree: true },
+      { id: "openrouter/auto", name: "OpenRouter: Auto Router (Best Fit)", isFree: true },
+      { id: "google/gemini-2.0-flash-exp:free", name: "Google: Gemini 2.0 Flash (Fast & Accurate)", isFree: true },
       { id: "deepseek/deepseek-r1:free", name: "DeepSeek: R1 Reasoning (Deep Logic - Free)", isFree: true },
       { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Meta: Llama 3.3 70B Instruct (High Capability - Free)", isFree: true },
       { id: "qwen/qwen-2.5-coder-32b-instruct:free", name: "Qwen: 2.5 Coder 32B (Technical & Code - Free)", isFree: true },

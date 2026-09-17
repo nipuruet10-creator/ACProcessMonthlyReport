@@ -17,6 +17,8 @@ const SettingsView = {
     const currentGasUrl = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getWebAppUrl() : "";
     const syncStatus = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getStatus() : { status: 'OFFLINE' };
     const onlineDocsEmails = localStorage.getItem('walton_online_docs_emails') || '';
+    const googleSlidesUrl = localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/';
+    const taskSequenceMode = this.getTaskSequenceMode();
     const monthlySeq = this.getMonthlyEngineerSequence();
     const mgmtSeq = this.getMgmtEngineerSequence();
 
@@ -274,7 +276,9 @@ const SettingsView = {
                 <select id="settings-openrouter-model" onchange="SettingsView.saveOpenRouterModel(this.value)"
                         class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
                   <optgroup label="🆓 Recommended Free Models (Zero API Cost)">
-                    <option value="google/gemini-2.0-flash-exp:free" ${openRouterModel === 'google/gemini-2.0-flash-exp:free' ? 'selected' : ''}>google/gemini-2.0-flash-exp:free (Fast &amp; Accurate - Recommended)</option>
+                    <option value="openrouter/free" ${openRouterModel === 'openrouter/free' ? 'selected' : ''}>openrouter/free (Auto Free Models Router - 100% Free - Recommended)</option>
+                    <option value="openrouter/auto" ${openRouterModel === 'openrouter/auto' ? 'selected' : ''}>openrouter/auto (Auto Router)</option>
+                    <option value="google/gemini-2.0-flash-exp:free" ${openRouterModel === 'google/gemini-2.0-flash-exp:free' ? 'selected' : ''}>google/gemini-2.0-flash-exp:free (Fast &amp; Accurate)</option>
                     <option value="deepseek/deepseek-r1:free" ${openRouterModel === 'deepseek/deepseek-r1:free' ? 'selected' : ''}>deepseek/deepseek-r1:free (Reasoning &amp; Logic)</option>
                     <option value="meta-llama/llama-3.3-70b-instruct:free" ${openRouterModel === 'meta-llama/llama-3.3-70b-instruct:free' ? 'selected' : ''}>meta-llama/llama-3.3-70b-instruct:free (High Capability)</option>
                     <option value="qwen/qwen-2.5-coder-32b-instruct:free" ${openRouterModel === 'qwen/qwen-2.5-coder-32b-instruct:free' ? 'selected' : ''}>qwen/qwen-2.5-coder-32b-instruct:free (Technical)</option>
@@ -331,14 +335,63 @@ const SettingsView = {
 
           <div class="space-y-3">
             <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Google Slides Presentation URL (Format: https://docs.google.com/presentation/u/0/)</label>
+              <input type="text" id="settings-google-slides-url" value="${HELPERS.escapeHtml(googleSlidesUrl)}" 
+                     placeholder="https://docs.google.com/presentation/u/0/" 
+                     class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-500" />
+              <p class="text-[11px] text-slate-500 mt-1">Direct link opened when clicking "Online Presentation". Defaults to <span class="text-indigo-400 font-mono">https://docs.google.com/presentation/u/0/</span>.</p>
+            </div>
+
+            <div>
               <label class="block text-xs font-semibold text-slate-300 mb-1">Authorized Team Emails (Comma or Newline Separated)</label>
               <textarea id="settings-online-docs-emails" rows="3" placeholder="user1@waltonbd.com, user2@waltonbd.com" 
                         class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">${HELPERS.escapeHtml(onlineDocsEmails)}</textarea>
               <p class="text-[11px] text-slate-500 mt-1">Only the owner (<strong class="text-indigo-400 font-mono">nipu.ruet10@gmail.com</strong>) and authorized emails listed above will be granted access to open the live presentation link.</p>
             </div>
             <button onclick="SettingsView.saveOnlineDocsPermissions()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow">
-              Save Permissions
+              Save Presentation Link &amp; Permissions
             </button>
+          </div>
+        </div>
+
+        <!-- Task Sequencing Mode Configuration Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-xl font-bold">
+                🗂️
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Task Sequencing Mode (Slide Presentation Order)</h3>
+                <p class="text-xs text-slate-400">Controls whether tasks are ordered by Category first (with Engineer serial) or grouped by Engineer directly.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label onclick="SettingsView.setTaskSequenceMode('category')" class="cursor-pointer border ${taskSequenceMode === 'category' ? 'border-purple-500 bg-purple-500/10' : 'border-slate-800 bg-slate-950/60'} rounded-xl p-3.5 flex items-start gap-3 transition hover:border-purple-400">
+              <input type="radio" name="task_sequence_mode" value="category" ${taskSequenceMode === 'category' ? 'checked' : ''} class="mt-1 text-purple-600 focus:ring-0" />
+              <div>
+                <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>By Category (with Engineer Serial)</span>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300">Recommended</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Categories sequence: <em>Process &gt; Tools &gt; Parts &gt; Cost &gt; Manpower &gt; BOM &gt; Projects</em>.<br/>
+                  Within each category, tasks are strictly ordered by Engineer: <strong>Sazzad &gt; Rafi &gt; Faiyaz &gt; Abdullah &gt; Emon &gt; Pear &gt; Hashmi &gt; Anam</strong>.
+                </p>
+              </div>
+            </label>
+
+            <label onclick="SettingsView.setTaskSequenceMode('engineer')" class="cursor-pointer border ${taskSequenceMode === 'engineer' ? 'border-purple-500 bg-purple-500/10' : 'border-slate-800 bg-slate-950/60'} rounded-xl p-3.5 flex items-start gap-3 transition hover:border-purple-400">
+              <input type="radio" name="task_sequence_mode" value="engineer" ${taskSequenceMode === 'engineer' ? 'checked' : ''} class="mt-1 text-purple-600 focus:ring-0" />
+              <div>
+                <div class="text-xs font-bold text-white">By Engineer Only</div>
+                <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  All tasks for an engineer appear consecutively before proceeding to the next engineer in sequence.
+                </p>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -1121,14 +1174,33 @@ function syncCostSavingsTable(costList) {
     }
   },
 
+  getTaskSequenceMode() {
+    return localStorage.getItem('walton_task_sequence_mode') || 'category';
+  },
+
+  setTaskSequenceMode(mode) {
+    localStorage.setItem('walton_task_sequence_mode', mode || 'category');
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast(`Task sequencing mode set to: ${mode === 'category' ? 'By Category (with Engineer Serial)' : 'By Engineer'}`, 'success');
+    }
+  },
+
   saveOnlineDocsPermissions() {
     const textarea = document.getElementById('settings-online-docs-emails');
     const val = textarea ? textarea.value.trim() : '';
     localStorage.setItem('walton_online_docs_emails', val);
+
+    const urlInput = document.getElementById('settings-google-slides-url');
+    const googleUrl = urlInput ? urlInput.value.trim() : '';
+    if (googleUrl) {
+      localStorage.setItem('walton_google_slides_url', googleUrl);
+    }
+
     if (typeof window.showToast === 'function') {
-      window.showToast("✅ Online Docs permissions saved!", "success");
+      window.showToast("✅ Online Presentation link & permissions saved!", "success");
     } else {
-      alert("Online Docs permissions saved!");
+      alert("Online Presentation link & permissions saved!");
     }
   },
 

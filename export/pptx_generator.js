@@ -67,6 +67,14 @@ class PPTXGenerator {
     });
 
     // Engineer-sequenced Task Slides: Sazzad > Rafi > Faiyaz > Abdullah > Emon > Pear > Hashmi > Anam (Requirement 10)
+    // Task Sequencing Mode: 'category' (By Category with Engineer serial) vs 'engineer' (By Engineer)
+    let sequenceMode = 'category';
+    if (typeof SettingsView !== 'undefined' && SettingsView.getTaskSequenceMode) {
+      try { sequenceMode = SettingsView.getTaskSequenceMode(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      sequenceMode = localStorage.getItem('walton_task_sequence_mode') || 'category';
+    }
+
     let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
     if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
       try { engineerSeq = SettingsView.getMonthlyEngineerSequence(); } catch(e) {}
@@ -77,29 +85,89 @@ class PPTXGenerator {
       }
     }
 
-    const sequencedStandardTasks = [];
-    const matchedTaskIds = new Set();
-    engineerSeq.forEach(engName => {
-      const cleanEng = (engName || '').trim().toLowerCase();
-      if (!cleanEng) return;
+    const getEngRank = (task) => {
+      const eng = (task.concern_engineer || task.concern || '').toLowerCase();
+      for (let i = 0; i < engineerSeq.length; i++) {
+        if (eng.includes(engineerSeq[i].toLowerCase())) return i;
+      }
+      return 999;
+    };
+
+    let sequencedStandardTasks = [];
+
+    if (sequenceMode === 'category') {
+      const processTasks = [];
+      const toolsTasks = [];
+      const partsTasks = [];
+      const costTasks = [];
+      const manpowerTasks = [];
+      const bomTasks = [];
+      const otherTasks = [];
+
       standardTaskSlides.forEach(task => {
-        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
-        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
-          sequencedStandardTasks.push(task);
-          matchedTaskIds.add(task.task_id);
+        const cat = (task.category || '').toLowerCase();
+        const title = (task.slide_title || task.task_name || '').toLowerCase();
+
+        if (cat.includes('process') || title.includes('process')) {
+          processTasks.push(task);
+        } else if (cat.includes('tool') || cat.includes('jig') || cat.includes('die') || cat.includes('fixture') || title.includes('tool') || title.includes('die') || title.includes('fixture')) {
+          toolsTasks.push(task);
+        } else if (cat.includes('part') || cat.includes('material') || cat.includes('component') || title.includes('part')) {
+          partsTasks.push(task);
+        } else if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) {
+          costTasks.push(task);
+        } else if (cat.includes('manpower') || title.includes('manpower')) {
+          manpowerTasks.push(task);
+        } else if (cat.includes('bom') || title.includes('bom')) {
+          bomTasks.push(task);
+        } else {
+          otherTasks.push(task);
         }
       });
-    });
-    standardTaskSlides.forEach(task => {
-      if (!matchedTaskIds.has(task.task_id)) {
-        sequencedStandardTasks.push(task);
-      }
-    });
+
+      // Sort each category strictly by Engineer Sequence
+      [processTasks, toolsTasks, partsTasks, costTasks, manpowerTasks, bomTasks, otherTasks].forEach(bucket => {
+        bucket.sort((a, b) => getEngRank(a) - getEngRank(b));
+      });
+
+      sequencedStandardTasks = [
+        ...processTasks,
+        ...toolsTasks,
+        ...partsTasks,
+        ...costTasks,
+        ...manpowerTasks,
+        ...bomTasks,
+        ...otherTasks
+      ];
+    } else {
+      // By Engineer
+      const matchedTaskIds = new Set();
+      engineerSeq.forEach(engName => {
+        const cleanEng = (engName || '').trim().toLowerCase();
+        if (!cleanEng) return;
+        standardTaskSlides.forEach(task => {
+          const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+          if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+            sequencedStandardTasks.push(task);
+            matchedTaskIds.add(task.task_id);
+          }
+        });
+      });
+      standardTaskSlides.forEach(task => {
+        if (!matchedTaskIds.has(task.task_id)) {
+          sequencedStandardTasks.push(task);
+        }
+      });
+    }
+
+    // Sort projects by Engineer rank
+    completedProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
+    ongoingProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
 
     const taskSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
     const activeTemplate = template || reportData.template || "walton_executive_crimson";
     const isBlue = (activeTemplate === "industrial_innovation_blue" || activeTemplate === "walton_blue_dual");
-    const totalSlideCount = taskSlides.length + 5; // Cover + Overview + Dashboard + Tasks + Final Summary + Thank You
+    const totalSlideCount = taskSlides.length + 4; // Cover + TOC + Dashboard + Tasks + Top 5 Works (4 + N slides)
 
     // -------------------------------------------------------------
     // SLIDE 1: COVER PAGE (Crimson or Blue)
@@ -113,29 +181,29 @@ class PPTXGenerator {
     }
 
     // -------------------------------------------------------------
-    // SLIDE 2: EXECUTIVE OVERVIEW (Requirement 8)
+    // SLIDE 2: TABLE OF CONTENTS & AGENDA
     // -------------------------------------------------------------
-    const slideOverview = pptx.addSlide();
-    slideOverview.background = { color: bgWhite };
+    const slideTOC = pptx.addSlide();
+    slideTOC.background = { color: bgWhite };
     if (isBlue) {
-      this._addIndustrialBlueOverviewSlide(slideOverview, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
+      this._addIndustrialBlueTableOfContents(slideTOC, pptx, font, monthName, taskSlides.length, totalSlideCount);
     } else {
-      this._addExecutiveOverviewSlide(slideOverview, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
+      this._addExecutiveRedTableOfContents(slideTOC, pptx, font, monthName, taskSlides.length, totalSlideCount);
     }
 
     // -------------------------------------------------------------
-    // SLIDE 3: DYNAMIC 6-MONTH ROLLING COST SAVINGS (Requirement 9)
+    // SLIDE 3: MANAGEMENT DASHBOARD (Rolling 6-Month Savings + 8 KPIs)
     // -------------------------------------------------------------
     const slideDash = pptx.addSlide();
     slideDash.background = { color: bgWhite };
     if (isBlue) {
-      this._addIndustrialBlueDashboardSlide(slideDash, pptx, font, monthName, totalSlideCount, reportData.dashboardData);
+      this._addIndustrialBlueDashboardSlide(slideDash, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
     } else {
-      this._addExecutiveRedDashboardSlide(slideDash, pptx, font, monthName, totalSlideCount, reportData.dashboardData);
+      this._addExecutiveRedDashboardSlide(slideDash, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
     }
 
     // -------------------------------------------------------------
-    // SLIDES 4 to N: TASK SLIDES (1 Row = 1 Slide) (Requirements 10 & 11)
+    // SLIDES 4 to N+3: TASK SLIDES (1 Row = 1 Slide)
     // -------------------------------------------------------------
     let currentSlideNum = 4;
     for (const task of taskSlides) {
@@ -165,26 +233,14 @@ class PPTXGenerator {
     }
 
     // -------------------------------------------------------------
-    // SLIDE N+1: FINAL SUMMARY REPORT (Dashboard Color Card Pattern) (Requirement 11)
+    // SLIDE N+4 (LAST SLIDE): TOP 5 WORKS & PROJECTS SUMMARY (Image 2)
     // -------------------------------------------------------------
-    const slideSummary = pptx.addSlide();
-    slideSummary.background = { color: bgWhite };
+    const slideTopWorks = pptx.addSlide();
+    slideTopWorks.background = { color: bgWhite };
     if (isBlue) {
-      this._addIndustrialBlueFinalSummarySlide(slideSummary, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData);
+      this._addIndustrialBlueTopWorksSlide(slideTopWorks, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData.topWorksData || reportData);
     } else {
-      this._addFinalSummaryDashboardSlide(slideSummary, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData);
-    }
-    currentSlideNum++;
-
-    // -------------------------------------------------------------
-    // SLIDE N+2: THANK YOU SLIDE (Requirement 11)
-    // -------------------------------------------------------------
-    const slideThankYou = pptx.addSlide();
-    slideThankYou.background = { color: "07172B" };
-    if (isBlue) {
-      this._addIndustrialBlueThankYouSlide(slideThankYou, pptx, font, monthName);
-    } else {
-      this._addThankYouSlide(slideThankYou, pptx, font, monthName);
+      this._addExecutiveRedTopWorksSlide(slideTopWorks, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData.topWorksData || reportData);
     }
 
     const fileName = `Walton_AC_Process_Monthly_Report_${monthName.replace(/\s+/g, '_')}.pptx`;

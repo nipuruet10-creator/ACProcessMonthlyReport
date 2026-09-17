@@ -2281,7 +2281,54 @@ const SlideLayoutEngine = {
       ];
     }
 
-    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+    // Dynamic Category Counting for the 8 KPI Cards (Image 1)
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+
+    tasksList.forEach(t => {
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
+        else ongoingProjCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlyImpact}/Yr`, icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
 
     return `
     <div class="walton-dashboard-slide walton-cost-saving-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
@@ -2314,10 +2361,10 @@ const SlideLayoutEngine = {
       <!-- SUBHEADER TITLE BAR -->
       <div class="flex items-center gap-3 my-1 flex-shrink-0">
         <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #FEE2E2; color: #C5161D; border: 1px solid #FCA5A5; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
-          FINANCIAL PERFORMANCE &bull; COST OPTIMIZATION <!-- AC Product Dashboard -->
+          AC Product Dashboard &bull; Operations
         </span>
         <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
-          Rolling 6-Month Realized Cost Savings &amp; Financial Impact
+          Process Development Performance &amp; Rolling Savings (${monthUpper})
         </h2>
       </div>
 
@@ -2383,40 +2430,18 @@ const SlideLayoutEngine = {
 
       </div>
 
-      <!-- LOWER SECTION: DYNAMIC 6-MONTH TRAJECTORY & VALUE CREATION PILLARS -->
-      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: space-between; flex: 1; min-height: 155px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 14px;">📊</span>
-            <span style="font-size: 12px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Rolling 6-Month Savings Trajectory &amp; Trend</span>
+      <!-- LOWER SECTION: 8 PROCESS CATEGORY PILLARS (IMAGE 1) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch; margin-top: 4px;">
+        ${categoryGrid.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 26px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 15px; opacity: 0.9;">${k.icon}</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800; color: ${k.labelColor}; margin-top: 4px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 2px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>
           </div>
-          <span style="font-size: 10.5px; font-weight: 700; color: #047857; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 2px 10px; border-radius: 9999px;">Verified Accounting Savings</span>
-        </div>
-
-        <!-- 6-Month Visual Bar Chart -->
-        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-items: flex-end; flex: 1; padding: 6px 10px 4px 10px; border-bottom: 1px solid #E2E8F0;">
-          ${savings.map((s, idx) => {
-            const isLast = idx === savings.length - 1;
-            const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
-            return `
-              <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px;">
-                <span style="font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isLast ? '#C5161D' : '#475569'};">${s.val}</span>
-                <div style="width: 100%; max-width: 52px; height: ${pct}%; min-height: 18px; border-radius: 8px; background: ${isLast ? 'linear-gradient(180deg, #EF4444 0%, #B91C1C 100%)' : 'linear-gradient(180deg, #38BDF8 0%, #0284C7 100%)'}; box-shadow: 0 2px 6px ${isLast ? 'rgba(239,68,68,0.3)' : 'rgba(2,132,199,0.25)'}; display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 9px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace;">${pct}%</span>
-                </div>
-                <span style="font-size: 10.5px; font-weight: ${isLast ? '900' : '700'}; color: ${isLast ? '#C5161D' : '#0F172A'};">${s.m}</span>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        <!-- 4 Process Drivers -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
-          <div style="font-size: 10px; font-weight: 700; color: #1E3A8A; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 3px 6px; border-radius: 6px; text-align: center;">🔧 Tool &amp; Die Optimization</div>
-          <div style="font-size: 10px; font-weight: 700; color: #065F46; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 3px 6px; border-radius: 6px; text-align: center;">♻️ Scrap &amp; Material Recovery</div>
-          <div style="font-size: 10px; font-weight: 700; color: #78350F; background: #FFFBEB; border: 1px solid #FDE68A; padding: 3px 6px; border-radius: 6px; text-align: center;">⚡ Cycle Time Compression</div>
-          <div style="font-size: 10px; font-weight: 700; color: #701A75; background: #FDF4FF; border: 1px solid #F5D0FE; padding: 3px 6px; border-radius: 6px; text-align: center;">🧪 Material &amp; Chemical Trial</div>
-        </div>
+        `).join('')}
       </div>
 
       <!-- FOOTER -->
@@ -2668,7 +2693,7 @@ const SlideLayoutEngine = {
     ];
 
     return `
-    <div class="walton-top5-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+    <div class="walton-top5-slide walton-top-works-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 25px 40px; display: flex; flex-direction: column; justify-content: space-between;">
       
       <!-- HEADER -->
@@ -3226,10 +3251,57 @@ const SlideLayoutEngine = {
       ];
     }
 
-    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+    // Dynamic Category Counting for the 8 KPI Cards (Image 1)
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+
+    tasksList.forEach(t => {
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
+        else ongoingProjCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlyImpact}/Yr`, icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
 
     return `
-    <div class="walton-dashboard-slide walton-blue-dashboard bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+    <div class="walton-dashboard-slide walton-blue-dashboard industrial-blue-dashboard bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
          data-title="AC Product Dashboard"
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between;">
       
@@ -3326,40 +3398,18 @@ const SlideLayoutEngine = {
 
       </div>
 
-      <!-- LOWER SECTION: DYNAMIC 6-MONTH TRAJECTORY & VALUE CREATION PILLARS -->
-      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: space-between; flex: 1; min-height: 155px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 14px;">📊</span>
-            <span style="font-size: 12px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Rolling 6-Month Savings Trajectory &amp; Trend</span>
+      <!-- LOWER SECTION: 8 PROCESS CATEGORY PILLARS (IMAGE 1) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch; margin-top: 4px;">
+        ${categoryGrid.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 26px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 15px; opacity: 0.9;">${k.icon}</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800; color: ${k.labelColor}; margin-top: 4px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 2px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>
           </div>
-          <span style="font-size: 10.5px; font-weight: 700; color: #047857; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 2px 10px; border-radius: 9999px;">Verified Accounting Savings</span>
-        </div>
-
-        <!-- 6-Month Visual Bar Chart -->
-        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-items: flex-end; flex: 1; padding: 6px 10px 4px 10px; border-bottom: 1px solid #E2E8F0;">
-          ${savings.map((s, idx) => {
-            const isLast = idx === savings.length - 1;
-            const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
-            return `
-              <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px;">
-                <span style="font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isLast ? '#0052CC' : '#475569'};">${s.val}</span>
-                <div style="width: 100%; max-width: 52px; height: ${pct}%; min-height: 18px; border-radius: 8px; background: ${isLast ? 'linear-gradient(180deg, #38BDF8 0%, #0052CC 100%)' : 'linear-gradient(180deg, #93C5FD 0%, #2563EB 100%)'}; box-shadow: 0 2px 6px rgba(0,82,204,0.25); display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 9px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace;">${pct}%</span>
-                </div>
-                <span style="font-size: 10.5px; font-weight: ${isLast ? '900' : '700'}; color: ${isLast ? '#0052CC' : '#0F172A'};">${s.m}</span>
-              </div>
-            `;
-          }).join('')}
-        </div>
-
-        <!-- 4 Process Drivers -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
-          <div style="font-size: 10px; font-weight: 700; color: #1E3A8A; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 3px 6px; border-radius: 6px; text-align: center;">🔧 Tool &amp; Die Optimization</div>
-          <div style="font-size: 10px; font-weight: 700; color: #065F46; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 3px 6px; border-radius: 6px; text-align: center;">♻️ Scrap &amp; Material Recovery</div>
-          <div style="font-size: 10px; font-weight: 700; color: #78350F; background: #FFFBEB; border: 1px solid #FDE68A; padding: 3px 6px; border-radius: 6px; text-align: center;">⚡ Cycle Time Compression</div>
-          <div style="font-size: 10px; font-weight: 700; color: #701A75; background: #FDF4FF; border: 1px solid #F5D0FE; padding: 3px 6px; border-radius: 6px; text-align: center;">🧪 Material &amp; Chemical Trial</div>
-        </div>
+        `).join('')}
       </div>
 
       <!-- FOOTER -->
@@ -3407,7 +3457,7 @@ const SlideLayoutEngine = {
     ];
 
     return `
-    <div class="walton-top5-slide walton-blue-top5 bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+    <div class="walton-top5-slide walton-top-works-slide walton-blue-top5 walton-blue-top-works bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 25px 40px; display: flex; flex-direction: column; justify-content: space-between;">
       
       <!-- HEADER -->
@@ -3749,7 +3799,7 @@ const SlideLayoutEngine = {
       }
     });
 
-    // Engineer-sequenced Task Slides: Sazzad > Rafi > Faiyaz > Abdullah > Emon > Pear > Hashmi > Anam (Requirement 10)
+    // Engineer Sequence Resolution (Default: Sazzad > Rafi > Faiyaz > Abdullah > Emon > Pear > Hashmi > Anam)
     let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
     if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
       try {
@@ -3762,34 +3812,99 @@ const SlideLayoutEngine = {
       }
     }
 
-    // Group and order standard tasks by engineer sequence
-    const sequencedStandardTasks = [];
-    const matchedTaskIds = new Set();
+    // Task Sequencing Mode: 'category' (By Category with Engineer serial) vs 'engineer' (By Engineer)
+    let sequenceMode = 'category';
+    if (typeof SettingsView !== 'undefined' && SettingsView.getTaskSequenceMode) {
+      try { sequenceMode = SettingsView.getTaskSequenceMode(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      sequenceMode = localStorage.getItem('walton_task_sequence_mode') || 'category';
+    }
 
-    engineerSeq.forEach(engName => {
-      const cleanEng = (engName || '').trim().toLowerCase();
-      if (!cleanEng) return;
+    const getEngRank = (task) => {
+      const eng = (task.concern_engineer || task.concern || '').toLowerCase();
+      for (let i = 0; i < engineerSeq.length; i++) {
+        if (eng.includes(engineerSeq[i].toLowerCase())) return i;
+      }
+      return 999;
+    };
+
+    let sequencedStandardTasks = [];
+
+    if (sequenceMode === 'category') {
+      // Buckets for Categories
+      const processTasks = [];
+      const toolsTasks = [];
+      const partsTasks = [];
+      const costTasks = [];
+      const manpowerTasks = [];
+      const bomTasks = [];
+      const otherTasks = [];
+
       standardTaskSlides.forEach(task => {
-        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
-        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
-          sequencedStandardTasks.push(task);
-          matchedTaskIds.add(task.task_id);
+        const cat = (task.category || '').toLowerCase();
+        const title = (task.slide_title || task.task_name || '').toLowerCase();
+
+        if (cat.includes('process') || title.includes('process')) {
+          processTasks.push(task);
+        } else if (cat.includes('tool') || cat.includes('jig') || cat.includes('die') || cat.includes('fixture') || title.includes('tool') || title.includes('die') || title.includes('fixture')) {
+          toolsTasks.push(task);
+        } else if (cat.includes('part') || cat.includes('material') || cat.includes('component') || title.includes('part')) {
+          partsTasks.push(task);
+        } else if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) {
+          costTasks.push(task);
+        } else if (cat.includes('manpower') || title.includes('manpower')) {
+          manpowerTasks.push(task);
+        } else if (cat.includes('bom') || title.includes('bom')) {
+          bomTasks.push(task);
+        } else {
+          otherTasks.push(task);
         }
       });
-    });
 
-    // Append any remaining tasks not matched by sequence
-    standardTaskSlides.forEach(task => {
-      if (!matchedTaskIds.has(task.task_id)) {
-        sequencedStandardTasks.push(task);
-      }
-    });
+      // Sort each category strictly by Engineer Sequence
+      [processTasks, toolsTasks, partsTasks, costTasks, manpowerTasks, bomTasks, otherTasks].forEach(bucket => {
+        bucket.sort((a, b) => getEngRank(a) - getEngRank(b));
+      });
 
-    // Sequence: Engineer Task Slides -> Completed Project Slides -> Ongoing Project Slides
+      sequencedStandardTasks = [
+        ...processTasks,
+        ...toolsTasks,
+        ...partsTasks,
+        ...costTasks,
+        ...manpowerTasks,
+        ...bomTasks,
+        ...otherTasks
+      ];
+    } else {
+      // By Engineer
+      const matchedTaskIds = new Set();
+      engineerSeq.forEach(engName => {
+        const cleanEng = (engName || '').trim().toLowerCase();
+        if (!cleanEng) return;
+        standardTaskSlides.forEach(task => {
+          const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+          if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+            sequencedStandardTasks.push(task);
+            matchedTaskIds.add(task.task_id);
+          }
+        });
+      });
+      standardTaskSlides.forEach(task => {
+        if (!matchedTaskIds.has(task.task_id)) {
+          sequencedStandardTasks.push(task);
+        }
+      });
+    }
+
+    // Projects sorted by engineer serial
+    completedProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
+    ongoingProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
+
+    // Sequence: Standard Tasks -> Completed Projects -> Ongoing Projects
     const taskSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
     const deck = [];
-    // Total slides: Task slides + 5 (Cover + Executive Overview + Dynamic 6-Month Cost Saving + Final Summary + Thank You)
-    const totalSlideCount = taskSlides.length + 5;
+    // Total slides: Task slides + 4 (Cover + Table of Contents + Management Dashboard + Tasks + Top 5 Works)
+    const totalSlideCount = taskSlides.length + 4;
 
     // Slide 1: Cover Page
     if (isBlue) {
@@ -3798,38 +3913,31 @@ const SlideLayoutEngine = {
       deck.push(this.renderExecutiveRedCoverSlide(month));
     }
 
-    // Slide 2: Executive Overview / Dashboard Layout (Requirement 8)
+    // Slide 2: Table of Contents & Agenda
     if (isBlue) {
-      deck.push(this.renderIndustrialBlueOverviewSlide(month, reportData.dashboardData || reportData));
+      deck.push(this.renderIndustrialBlueTableOfContentsSlide(month, taskSlides.length));
     } else {
-      deck.push(this.renderExecutiveOverviewSlide(month, reportData.dashboardData || reportData));
+      deck.push(this.renderTableOfContentsSlide(month, taskSlides.length));
     }
 
-    // Slide 3: Dynamic rolling 6-month Cost Saving table & visualization (Requirement 9)
+    // Slide 3: Management Dashboard (with Rolling 6-Month Savings Table + 2 Impact Cards + 8 KPI Cards)
     if (isBlue) {
-      deck.push(this.renderIndustrialBlueDashboardSlide(month, reportData.dashboardData));
+      deck.push(this.renderIndustrialBlueDashboardSlide(month, reportData.dashboardData || reportData));
     } else {
-      deck.push(this.renderExecutiveDashboardSlide(month, reportData.dashboardData));
+      deck.push(this.renderExecutiveDashboardSlide(month, reportData.dashboardData || reportData));
     }
 
-    // Slides 4 to N+3: Task Slides (1 Row = 1 Slide) (Requirements 10 & 11)
+    // Slides 4 to N+3: Task Slides (1 Row = 1 Slide)
     taskSlides.forEach((task, idx) => {
       const taskWithTpl = { ...task, template: task.template || activeTemplate };
       deck.push(this.renderTaskSlide(taskWithTpl, idx + 4, totalSlideCount));
     });
 
-    // Slide N+4: Final Summary report slide (dashboard color card pattern) (Requirement 11)
+    // Slide N+4 (Last Slide): Top 5 Works & Projects Summary (Image 2)
     if (isBlue) {
-      deck.push(this.renderIndustrialBlueFinalSummarySlide(month, reportData));
+      deck.push(this.renderIndustrialBlueTopWorksSlide(month, reportData.topWorksData || reportData));
     } else {
-      deck.push(this.renderFinalSummaryDashboardSlide(month, reportData));
-    }
-
-    // Slide N+5: Thank You slide (Requirement 11)
-    if (isBlue) {
-      deck.push(this.renderIndustrialBlueThankYouSlide(month));
-    } else {
-      deck.push(this.renderThankYouSlide(month));
+      deck.push(this.renderTopWorksSummarySlide(month, reportData.topWorksData || reportData));
     }
 
     return deck;

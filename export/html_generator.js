@@ -45,7 +45,14 @@ const HTMLReportGenerator = {
       }
     });
 
-    // Engineer-sequenced Task Slides
+    // Task Sequencing Mode: 'category' (By Category with Engineer serial) vs 'engineer' (By Engineer)
+    let sequenceMode = 'category';
+    if (typeof SettingsView !== 'undefined' && SettingsView.getTaskSequenceMode) {
+      try { sequenceMode = SettingsView.getTaskSequenceMode(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      sequenceMode = localStorage.getItem('walton_task_sequence_mode') || 'category';
+    }
+
     let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
     if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
       try { engineerSeq = SettingsView.getMonthlyEngineerSequence(); } catch(e) {}
@@ -56,24 +63,81 @@ const HTMLReportGenerator = {
       }
     }
 
-    const sequencedStandardTasks = [];
-    const matchedTaskIds = new Set();
-    engineerSeq.forEach(engName => {
-      const cleanEng = (engName || '').trim().toLowerCase();
-      if (!cleanEng) return;
+    const getEngRank = (task) => {
+      const eng = (task.concern_engineer || task.concern || '').toLowerCase();
+      for (let i = 0; i < engineerSeq.length; i++) {
+        if (eng.includes(engineerSeq[i].toLowerCase())) return i;
+      }
+      return 999;
+    };
+
+    let sequencedStandardTasks = [];
+
+    if (sequenceMode === 'category') {
+      const processTasks = [];
+      const toolsTasks = [];
+      const partsTasks = [];
+      const costTasks = [];
+      const manpowerTasks = [];
+      const bomTasks = [];
+      const otherTasks = [];
+
       standardTaskSlides.forEach(task => {
-        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
-        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
-          sequencedStandardTasks.push(task);
-          matchedTaskIds.add(task.task_id);
+        const cat = (task.category || '').toLowerCase();
+        const title = (task.slide_title || task.task_name || '').toLowerCase();
+
+        if (cat.includes('process') || title.includes('process')) {
+          processTasks.push(task);
+        } else if (cat.includes('tool') || cat.includes('jig') || cat.includes('die') || cat.includes('fixture') || title.includes('tool') || title.includes('die') || title.includes('fixture')) {
+          toolsTasks.push(task);
+        } else if (cat.includes('part') || cat.includes('material') || cat.includes('component') || title.includes('part')) {
+          partsTasks.push(task);
+        } else if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) {
+          costTasks.push(task);
+        } else if (cat.includes('manpower') || title.includes('manpower')) {
+          manpowerTasks.push(task);
+        } else if (cat.includes('bom') || title.includes('bom')) {
+          bomTasks.push(task);
+        } else {
+          otherTasks.push(task);
         }
       });
-    });
-    standardTaskSlides.forEach(task => {
-      if (!matchedTaskIds.has(task.task_id)) {
-        sequencedStandardTasks.push(task);
-      }
-    });
+
+      [processTasks, toolsTasks, partsTasks, costTasks, manpowerTasks, bomTasks, otherTasks].forEach(bucket => {
+        bucket.sort((a, b) => getEngRank(a) - getEngRank(b));
+      });
+
+      sequencedStandardTasks = [
+        ...processTasks,
+        ...toolsTasks,
+        ...partsTasks,
+        ...costTasks,
+        ...manpowerTasks,
+        ...bomTasks,
+        ...otherTasks
+      ];
+    } else {
+      const matchedTaskIds = new Set();
+      engineerSeq.forEach(engName => {
+        const cleanEng = (engName || '').trim().toLowerCase();
+        if (!cleanEng) return;
+        standardTaskSlides.forEach(task => {
+          const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+          if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+            sequencedStandardTasks.push(task);
+            matchedTaskIds.add(task.task_id);
+          }
+        });
+      });
+      standardTaskSlides.forEach(task => {
+        if (!matchedTaskIds.has(task.task_id)) {
+          sequencedStandardTasks.push(task);
+        }
+      });
+    }
+
+    completedProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
+    ongoingProjectSlides.sort((a, b) => getEngRank(a) - getEngRank(b));
 
     const orderedSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
     const reportDataOrdered = { ...reportData, slides: orderedSlides };
@@ -82,11 +146,11 @@ const HTMLReportGenerator = {
     const slides = SlideLayoutEngine.renderDeck(reportDataOrdered, activeTemplate);
     const totalSlides = slides.length;
 
-    // Generate readable titles for navigation dropdown
+    // Generate readable titles for navigation dropdown (Cover + TOC + Dashboard + Tasks + Top 5 Works = 4 + N)
     const titles = [
       "1. Executive Cover Page",
-      "2. Executive Overview & Operations Dashboard",
-      "3. Rolling 6-Month Realized Cost Savings"
+      "2. Table of Contents & Agenda",
+      "3. Operations & Financial Dashboard"
     ];
     orderedSlides.forEach((t, i) => {
       const cleanTitle = (t.slide_title || t.task_name || `Task ${i + 1}`).replace(/<[^>]*>?/gm, '');
@@ -104,8 +168,7 @@ const HTMLReportGenerator = {
       }
       titles.push(`${i + 4}. ${prefix} ${cleanTitle}`);
     });
-    titles.push(`${totalSlides - 1}. Final Summary Report & Metric Audit`);
-    titles.push(`${totalSlides}. Executive Thank You & Q&A`);
+    titles.push(`${totalSlides}. Top 5 Completed Works & Ongoing Projects`);
 
     const slidesJson = JSON.stringify(slides);
     const titlesJson = JSON.stringify(titles);

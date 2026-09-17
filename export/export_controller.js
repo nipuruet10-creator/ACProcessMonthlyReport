@@ -267,7 +267,7 @@ const ExportController = {
         return null;
       }
 
-      return await PDFReportGenerator.generatePDF(reportData);
+      return await PDFReportGenerator.generatePDF(reportData, tmpl);
     } catch (err) {
       console.error("PDF Export failed:", err);
       alert("PDF Export error: " + err.message);
@@ -514,11 +514,11 @@ const ExportController = {
     const btn = document.getElementById('btn-export-pdf');
     if (btn) btn.innerHTML = '⌛ Generating PDF...';
     try {
-      await this.exportPDF(selectedMonth, this.selectedTemplate);
-      if (btn) btn.innerHTML = '✔ PDF Opened';
+      const res = await this.exportPDF(selectedMonth, this.selectedTemplate);
+      if (btn) btn.innerHTML = '✔ Downloaded PDF';
     } catch (e) {
-      alert("PDF print failed: " + e.message);
-      if (btn) btn.innerHTML = 'Save / Print PDF';
+      alert("PDF export failed: " + e.message);
+      if (btn) btn.innerHTML = 'Download PDF';
     }
   },
 
@@ -542,6 +542,7 @@ const ExportController = {
   openOnlineDocs(selectedMonth) {
     const defaultOwner = "nipu.ruet10@gmail.com";
     const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
+    const googleSlidesUrl = localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/';
     
     // Check permission if restriction list is configured
     if (allowedEmailsStr.trim()) {
@@ -555,8 +556,8 @@ const ExportController = {
       }
     }
 
-    // Generate and open standalone presentation in a new tab
-    this.exportHTML(selectedMonth, this.selectedTemplate);
+    // Directly open Google Slides presentation in a new tab
+    window.open(googleSlidesUrl, '_blank');
   }
 };
 

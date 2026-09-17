@@ -606,6 +606,7 @@ const ManagementReportView = {
   openOnlineDocs() {
     const defaultOwner = "nipu.ruet10@gmail.com";
     const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
+    const googleSlidesUrl = localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/';
 
     // Verify authorized email if configured
     if (allowedEmailsStr.trim()) {
@@ -619,7 +620,19 @@ const ManagementReportView = {
       }
     }
 
-    this.openStandaloneDeck();
+    // Open live Google Presentation in new tab
+    window.open(googleSlidesUrl, '_blank');
+  },
+
+  async exportPDF() {
+    if (typeof PDFReportGenerator !== 'undefined' && PDFReportGenerator.generateManagementPDF) {
+      const mgr = window.managementReportMgr;
+      const tasks = mgr.getTasksForMonth(this.selectedMonth);
+      const summary = mgr.getSummary(this.selectedMonth);
+      await PDFReportGenerator.generateManagementPDF({ month: this.selectedMonth, tasks, summary });
+    } else {
+      this.openStandaloneDeck();
+    }
   },
 
   openDownloadModal() {
@@ -681,7 +694,7 @@ const ManagementReportView = {
                 <h4 class="text-sm font-black text-slate-800">Vector PDF</h4>
                 <p class="text-xs text-slate-400 mt-1">Clean vector 16:9 executive landscape output.</p>
               </div>
-              <button onclick="ManagementReportView.openStandaloneDeck()" class="mt-4 w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-amber-600 border border-slate-200 shadow-sm transition">
+              <button onclick="ManagementReportView.exportPDF()" class="mt-4 w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-amber-600 border border-slate-200 shadow-sm transition">
                 Download PDF
               </button>
             </div>

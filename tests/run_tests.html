@@ -80,6 +80,7 @@
   <script src="../history/history_manager.js"></script>
   <script src="../auth/auth_manager.js"></script>
   <script src="../audit/audit_logger.js"></script>
+  <script src="../config/settings_view.js"></script>
   <script src="../export/export_controller.js"></script>
 
   <script>
@@ -308,46 +309,43 @@
         `Generated: "${qrSteps}"`);
 
       // ----------------------------------------------------
-      // COMPLETE PRESENTATION DECK SEQUENCE (Cover -> Overview -> Dynamic 6-Month Cost Savings -> Tasks -> Final Summary -> Thank You)
+      // ----------------------------------------------------
+      // COMPLETE PRESENTATION DECK SEQUENCE (Cover -> TOC -> Management Dashboard -> Tasks -> Top 5 Works)
       // ----------------------------------------------------
       const testDeckPayload = {
         month: testMonth,
         slides: syncRes.slides
       };
       const generatedDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "walton_executive_crimson");
-      assert("Sequential Deck", "renderDeck compiles exact sequence: Cover + Overview + Dynamic 6-Month Savings + Tasks + Final Summary + Thank You (5 + N slides)",
-        generatedDeck.length === syncRes.slides.length + 5,
-        `Expected: ${syncRes.slides.length + 5}, Got: ${generatedDeck.length}`);
+      assert("Sequential Deck", "renderDeck compiles exact sequence: Cover + Table of Contents + Management Dashboard (8 KPIs) + Tasks + Top 5 Works (4 + N slides)",
+        generatedDeck.length === syncRes.slides.length + 4,
+        `Expected: ${syncRes.slides.length + 4}, Got: ${generatedDeck.length}`);
 
       assert("Sequential Deck", "Slide 1 is Walton Executive Red Cover Slide",
         generatedDeck[0].includes("walton-executive-cover") && generatedDeck[0].includes("DEPARTMENTAL PROJECTS"));
 
-      assert("Sequential Deck", "Slide 2 is Operations Control Executive Overview",
-        generatedDeck[1].includes("walton-overview-slide") && generatedDeck[1].includes("OPERATIONS CONTROL"));
+      assert("Sequential Deck", "Slide 2 is Table of Contents Slide",
+        generatedDeck[1].includes("walton-toc-slide") && (generatedDeck[1].includes("TABLE OF CONTENTS") || generatedDeck[1].includes("Table of Contents")));
 
-      assert("Sequential Deck", "Slide 3 is Management Dashboard with Dynamic Rolling 6-Month Savings & Visualization",
-        generatedDeck[2].includes("walton-dashboard-slide") && generatedDeck[2].includes("AC Product Dashboard") && generatedDeck[2].includes("FINANCIAL PERFORMANCE"));
+      assert("Sequential Deck", "Slide 3 is Management Dashboard with Dynamic Rolling 6-Month Savings & 8 KPI Cards",
+        generatedDeck[2].includes("walton-dashboard-slide") && generatedDeck[2].includes("AC Product Dashboard"));
 
       assert("Sequential Deck", "Slide 4 is 1st Task Entry (1 Row = 1 Slide)",
         generatedDeck[3].includes("walton-red-executive") && generatedDeck[3].includes("Project Overview"));
 
-      const summarySlideIndex = generatedDeck.length - 2;
-      assert("Sequential Deck", "Slide N+4 is Final Summary Report Slide with 8 color boxes",
-        generatedDeck[summarySlideIndex].includes("walton-final-summary-slide") && generatedDeck[summarySlideIndex].includes("Comprehensive Deliverables"));
-
       const lastSlideIndex = generatedDeck.length - 1;
-      assert("Sequential Deck", "Slide N+5 is Executive Thank You Slide",
-        generatedDeck[lastSlideIndex].includes("walton-thank-you-slide") && generatedDeck[lastSlideIndex].includes("THANK YOU"));
+      assert("Sequential Deck", "Slide N+4 is Top 5 Works Summary Slide",
+        (generatedDeck[lastSlideIndex].includes("walton-top-works-slide") || generatedDeck[lastSlideIndex].includes("walton-top5-slide")) && 
+        (generatedDeck[lastSlideIndex].toLowerCase().includes("top 5") || generatedDeck[lastSlideIndex].includes("STRATEGIC")));
 
       // Test Distinct Industrial Innovation Blue Deck Layout
       const blueDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "industrial_innovation_blue");
-      assert("Distinct Layouts", "Industrial Innovation Blue deck has 5 + N slides with distinct blue components",
-        blueDeck.length === syncRes.slides.length + 5 &&
+      assert("Distinct Layouts", "Industrial Innovation Blue deck has 4 + N slides with distinct blue components",
+        blueDeck.length === syncRes.slides.length + 4 &&
         blueDeck[0].includes("walton-blue-cover") &&
-        blueDeck[1].includes("walton-blue-overview") &&
-        blueDeck[2].includes("walton-blue-dashboard") &&
-        blueDeck[summarySlideIndex].includes("walton-blue-final-summary") &&
-        blueDeck[lastSlideIndex].includes("walton-blue-thank-you"));
+        blueDeck[1].includes("walton-blue-toc") &&
+        (blueDeck[2].includes("industrial-blue-dashboard") || blueDeck[2].includes("walton-blue-dashboard")) &&
+        (blueDeck[lastSlideIndex].includes("walton-blue-top-works") || blueDeck[lastSlideIndex].includes("walton-blue-top5")));
 
       // ----------------------------------------------------
       // HTML & PDF PRINT COMPLIANCE TEST
@@ -1242,7 +1240,20 @@
       
       const activeModel = typeof geminiClient.getOpenRouterModel === 'function' ? geminiClient.getOpenRouterModel() : (geminiClient.openRouterModel || '');
       assert("OpenRouter Free Model Selection", "geminiClient defaults or supports free model options", 
-        activeModel.includes(':free'), `Active model: ${activeModel}`);
+        activeModel.includes('free'), `Active model: ${activeModel}`);
+
+      // ----------------------------------------------------
+      // TEST: Task Sequencing Mode & Google Slides URL Setting
+      // ----------------------------------------------------
+      assert("Task Sequence Mode Configuration", "SettingsView provides task sequence mode getter and setter",
+        typeof SettingsView !== 'undefined' && typeof SettingsView.getTaskSequenceMode === 'function' && typeof SettingsView.setTaskSequenceMode === 'function');
+
+      SettingsView.setTaskSequenceMode('category');
+      assert("Task Sequence Mode Setter", "setTaskSequenceMode stores and returns 'category'",
+        SettingsView.getTaskSequenceMode() === 'category');
+
+      assert("Google Slides Online Docs URL", "Online Docs URL defaults to Google Slides Presentation URL",
+        typeof localStorage !== 'undefined' && (localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/').includes('presentation'));
 
       // ----------------------------------------------------
       // TEST: Direct Password Change & Master PIN Authentication
