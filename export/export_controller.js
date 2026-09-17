@@ -10,6 +10,7 @@
 
 const ExportController = {
   selectedTemplate: "walton_executive_crimson",
+  activeExportMonth: "SEP-2026",
 
   handleSelectTemplate(tmpl) {
     this.selectedTemplate = tmpl || "walton_executive_crimson";
@@ -23,6 +24,74 @@ const ExportController = {
         cardCrimson.className = "cursor-pointer border-2 border-slate-200 bg-white hover:border-slate-300 rounded-2xl p-4 transition flex items-center gap-3.5";
         cardBlue.className = "cursor-pointer border-2 border-sky-600 bg-sky-50/50 shadow-md rounded-2xl p-4 transition flex items-center gap-3.5";
       }
+    }
+
+    // Real-time update of Online Report shareable URL
+    const urlInput = document.getElementById('online-report-url-input');
+    if (urlInput) {
+      urlInput.value = this.getOnlineReportUrl(this.activeExportMonth, this.selectedTemplate);
+    }
+
+    // Update bottom status bar format indicator
+    const formatLabel = document.getElementById('modal-active-format-label');
+    if (formatLabel) {
+      formatLabel.textContent = this.selectedTemplate === 'industrial_innovation_blue' ? 'Industrial Blue (Pattern 2)' : 'Executive Crimson (Pattern 1)';
+    }
+  },
+
+  /**
+   * Generates unique shareable Online Report URL for given month and pattern
+   * E.g. /report/sep-2026/pattern-1 or /report/sep-2026/pattern-2
+   */
+  getOnlineReportUrl(selectedMonth = "SEP-2026", template = null) {
+    const tmpl = template || this.selectedTemplate || "walton_executive_crimson";
+    const patternSlug = tmpl === "industrial_innovation_blue" ? "pattern-2" : "pattern-1";
+    const monthSlug = (selectedMonth || "SEP-2026").toLowerCase().replace(/[^a-z0-9]/g, "-");
+
+    if (typeof window === 'undefined') {
+      return `/report/${monthSlug}/${patternSlug}`;
+    }
+
+    if (window.location.protocol === 'file:') {
+      const base = window.location.href.split('?')[0].split('#')[0];
+      return `${base}#/report/${monthSlug}/${patternSlug}`;
+    }
+
+    return `${window.location.origin}/report/${monthSlug}/${patternSlug}`;
+  },
+
+  /**
+   * Copies shareable Online Report URL to clipboard
+   */
+  copyOnlineReportUrl(selectedMonth = "SEP-2026") {
+    const month = selectedMonth || this.activeExportMonth || "SEP-2026";
+    const url = this.getOnlineReportUrl(month, this.selectedTemplate);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+          window.showToast("📋 Online Report URL copied to clipboard!", "success");
+        } else {
+          alert("Online Report URL copied to clipboard:\n" + url);
+        }
+      }).catch(() => {
+        prompt("Copy Online Report URL:", url);
+      });
+    } else {
+      prompt("Copy Online Report URL:", url);
+    }
+  },
+
+  /**
+   * Opens the Online Report in a new browser tab or current stage
+   */
+  openOnlineReport(selectedMonth = "SEP-2026", inSameTab = false) {
+    const month = selectedMonth || this.activeExportMonth || "SEP-2026";
+    const url = this.getOnlineReportUrl(month, this.selectedTemplate);
+    if (inSameTab && typeof App !== 'undefined' && App.renderOnlineReport) {
+      this.closeExportModal();
+      App.renderOnlineReport(month, this.selectedTemplate);
+    } else if (typeof window !== 'undefined') {
+      window.open(url, '_blank');
     }
   },
 
@@ -294,6 +363,7 @@ const ExportController = {
    * Opens the Walton Executive Export Center modal with direct template format selection
    */
   async openExportModal(selectedMonth = "SEP-2026") {
+    this.activeExportMonth = selectedMonth;
     const { reportData, activeSlides } = await this.buildReportPayload(selectedMonth);
     if (activeSlides.length === 0) {
       alert(`No active report slides found for ${selectedMonth}. Please add tasks and set inclusion to YES first.`);
@@ -319,7 +389,7 @@ const ExportController = {
                   <span class="text-xs font-mono text-slate-400">${selectedMonth} &bull; ${totalSlides} Slides</span>
                 </div>
                 <h2 class="text-xl font-black text-slate-800 mt-1">Download Monthly Engineering Report</h2>
-                <p class="text-xs text-slate-400 mt-0.5">Select your preferred design pattern and download in PPTX, HTML, or PDF.</p>
+                <p class="text-xs text-slate-400 mt-0.5">Select your preferred design pattern and download in PPTX, HTML, PDF, or view Online.</p>
               </div>
             </div>
             <button onclick="ExportController.closeExportModal()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100">
@@ -371,8 +441,8 @@ const ExportController = {
             </div>
           </div>
 
-          <!-- Format Cards Grid (3 Formats) -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
+          <!-- Format Cards Grid (4 Formats) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-3">
             
             <!-- 1. PowerPoint (.pptx) -->
             <div class="bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm hover:shadow-md">
@@ -431,28 +501,59 @@ const ExportController = {
               </button>
             </div>
 
-            <!-- 4. Online Docs / Presentation Link -->
+            <!-- 4. Online Report -->
             <div class="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm hover:shadow-md">
               <div>
                 <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-2xl mb-3 group-hover:scale-105 transition">
-                  🔗
+                  ⚡
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <h3 class="text-sm font-black text-slate-800">Online Presentation</h3>
-                  <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-100 text-indigo-700">Cloud</span>
+                  <h3 class="text-sm font-black text-slate-800">Online Report</h3>
+                  <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-100 text-indigo-700 font-mono">LIVE WEB</span>
                 </div>
                 <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                  Live cloud presentation link. Access granted to authorized team emails.
+                  Interactive online report with slide navigation, fullscreen mode, and shareable URL.
                 </p>
-                <div class="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px] text-slate-600 font-mono truncate" title="Owner: nipu.ruet10@gmail.com">
-                  Owner: <strong class="text-indigo-600">nipu.ruet10@gmail.com</strong>
+                <div class="mt-3 flex items-center gap-1.5 text-[10px] font-mono text-indigo-600 font-bold">
+                  <span>✔</span> <span>Zero install &bull; Shareable link</span>
                 </div>
               </div>
-              <button onclick="ExportController.openOnlineDocs('${selectedMonth}')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-black text-white shadow-md shadow-indigo-200/40 transition flex items-center justify-center gap-2">
-                <span>Open Online Docs ↗</span>
+              <button onclick="ExportController.openOnlineReport('${selectedMonth}')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-black text-white shadow-md shadow-indigo-200/40 transition flex items-center justify-center gap-2">
+                <span>Open Online Report ↗</span>
               </button>
             </div>
 
+          </div>
+
+          <!-- ONLINE REPORT READY BANNER -->
+          <div class="mt-1 mb-4 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-lg">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <span class="flex h-3 w-3 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black tracking-wider uppercase font-mono text-emerald-400">ONLINE REPORT READY</span>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Shareable URL</span>
+                  </div>
+                  <div class="text-[11px] text-slate-300 mt-0.5">Direct interactive link matching your active design pattern:</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 w-full sm:w-auto">
+                <button onclick="ExportController.copyOnlineReportUrl('${selectedMonth}')" class="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition flex items-center justify-center gap-1.5 backdrop-blur-sm">
+                  <span>📋</span> <span>Copy Link</span>
+                </button>
+                <button onclick="ExportController.openOnlineReport('${selectedMonth}')" class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md shadow-indigo-500/30 transition flex items-center justify-center gap-1.5">
+                  <span>Open Online Report ↗</span>
+                </button>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center gap-2 bg-black/40 border border-indigo-500/20 rounded-xl px-3 py-2">
+              <span class="text-xs text-indigo-400 font-mono select-none">🔗</span>
+              <input id="online-report-url-input" type="text" readonly value="${this.getOnlineReportUrl(selectedMonth, this.selectedTemplate)}" class="bg-transparent text-xs font-mono text-slate-200 focus:outline-none w-full truncate cursor-pointer select-all" onclick="this.select()">
+            </div>
           </div>
 
           <!-- Bottom Master Action Bar -->
@@ -460,7 +561,7 @@ const ExportController = {
             <div class="text-slate-400 flex items-center gap-2">
               <span class="text-emerald-600 font-bold">● System Ready</span>
               <span>&bull;</span>
-              <span>Format: <strong class="text-slate-700">${this.selectedTemplate === 'industrial_innovation_blue' ? 'Industrial Blue' : 'Executive Crimson'}</strong></span>
+              <span>Format: <strong id="modal-active-format-label" class="text-slate-700">${this.selectedTemplate === 'industrial_innovation_blue' ? 'Industrial Blue (Pattern 2)' : 'Executive Crimson (Pattern 1)'}</strong></span>
             </div>
             <div class="flex items-center gap-3 w-full sm:w-auto">
               <button onclick="ExportController.closeExportModal()" class="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold shadow-sm">

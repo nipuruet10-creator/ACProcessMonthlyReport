@@ -30,6 +30,9 @@
   <!-- External CDNs & Local Bundles -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="../assets/js/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -82,6 +85,7 @@
   <script src="../audit/audit_logger.js"></script>
   <script src="../config/settings_view.js"></script>
   <script src="../export/export_controller.js"></script>
+  <script src="../app.js"></script>
 
   <script>
     const results = [];
@@ -1294,6 +1298,121 @@
       // Cleanup test created tasks
       if (addedMgmtTask) ManagementReportManager.deleteTask(testMgmtMonth, addedMgmtTask.id);
       if (copiedTask) ManagementReportManager.deleteTask(testMgmtMonth, copiedTask.id);
+
+      // ----------------------------------------------------
+      // TEST SUITE: PDF Pipeline & Zero-Blank-Page Architecture
+      // ----------------------------------------------------
+      assert("PDF Report Generator Existence", "PDFReportGenerator module exposes required generation methods",
+        typeof PDFReportGenerator !== 'undefined' &&
+        typeof PDFReportGenerator.generatePDF === 'function' &&
+        typeof PDFReportGenerator.generateManagementPDF === 'function' &&
+        typeof PDFReportGenerator._renderSlidesToPDF === 'function');
+
+      assert("PDF Library Class Resolution", "_getJsPDFClass and _getHtml2Canvas resolve valid constructors from CDNs",
+        typeof PDFReportGenerator._getJsPDFClass() === 'function' &&
+        typeof PDFReportGenerator._getHtml2Canvas() === 'function');
+
+      // Test slide-by-slide 1280x720 rendering to ensure non-blank canvas
+      const crimsonDeckSample = SlideLayoutEngine.renderDeck({ month: "SEP-2026", slides: [] }, "walton_executive_crimson");
+      const blueDeckSample = SlideLayoutEngine.renderDeck({ month: "SEP-2026", slides: [] }, "industrial_innovation_blue");
+      const crimsonSlideHtml = crimsonDeckSample[0];
+      const blueSlideHtml = blueDeckSample[0];
+
+      const testSlideStage = document.createElement('div');
+      testSlideStage.style.cssText = 'position: fixed; top: 0; left: 0; width: 1280px; height: 720px; z-index: -9999; background: #ffffff; overflow: hidden;';
+      testSlideStage.innerHTML = crimsonSlideHtml;
+      document.body.appendChild(testSlideStage);
+
+      const html2canvasFn = PDFReportGenerator._getHtml2Canvas();
+      const testCanvas = await html2canvasFn(testSlideStage, {
+        scale: 1,
+        width: 1280,
+        height: 720,
+        backgroundColor: '#ffffff'
+      });
+      const canvasDataUrl = testCanvas.toDataURL('image/jpeg', 0.8);
+      document.body.removeChild(testSlideStage);
+
+      assert("PDF Slide Canvas Non-Blank Capture", "html2canvas captures valid non-blank image data URL (>5000 bytes) from 1280x720 slide",
+        testCanvas.width === 1280 && testCanvas.height === 720 && canvasDataUrl.length > 5000);
+
+      // Verify Pattern 1 and Pattern 2 slide HTML generation
+      assert("PDF Pattern 1 & Pattern 2 Slide Renders", "Both Crimson and Blue cover slides compile valid Walton branding",
+        crimsonSlideHtml.includes("WALTON") && crimsonSlideHtml.includes("SEP-2026") &&
+        blueSlideHtml.includes("WALTON") && blueSlideHtml.includes("SEP-2026"));
+
+      // ----------------------------------------------------
+      // TEST SUITE: Online Report Dynamic URLs & Export Center
+      // ----------------------------------------------------
+      const urlPattern1 = ExportController.getOnlineReportUrl("SEP-2026", "walton_executive_crimson");
+      const urlPattern2 = ExportController.getOnlineReportUrl("SEP-2026", "industrial_innovation_blue");
+      const urlAug = ExportController.getOnlineReportUrl("AUG-2026", "walton_executive_crimson");
+
+      assert("Online Report URL Pattern 1", "getOnlineReportUrl formats /report/sep-2026/pattern-1 correctly",
+        urlPattern1.includes("/report/sep-2026/pattern-1"));
+
+      assert("Online Report URL Pattern 2", "getOnlineReportUrl formats /report/sep-2026/pattern-2 for Blue theme",
+        urlPattern2.includes("/report/sep-2026/pattern-2"));
+
+      assert("Online Report URL Month Slug", "getOnlineReportUrl handles various months with correct slug",
+        urlAug.includes("/report/aug-2026/pattern-1"));
+
+      assert("ExportController Online Report Methods", "ExportController provides copy and open handlers for Online Report",
+        typeof ExportController.copyOnlineReportUrl === 'function' &&
+        typeof ExportController.openOnlineReport === 'function');
+
+      ExportController.handleSelectTemplate('industrial_innovation_blue');
+      assert("ExportController Template Switch to Blue", "handleSelectTemplate updates selectedTemplate to industrial_innovation_blue",
+        ExportController.selectedTemplate === 'industrial_innovation_blue');
+
+      ExportController.handleSelectTemplate('walton_executive_crimson');
+      assert("ExportController Template Switch to Crimson", "handleSelectTemplate updates selectedTemplate to walton_executive_crimson",
+        ExportController.selectedTemplate === 'walton_executive_crimson');
+
+      // ----------------------------------------------------
+      // TEST SUITE: App Online Report SPA Routing & Unified Data
+      // ----------------------------------------------------
+      assert("App Route Normalization Month", "App.normalizeMonth handles lowercase, underscores, and trim",
+        App.normalizeMonth("sep-2026") === "SEP-2026" &&
+        App.normalizeMonth("aug_2026") === "AUG-2026" &&
+        App.normalizeMonth("  oct-2026  ") === "OCT-2026");
+
+      assert("App Route Normalization Template", "App.normalizeTemplate maps pattern slugs to canonical template IDs",
+        App.normalizeTemplate("pattern-1") === "walton_executive_crimson" &&
+        App.normalizeTemplate("pattern-2") === "industrial_innovation_blue" &&
+        App.normalizeTemplate("blue") === "industrial_innovation_blue" &&
+        App.normalizeTemplate(null) === "walton_executive_crimson");
+
+      assert("App Online Report Lifecycle Methods", "App exposes renderOnlineReport and exitOnlineReport methods",
+        typeof App.renderOnlineReport === 'function' &&
+        typeof App.exitOnlineReport === 'function' &&
+        typeof App.parseReportRoute === 'function');
+
+      // Verify Unified Report Payload integrity across all export channels
+      const { reportData: unifiedPayload, activeSlides: unifiedSlides } = await ExportController.buildReportPayload("SEP-2026");
+      assert("Unified Report Data Payload", "buildReportPayload provides identical dataset for PPTX, PDF, HTML, and Online Report",
+        unifiedPayload &&
+        unifiedPayload.month === "SEP-2026" &&
+        Array.isArray(unifiedPayload.slides) &&
+        unifiedPayload.dashboardData &&
+        Array.isArray(unifiedPayload.dashboardData.kpis) &&
+        unifiedPayload.topWorksData &&
+        Array.isArray(unifiedSlides));
+
+      // ----------------------------------------------------
+      // TEST SUITE: OpenRouter Secure Proxy & Diagnostics
+      // ----------------------------------------------------
+      assert("GeminiClient OpenRouter Methods", "geminiClient exposes testOpenRouterConnection and callOpenRouter",
+        typeof geminiClient !== 'undefined' &&
+        typeof geminiClient.testOpenRouterConnection === 'function' &&
+        typeof geminiClient.callOpenRouter === 'function');
+
+      // Validate error mapping function behavior
+      const testDiagRes = await geminiClient.testOpenRouterConnection("invalid-key-for-testing");
+      assert("OpenRouter Connection Diagnostic Structure", "testOpenRouterConnection returns structured diagnostic fields",
+        testDiagRes && typeof testDiagRes.connected === 'boolean' &&
+        typeof testDiagRes.model === 'string' &&
+        typeof testDiagRes.timestamp === 'string');
 
       } catch (err) {
         console.error("Test Suite Runtime Exception:", err);

@@ -993,13 +993,18 @@ function syncCostSavingsTable(costList) {
     const btn = document.getElementById('btn-test-ai');
     const resDiv = document.getElementById('ai-test-result');
     if (btn) btn.disabled = true;
-    if (resDiv) resDiv.innerHTML = '<span class="text-amber-400 font-mono animate-pulse">Testing connection...</span>';
+    if (resDiv) resDiv.innerHTML = '<span class="text-amber-400 font-mono animate-pulse">⚡ Connecting and validating OpenRouter API...</span>';
 
     const key = (document.getElementById('settings-openrouter-key') ? document.getElementById('settings-openrouter-key').value : '').trim();
     const model = (document.getElementById('settings-openrouter-model') ? document.getElementById('settings-openrouter-model').value : '').trim();
 
     if (!key) {
-      if (resDiv) resDiv.innerHTML = '<span class="text-rose-400 font-bold">Please enter your OpenRouter key first!</span>';
+      if (resDiv) {
+        resDiv.innerHTML = `
+          <div class="p-3 bg-rose-950/70 border border-rose-500/40 rounded-xl text-xs mt-2 text-rose-300">
+            <strong>Invalid API Key:</strong> Please enter your OpenRouter key or configure OPENROUTER_API_KEY on the server.
+          </div>`;
+      }
       if (btn) btn.disabled = false;
       return;
     }
@@ -1009,9 +1014,49 @@ function syncCostSavingsTable(costList) {
       if (model) geminiClient.setOpenRouterModel(model);
       const res = await geminiClient.testOpenRouterConnection(key, model);
       if (res.success) {
-        if (resDiv) resDiv.innerHTML = `<span class="text-emerald-400 font-bold font-mono">✅ Connected! (${res.latency}ms) &bull; ${res.model}</span>`;
+        const testInfo = {
+          success: true,
+          provider: "OpenRouter",
+          status: "Connected",
+          model: res.model || model,
+          latency: res.latency,
+          dateStr: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()
+        };
+        try { localStorage.setItem('walton_openrouter_test_info', JSON.stringify(testInfo)); } catch(_) {}
+
+        if (resDiv) {
+          resDiv.innerHTML = `
+            <div class="p-3.5 bg-emerald-950/70 border border-emerald-500/50 rounded-xl space-y-1 text-xs mt-2 w-full">
+              <div class="flex items-center justify-between text-emerald-400 font-bold text-sm">
+                <span class="flex items-center gap-1.5"><span>✓</span> <span>OpenRouter Connected</span></span>
+                <span class="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">Verified</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-300 font-mono mt-1.5">
+                <div>Provider: <strong class="text-white">OpenRouter</strong></div>
+                <div>Status: <span class="text-emerald-400 font-bold">Connected</span></div>
+                <div>Model: <strong class="text-indigo-300">${HELPERS.escapeHtml(res.model || model)}</strong></div>
+                <div>Last Tested: <span class="text-slate-400">${testInfo.dateStr}</span> (${res.latency}ms)</div>
+              </div>
+            </div>`;
+        }
+        if (typeof window.showToast === 'function') {
+          window.showToast("✓ OpenRouter Connected successfully!", "success");
+        }
       } else {
-        if (resDiv) resDiv.innerHTML = `<span class="text-rose-400 font-mono">❌ ${HELPERS.escapeHtml(res.error || 'Connection failed')} (${res.latency}ms)</span>`;
+        try { localStorage.removeItem('walton_openrouter_test_info'); } catch(_) {}
+        if (resDiv) {
+          resDiv.innerHTML = `
+            <div class="p-3.5 bg-rose-950/70 border border-rose-500/50 rounded-xl space-y-1.5 text-xs mt-2 w-full">
+              <div class="flex items-center justify-between text-rose-400 font-bold text-sm">
+                <span class="flex items-center gap-1.5"><span>❌</span> <span>OpenRouter Connection Failed</span></span>
+                <span class="text-[10px] font-mono text-rose-300">HTTP ${res.code || 'Error'}</span>
+              </div>
+              <div class="text-[11px] text-rose-200 font-semibold leading-relaxed">
+                ${HELPERS.escapeHtml(res.error || 'Connection failed')}
+              </div>
+              ${res.details ? `<div class="text-[10px] text-slate-400 font-mono mt-1 bg-slate-900/80 p-2 rounded border border-slate-800">${HELPERS.escapeHtml(res.details)}</div>` : ''}
+            </div>`;
+        }
       }
     } else {
       if (resDiv) resDiv.innerHTML = '<span class="text-emerald-400 font-bold">Key saved locally</span>';

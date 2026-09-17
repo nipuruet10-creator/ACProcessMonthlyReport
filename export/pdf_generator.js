@@ -1,11 +1,154 @@
 /**
  * Process Development Monthly Report Automation System
  * Module: PDF Report Generator
- * Generates vector print-ready executive PDF reports
+ * Generates vector print-ready 16:9 executive PDF reports
+ * Enforces: Exact Slide-by-Slide Capture (Zero Blank Pages)
  * WALTON Hi-Tech Industries PLC
  */
 
 const PDFReportGenerator = {
+  /**
+   * Resolves jsPDF constructor across different CDN loading variations
+   */
+  _getJsPDFClass() {
+    if (typeof window === 'undefined') return null;
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    if (typeof window.jsPDF === 'function') return window.jsPDF;
+    return null;
+  },
+
+  /**
+   * Resolves html2canvas function across CDN bundles
+   */
+  _getHtml2Canvas() {
+    if (typeof window === 'undefined') return null;
+    if (typeof window.html2canvas === 'function') return window.html2canvas;
+    return null;
+  },
+
+  /**
+   * Preloads all images inside a DOM node before capturing canvas
+   */
+  async _preloadImages(container) {
+    const imgs = Array.from(container.querySelectorAll('img'));
+    if (imgs.length === 0) return;
+    await Promise.all(imgs.map(img => {
+      if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+        setTimeout(resolve, 500); // 500ms safety timeout
+      });
+    }));
+  },
+
+  /**
+   * Executes reliable slide-by-slide 16:9 PDF export
+   * Guarantees every slide is captured in its entirety without blank pages or split elements
+   */
+  async _renderSlidesToPDF(slides, fileName, title = "Monthly Engineering Report") {
+    const jsPDFClass = this._getJsPDFClass();
+    const html2canvasFunc = this._getHtml2Canvas();
+
+    if (!jsPDFClass || !html2canvasFunc) {
+      throw new Error("Required PDF rendering libraries (jsPDF / html2canvas) are not loaded.");
+    }
+
+    if (!Array.isArray(slides) || slides.length === 0) {
+      throw new Error("No slides provided for PDF generation.");
+    }
+
+    // 1. Create a dedicated 1280x720 capture stage placed at (0, 0)
+    // Placed at top: 0, left: 0 behind the application (z-index: -9999) with opacity: 1 so html2canvas renders perfectly
+    const stage = document.createElement('div');
+    stage.id = 'walton-pdf-capture-stage';
+    stage.style.cssText = 'position: fixed; top: 0; left: 0; width: 1280px; height: 720px; z-index: -9999; background: #ffffff; overflow: hidden; pointer-events: none; opacity: 1; box-sizing: border-box; margin: 0; padding: 0;';
+    document.body.appendChild(stage);
+
+    // 2. Initialize jsPDF in 16:9 widescreen landscape (1280 × 720 points)
+    const pdf = new jsPDFClass({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [1280, 720],
+      compress: true
+    });
+
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        const slideIndex = i + 1;
+        const totalSlides = slides.length;
+
+        if (typeof window !== 'undefined' && typeof window.showToast === 'function' && (slideIndex === 1 || slideIndex % 5 === 0 || slideIndex === totalSlides)) {
+          window.showToast(`Rendering PDF: page ${slideIndex} of ${totalSlides}...`, 'info');
+        }
+
+        // Mount slide HTML into stage
+        stage.innerHTML = slides[i];
+
+        // Ensure root element fills the 1280x720 stage
+        const rootEl = stage.firstElementChild || stage;
+        if (rootEl && rootEl.style) {
+          rootEl.style.width = '1280px';
+          rootEl.style.height = '720px';
+          rootEl.style.boxSizing = 'border-box';
+          rootEl.style.borderRadius = '0px'; // Flat borders for clean vector page bounds
+        }
+
+        // Wait for all images in this slide to finish loading
+        await this._preloadImages(stage);
+
+        // Wait for fonts to be ready
+        if (document.fonts && document.fonts.ready) {
+          try { await document.fonts.ready; } catch (_) {}
+        }
+        await new Promise(r => setTimeout(r, 60));
+
+        // Capture slide to high-res canvas (1.5x scale = 1920x1080 sharp executive render)
+        const canvas = await html2canvasFunc(stage, {
+          scale: 1.5,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          width: 1280,
+          height: 720,
+          windowWidth: 1280,
+          windowHeight: 720,
+          x: 0,
+          y: 0,
+          backgroundColor: '#ffffff'
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+        // Add page to PDF
+        if (i > 0) {
+          pdf.addPage([1280, 720], 'landscape');
+        }
+        pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720, undefined, 'FAST');
+      }
+
+      // Save PDF file directly to user's device
+      pdf.save(fileName);
+
+      if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+        window.showToast(`✅ ${title} PDF downloaded successfully (${slides.length} pages)!`, 'success');
+      }
+
+      return {
+        success: true,
+        method: 'slide_by_slide_canvas_jspdf',
+        fileName,
+        pageCount: slides.length
+      };
+
+    } finally {
+      // Always clean up stage
+      if (stage.parentNode) {
+        stage.parentNode.removeChild(stage);
+      }
+    }
+  },
+
   /**
    * Generates and triggers direct download of a 16:9 vector PDF report
    * @param {Object} reportData - Deck data bundle { month, slides, dashboardData, topWorksData }
@@ -16,74 +159,22 @@ const PDFReportGenerator = {
     const monthClean = rawMonth.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `Walton_AC_Process_Monthly_Report_${monthClean}.pdf`;
 
-    // Priority 1: Direct Client-Side PDF File Download via html2pdf.js
-    if (typeof html2pdf !== 'undefined') {
+    // 1. Primary Engine: Direct Slide-by-Slide 16:9 Canvas + jsPDF
+    if (this._getJsPDFClass() && this._getHtml2Canvas()) {
       try {
         const slides = (typeof SlideLayoutEngine !== 'undefined' && SlideLayoutEngine.renderDeck)
           ? SlideLayoutEngine.renderDeck(reportData, template)
           : [];
 
         if (slides.length > 0) {
-          const container = document.createElement('div');
-          container.id = 'walton-pdf-export-container';
-          container.style.cssText = 'position: fixed; left: -99999px; top: 0; width: 1280px; z-index: -9999; background: #ffffff; color: #0f172a;';
-
-          // Render each 16:9 slide as a distinct page
-          container.innerHTML = `
-            <style>
-              .pdf-page {
-                width: 1280px !important;
-                height: 720px !important;
-                page-break-after: always !important;
-                break-after: page !important;
-                overflow: hidden !important;
-                position: relative !important;
-                box-sizing: border-box !important;
-                background: #ffffff !important;
-              }
-              .pdf-page:last-child {
-                page-break-after: avoid !important;
-                break-after: avoid !important;
-              }
-            </style>
-            ${slides.map(slideHtml => `
-              <div class="pdf-page">
-                ${slideHtml}
-              </div>
-            `).join('')}
-          `;
-
-          document.body.appendChild(container);
-
-          const opt = {
-            margin: 0,
-            filename: fileName,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
-              scale: 2,
-              useCORS: true,
-              letterRendering: true,
-              logging: false,
-              allowTaint: true
-            },
-            jsPDF: {
-              unit: 'px',
-              format: [1280, 720],
-              orientation: 'landscape',
-              hotfixes: ['px_scaling']
-            }
-          };
-
-          await html2pdf().set(opt).from(container).save();
-          document.body.removeChild(container);
-          return { success: true, method: 'html2pdf_direct_download', fileName };
+          return await this._renderSlidesToPDF(slides, fileName, `Monthly Report (${rawMonth})`);
         }
       } catch (err) {
-        console.warn("Direct html2pdf generation encountered an issue, trying window fallback:", err);
+        console.warn("Slide-by-slide PDF generation encountered an issue, falling back to print dialog:", err);
       }
     }
 
-    // Priority 2: Standalone Printable Window with System Print Dialog
+    // 2. Secondary Engine: Standalone Printable Window with System Print Dialog
     const html = (typeof HTMLReportGenerator !== 'undefined')
       ? HTMLReportGenerator.generateStandaloneHTML(reportData, template)
       : '';
@@ -104,7 +195,7 @@ const PDFReportGenerator = {
       console.warn("Popup blocked for print window:", e);
     }
 
-    // Priority 3: Download as print-ready HTML file
+    // 3. Fallback: Download as print-ready HTML file
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -123,35 +214,29 @@ const PDFReportGenerator = {
     const monthClean = rawMonth.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `Walton_Executive_Management_Report_${monthClean}.pdf`;
 
-    if (typeof html2pdf !== 'undefined') {
+    if (this._getJsPDFClass() && this._getHtml2Canvas()) {
       try {
         const mgr = (typeof window !== 'undefined' && window.managementReportMgr) ? window.managementReportMgr : null;
         const tasks = reportData.tasks || (mgr ? mgr.getTasksForMonth(rawMonth) : []);
         const summary = reportData.summary || (mgr ? mgr.getSummary(rawMonth) : {});
 
-        const html = (typeof ManagementHTMLGenerator !== 'undefined')
-          ? ManagementHTMLGenerator.generateStandaloneHTML({ month: rawMonth, tasks, summary })
-          : '';
+        // Build the discrete slides for management report
+        const slides = [];
+        if (typeof ManagementHTMLGenerator !== 'undefined') {
+          const totalSlides = tasks.length + 3;
+          slides.push(ManagementHTMLGenerator._renderCoverSlide(rawMonth));
+          slides.push(ManagementHTMLGenerator._renderSummaryTableSlide(rawMonth, tasks, summary, 2, totalSlides));
+          tasks.forEach((t, idx) => {
+            slides.push(ManagementHTMLGenerator._renderTaskSlide(rawMonth, t, idx + 3, totalSlides));
+          });
+          slides.push(ManagementHTMLGenerator._renderThankYouSlide(rawMonth));
+        }
 
-        const container = document.createElement('div');
-        container.id = 'mgmt-pdf-container';
-        container.style.cssText = 'position: fixed; left: -99999px; top: 0; width: 1280px; z-index: -9999; background: #ffffff;';
-        container.innerHTML = html;
-        document.body.appendChild(container);
-
-        const opt = {
-          margin: 0,
-          filename: fileName,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'px', format: [1280, 720], orientation: 'landscape', hotfixes: ['px_scaling'] }
-        };
-
-        await html2pdf().set(opt).from(container).save();
-        document.body.removeChild(container);
-        return { success: true, method: 'html2pdf_direct_download', fileName };
+        if (slides.length > 0) {
+          return await this._renderSlidesToPDF(slides, fileName, `Executive Management Report (${rawMonth})`);
+        }
       } catch (err) {
-        console.warn("Management html2pdf failed, falling back to window print:", err);
+        console.warn("Management slide-by-slide PDF failed, falling back:", err);
       }
     }
 

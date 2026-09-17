@@ -13,6 +13,7 @@ class GeminiClient {
     this.templates = typeof PROMPT_TEMPLATES !== 'undefined' ? PROMPT_TEMPLATES : null;
     
     // OpenRouter Settings
+    this.PROXY_ENDPOINT = "/api/openrouter";
     this.OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
     this.STORAGE_KEY_PROVIDER = "walton_pd_ai_provider";
     this.STORAGE_KEY_OPENROUTER_KEY = "walton_pd_openrouter_api_key";
@@ -64,15 +65,62 @@ class GeminiClient {
 
   /**
    * Tests OpenRouter API connection with a lightweight prompt
+   * Prioritizes secure Vercel /api/openrouter proxy, falling back to direct fetch
    */
   async testOpenRouterConnection(apiKey = null, model = null) {
     const key = apiKey || this.getOpenRouterKey();
     const mdl = model || this.getOpenRouterModel();
-    if (!key) {
-      return { success: false, error: "OpenRouter API Key is empty. Please enter your key." };
+    const startTime = Date.now();
+
+    // 1. Try Vercel Serverless Route /api/openrouter (Primary, Secure)
+    const isBrowser = typeof window !== 'undefined';
+    const isNotLocalFile = isBrowser && window.location.protocol !== 'file:';
+
+    if (isNotLocalFile) {
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (key) headers["x-openrouter-key"] = key;
+
+        const proxyRes = await fetch(this.PROXY_ENDPOINT, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({ action: "test", model: mdl, apiKey: key })
+        });
+
+        if (proxyRes.status !== 404 && proxyRes.status !== 502) {
+          const proxyData = await proxyRes.json();
+          const isSuccess = Boolean(proxyData.success);
+          return {
+            success: isSuccess,
+            connected: isSuccess,
+            provider: "OpenRouter",
+            status: proxyData.status || (isSuccess ? "Connected" : "Failed"),
+            model: proxyData.model || mdl,
+            latency: proxyData.latency || (Date.now() - startTime),
+            timestamp: proxyData.timestamp || new Date().toISOString(),
+            error: proxyData.error || (isSuccess ? null : "Connection failed"),
+            details: proxyData.details || "",
+            reply: proxyData.reply || ""
+          };
+        }
+      } catch (proxyErr) {
+        console.warn("Vercel proxy /api/openrouter unreachable, testing direct connection:", proxyErr.message);
+      }
     }
 
-    const startTime = Date.now();
+    // 2. Direct OpenRouter Connection Fallback (For local file:// or standalone setups)
+    if (!key) {
+      return {
+        success: false,
+        connected: false,
+        status: "Failed",
+        model: mdl,
+        timestamp: new Date().toISOString(),
+        error: "Invalid API Key: OpenRouter API key is empty. Please enter your key or set OPENROUTER_API_KEY on the server.",
+        latency: Date.now() - startTime
+      };
+    }
+
     try {
       const response = await fetch(this.OPENROUTER_ENDPOINT, {
         method: "POST",
@@ -96,21 +144,62 @@ class GeminiClient {
       const latency = Date.now() - startTime;
       if (!response.ok) {
         const errText = await response.text();
-        let errMsg = `HTTP ${response.status}`;
+        let diagReason = `API Request Failed (HTTP ${response.status})`;
+        let errDetails = "";
         try {
           const errJson = JSON.parse(errText);
-          if (errJson.error && errJson.error.message) errMsg = errJson.error.message;
+          if (errJson.error && errJson.error.message) errDetails = errJson.error.message;
         } catch (_) {
-          if (errText) errMsg = errText.slice(0, 150);
+          if (errText) errDetails = errText.slice(0, 150);
         }
-        return { success: false, error: errMsg, latency };
+
+        if (response.status === 401 || response.status === 403) {
+          diagReason = "Invalid API Key: OpenRouter rejected the API key as unauthorized or revoked.";
+        } else if (response.status === 402) {
+          diagReason = "Insufficient Credits: OpenRouter account has ran out of credits.";
+        } else if (response.status === 404) {
+          diagReason = `Model Not Available: The model "${mdl}" is unavailable or deprecated on OpenRouter.`;
+        } else if (response.status === 429) {
+          diagReason = "Rate Limit Exceeded: Free tier rate limits reached. Please wait a moment.";
+        } else if (errDetails) {
+          diagReason = `API Request Failed: ${errDetails}`;
+        }
+
+        return {
+          success: false,
+          connected: false,
+          status: "Failed",
+          error: diagReason,
+          details: errDetails,
+          latency,
+          model: mdl,
+          code: response.status,
+          timestamp: new Date().toISOString()
+        };
       }
 
       const data = await response.json();
       const reply = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : "OK";
-      return { success: true, latency, reply: reply.trim(), model: mdl };
+      return {
+        success: true,
+        connected: true,
+        status: "Connected",
+        provider: "OpenRouter",
+        latency,
+        reply: reply.trim(),
+        model: mdl,
+        timestamp: new Date().toISOString()
+      };
     } catch (e) {
-      return { success: false, error: e.message || "Network error", latency: Date.now() - startTime };
+      return {
+        success: false,
+        connected: false,
+        status: "Failed",
+        error: `API Request Failed: ${e.message || "Network / CORS connection error."}`,
+        latency: Date.now() - startTime,
+        model: mdl,
+        timestamp: new Date().toISOString()
+      };
     }
   }
 
@@ -184,8 +273,47 @@ class GeminiClient {
    */
   async callOpenRouter(messages, temperature = 0.2, maxTokens = 600, jsonMode = false) {
     const key = this.getOpenRouterKey();
-    if (!key) throw new Error("OpenRouter API key is not configured.");
     const model = this.getOpenRouterModel();
+
+    // 1. Try Vercel Serverless Route /api/openrouter
+    const isBrowser = typeof window !== 'undefined';
+    const isNotLocalFile = isBrowser && window.location.protocol !== 'file:';
+
+    if (isNotLocalFile) {
+      try {
+        const headers = { "Content-Type": "application/json" };
+        if (key) headers["x-openrouter-key"] = key;
+
+        const proxyPayload = {
+          action: "chat",
+          model: model,
+          messages: messages,
+          temperature: temperature,
+          max_tokens: maxTokens
+        };
+        if (jsonMode) proxyPayload.response_format = { type: "json_object" };
+
+        const proxyRes = await fetch(this.PROXY_ENDPOINT, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(proxyPayload)
+        });
+
+        if (proxyRes.status !== 404 && proxyRes.status !== 502) {
+          const proxyData = await proxyRes.json();
+          if (!proxyRes.ok || !proxyData.success) {
+            throw new Error(proxyData.error || `OpenRouter Error (${proxyRes.status})`);
+          }
+          return proxyData.content;
+        }
+      } catch (proxyErr) {
+        if (!key) throw proxyErr;
+        console.warn("Proxy chat call failed, falling back to direct API:", proxyErr.message);
+      }
+    }
+
+    // 2. Direct fallback
+    if (!key) throw new Error("OpenRouter API key is not configured.");
 
     const payload = {
       model: model,
