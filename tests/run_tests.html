@@ -308,44 +308,46 @@
         `Generated: "${qrSteps}"`);
 
       // ----------------------------------------------------
-      // COMPLETE 5-SECTION DECK SEQUENCE (Cover -> TOC -> Dashboard -> Tasks -> Top 5 Works)
+      // COMPLETE PRESENTATION DECK SEQUENCE (Cover -> Overview -> Dynamic 6-Month Cost Savings -> Tasks -> Final Summary -> Thank You)
       // ----------------------------------------------------
       const testDeckPayload = {
         month: testMonth,
         slides: syncRes.slides
       };
       const generatedDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "walton_executive_crimson");
-      assert("Sequential Deck", "renderDeck compiles exact sequence: Cover + TOC + Dashboard + Tasks + Top 5 Works (4 + N slides, no comparison or closing slide)",
-        generatedDeck.length === syncRes.slides.length + 4,
-        `Expected: ${syncRes.slides.length + 4}, Got: ${generatedDeck.length}`);
+      assert("Sequential Deck", "renderDeck compiles exact sequence: Cover + Overview + Dynamic 6-Month Savings + Tasks + Final Summary + Thank You (5 + N slides)",
+        generatedDeck.length === syncRes.slides.length + 5,
+        `Expected: ${syncRes.slides.length + 5}, Got: ${generatedDeck.length}`);
 
       assert("Sequential Deck", "Slide 1 is Walton Executive Red Cover Slide",
         generatedDeck[0].includes("walton-executive-cover") && generatedDeck[0].includes("DEPARTMENTAL PROJECTS"));
 
-      assert("Sequential Deck", "Slide 2 is Table of Contents / Executive Agenda",
-        generatedDeck[1].includes("walton-toc-slide") && generatedDeck[1].includes("EXECUTIVE AGENDA"));
+      assert("Sequential Deck", "Slide 2 is Operations Control Executive Overview",
+        generatedDeck[1].includes("walton-overview-slide") && generatedDeck[1].includes("OPERATIONS CONTROL"));
 
-      assert("Sequential Deck", "Slide 3 is Management Dashboard with Monthly Savings & 8 KPIs (Image 1)",
-        generatedDeck[2].includes("walton-dashboard-slide") && generatedDeck[2].includes("AC Product Dashboard") && generatedDeck[2].includes("Process Developed"));
+      assert("Sequential Deck", "Slide 3 is Management Dashboard with Dynamic Rolling 6-Month Savings & Visualization",
+        generatedDeck[2].includes("walton-dashboard-slide") && generatedDeck[2].includes("AC Product Dashboard") && generatedDeck[2].includes("FINANCIAL PERFORMANCE"));
 
       assert("Sequential Deck", "Slide 4 is 1st Task Entry (1 Row = 1 Slide)",
         generatedDeck[3].includes("walton-red-executive") && generatedDeck[3].includes("Project Overview"));
 
-      const lastSlideIndex = generatedDeck.length - 1;
-      assert("Sequential Deck", "Slide N+4 is Top 5 Works & Projects Summary (Image 2)",
-        generatedDeck[lastSlideIndex].includes("walton-top5-slide") && generatedDeck[lastSlideIndex].includes("Top 5 WORKS & PROJECTS"));
+      const summarySlideIndex = generatedDeck.length - 2;
+      assert("Sequential Deck", "Slide N+4 is Final Summary Report Slide with 8 color boxes",
+        generatedDeck[summarySlideIndex].includes("walton-final-summary-slide") && generatedDeck[summarySlideIndex].includes("Comprehensive Deliverables"));
 
-      assert("Sequential Deck", "Comparison slide and closing slide are completely excluded per user request",
-        !generatedDeck.some(s => s.includes("walton-comparison-slide")) && !generatedDeck.some(s => s.includes("walton-closing-slide")));
+      const lastSlideIndex = generatedDeck.length - 1;
+      assert("Sequential Deck", "Slide N+5 is Executive Thank You Slide",
+        generatedDeck[lastSlideIndex].includes("walton-thank-you-slide") && generatedDeck[lastSlideIndex].includes("THANK YOU"));
 
       // Test Distinct Industrial Innovation Blue Deck Layout
       const blueDeck = SlideLayoutEngine.renderDeck(testDeckPayload, "industrial_innovation_blue");
-      assert("Distinct Layouts", "Industrial Innovation Blue deck has 4 + N slides with distinct blue components",
-        blueDeck.length === syncRes.slides.length + 4 &&
+      assert("Distinct Layouts", "Industrial Innovation Blue deck has 5 + N slides with distinct blue components",
+        blueDeck.length === syncRes.slides.length + 5 &&
         blueDeck[0].includes("walton-blue-cover") &&
-        blueDeck[1].includes("walton-blue-toc") &&
+        blueDeck[1].includes("walton-blue-overview") &&
         blueDeck[2].includes("walton-blue-dashboard") &&
-        blueDeck[lastSlideIndex].includes("walton-blue-top5"));
+        blueDeck[summarySlideIndex].includes("walton-blue-final-summary") &&
+        blueDeck[lastSlideIndex].includes("walton-blue-thank-you"));
 
       // ----------------------------------------------------
       // HTML & PDF PRINT COMPLIANCE TEST
@@ -513,14 +515,14 @@
         { category: "Automation", slide_title: "New Conveyor", status: "Ongoing" }
       ];
 
-      const dashboardHtml = SlideLayoutEngine.renderExecutiveDashboardSlide("SEP-2026", {
+      const overviewHtml = SlideLayoutEngine.renderExecutiveOverviewSlide("SEP-2026", {
         slides: sampleTasks
       });
-      assert("Dashboard Dynamic Counting", "Dashboard slide dynamically counts categories from task slides",
-        dashboardHtml.includes("Executive Performance &amp; Cost Savings") &&
-        dashboardHtml.includes("Process Developed") &&
-        dashboardHtml.includes("Tools Developed") &&
-        dashboardHtml.includes("Parts Developed"));
+      assert("Dashboard Dynamic Counting", "Overview slide dynamically counts categories from task slides",
+        overviewHtml.includes("Plant Engineering Operations") &&
+        overviewHtml.includes("Process Developed") &&
+        overviewHtml.includes("Tools Developed") &&
+        overviewHtml.includes("Parts Developed"));
 
       // ----------------------------------------------------
       // TEST: Dual Before & After Photo Rendering

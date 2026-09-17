@@ -66,10 +66,40 @@ class PPTXGenerator {
       }
     });
 
-    const taskSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
+    // Engineer-sequenced Task Slides: Sazzad > Rafi > Faiyaz > Abdullah > Emon > Pear > Hashmi > Anam (Requirement 10)
+    let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
+    if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
+      try { engineerSeq = SettingsView.getMonthlyEngineerSequence(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      const customSeq = localStorage.getItem('walton_monthly_engineer_seq');
+      if (customSeq) {
+        try { engineerSeq = JSON.parse(customSeq); } catch(e) {}
+      }
+    }
+
+    const sequencedStandardTasks = [];
+    const matchedTaskIds = new Set();
+    engineerSeq.forEach(engName => {
+      const cleanEng = (engName || '').trim().toLowerCase();
+      if (!cleanEng) return;
+      standardTaskSlides.forEach(task => {
+        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+          sequencedStandardTasks.push(task);
+          matchedTaskIds.add(task.task_id);
+        }
+      });
+    });
+    standardTaskSlides.forEach(task => {
+      if (!matchedTaskIds.has(task.task_id)) {
+        sequencedStandardTasks.push(task);
+      }
+    });
+
+    const taskSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
     const activeTemplate = template || reportData.template || "walton_executive_crimson";
     const isBlue = (activeTemplate === "industrial_innovation_blue" || activeTemplate === "walton_blue_dual");
-    const totalSlideCount = taskSlides.length + 4; // Cover + TOC + Dashboard + Tasks + Top 5 Works
+    const totalSlideCount = taskSlides.length + 5; // Cover + Overview + Dashboard + Tasks + Final Summary + Thank You
 
     // -------------------------------------------------------------
     // SLIDE 1: COVER PAGE (Crimson or Blue)
@@ -83,18 +113,18 @@ class PPTXGenerator {
     }
 
     // -------------------------------------------------------------
-    // SLIDE 2: TABLE OF CONTENTS (Crimson or Blue)
+    // SLIDE 2: EXECUTIVE OVERVIEW (Requirement 8)
     // -------------------------------------------------------------
-    const slideTOC = pptx.addSlide();
-    slideTOC.background = { color: bgWhite };
+    const slideOverview = pptx.addSlide();
+    slideOverview.background = { color: bgWhite };
     if (isBlue) {
-      this._addIndustrialBlueTableOfContents(slideTOC, pptx, font, monthName, taskSlides.length, totalSlideCount);
+      this._addIndustrialBlueOverviewSlide(slideOverview, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
     } else {
-      this._addExecutiveRedTableOfContents(slideTOC, pptx, font, monthName, taskSlides.length, totalSlideCount);
+      this._addExecutiveOverviewSlide(slideOverview, pptx, font, monthName, totalSlideCount, reportData.dashboardData || reportData);
     }
 
     // -------------------------------------------------------------
-    // SLIDE 3: EXECUTIVE MANAGEMENT DASHBOARD (Crimson or Blue)
+    // SLIDE 3: DYNAMIC 6-MONTH ROLLING COST SAVINGS (Requirement 9)
     // -------------------------------------------------------------
     const slideDash = pptx.addSlide();
     slideDash.background = { color: bgWhite };
@@ -105,7 +135,7 @@ class PPTXGenerator {
     }
 
     // -------------------------------------------------------------
-    // SLIDES 4 to N: TASK SLIDES (1 Row = 1 Slide)
+    // SLIDES 4 to N: TASK SLIDES (1 Row = 1 Slide) (Requirements 10 & 11)
     // -------------------------------------------------------------
     let currentSlideNum = 4;
     for (const task of taskSlides) {
@@ -135,19 +165,204 @@ class PPTXGenerator {
     }
 
     // -------------------------------------------------------------
-    // SLIDE N+1: TOP 5 WORKS & PROJECTS SUMMARY (Crimson or Blue)
+    // SLIDE N+1: FINAL SUMMARY REPORT (Dashboard Color Card Pattern) (Requirement 11)
     // -------------------------------------------------------------
-    const slideTop5 = pptx.addSlide();
-    slideTop5.background = { color: bgWhite };
+    const slideSummary = pptx.addSlide();
+    slideSummary.background = { color: bgWhite };
     if (isBlue) {
-      this._addIndustrialBlueTopWorksSlide(slideTop5, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData.topWorksData);
+      this._addIndustrialBlueFinalSummarySlide(slideSummary, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData);
     } else {
-      this._addExecutiveRedTopWorksSlide(slideTop5, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData.topWorksData);
+      this._addFinalSummaryDashboardSlide(slideSummary, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData);
+    }
+    currentSlideNum++;
+
+    // -------------------------------------------------------------
+    // SLIDE N+2: THANK YOU SLIDE (Requirement 11)
+    // -------------------------------------------------------------
+    const slideThankYou = pptx.addSlide();
+    slideThankYou.background = { color: "07172B" };
+    if (isBlue) {
+      this._addIndustrialBlueThankYouSlide(slideThankYou, pptx, font, monthName);
+    } else {
+      this._addThankYouSlide(slideThankYou, pptx, font, monthName);
     }
 
     const fileName = `Walton_AC_Process_Monthly_Report_${monthName.replace(/\s+/g, '_')}.pptx`;
     await pptx.writeFile({ fileName: fileName });
     return fileName;
+  }
+
+  /**
+   * Slide 2: Executive Operations Overview & Dashboard Layout Slide
+   */
+  _addExecutiveOverviewSlide(slide, pptx, font, monthName, totalSlideCount, data = null) {
+    const redPrimary = "C5161D";
+    const charcoalDark = "0F172A";
+
+    this._addExecutiveHeader(slide, pptx, font, "OPERATIONS CONTROL • EXECUTIVE OVERVIEW", `Plant Engineering Operations & Work Distribution (${monthName.toUpperCase()})`);
+
+    // 1. Resolve tasks list & metrics
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(monthName);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    const totalTasks = tasksList.length;
+    const reportTasks = tasksList.filter(t => t.monthly_report === 'YES').length;
+    const internalTasks = totalTasks - reportTasks;
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    const engineersSet = new Set();
+
+    tasksList.forEach(t => {
+      const eng = (t.concern_engineer || t.concern || '').trim();
+      if (eng) engineersSet.add(eng);
+
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjCount++;
+        } else {
+          ongoingProjCount++;
+        }
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    let monthlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+      monthlySavings = ct.displayMonthlySaving || "BDT 0";
+    }
+
+    // 4 Top Hero Metric Cards
+    const heroCards = [
+      {
+        val: `${totalTasks}`,
+        label: "Total Engineering Tasks",
+        sub: `Report: ${reportTasks} | Internal: ${internalTasks}`,
+        icon: "📋",
+        bg: "1E1B4B",
+        border: "4338CA"
+      },
+      {
+        val: `${completedProjCount + ongoingProjCount}`,
+        label: "Strategic Projects",
+        sub: `Completed: ${completedProjCount} | Ongoing: ${ongoingProjCount}`,
+        icon: "🚀",
+        bg: "064E3B",
+        border: "059669"
+      },
+      {
+        val: `${engineersSet.size || 8}`,
+        label: "Active Concern Engineers",
+        sub: "Plant-Wide Coverage",
+        icon: "👥",
+        bg: "7C2D12",
+        border: "EA580C"
+      },
+      {
+        val: yearlySavings,
+        label: "Realized Annual Savings",
+        sub: `Monthly: ${monthlySavings}`,
+        icon: "💰",
+        bg: "065F46",
+        border: "10B981"
+      }
+    ];
+
+    heroCards.forEach((c, idx) => {
+      const px = 0.8 + idx * 2.98;
+      const py = 1.35;
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 1.25,
+        fill: { color: c.bg }, line: { color: c.border, width: 1.5 }, rectRadius: 0.1
+      });
+      slide.addText(`${c.icon}  ${c.label.toUpperCase()}`, {
+        x: px + 0.15, y: py + 0.1, w: 2.52, h: 0.25,
+        fontFace: font, fontSize: 8, bold: true, color: "FFFFFF"
+      });
+      slide.addText(c.val, {
+        x: px + 0.15, y: py + 0.35, w: 2.52, h: 0.5,
+        fontFace: font, fontSize: 22, bold: true, color: "FFFFFF"
+      });
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.15, y: py + 0.88, w: 2.52, h: 0.25,
+        fill: { color: "FFFFFF", transparency: 80 }, line: { color: "FFFFFF", transparency: 80 }, rectRadius: 0.05
+      });
+      slide.addText(c.sub, {
+        x: px + 0.15, y: py + 0.88, w: 2.52, h: 0.25,
+        fontFace: font, fontSize: 7.5, bold: true, color: "FFFFFF", align: "center", valign: "middle"
+      });
+    });
+
+    // 8 Colorful Process Pillars (4x2 Grid)
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: "EFF6FF", border: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: "EEF2FF", border: "818CF8", valColor: "4338CA", labelColor: "312E81" },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: "ECFDF5", border: "34D399", valColor: "047857", labelColor: "064E3B" },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlySavings}/Yr`, icon: "💰", bg: "FFFBEB", border: "FBBF24", valColor: "B45309", labelColor: "78350F" },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: "FAF5FF", border: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: "FFF1F2", border: "FB7185", valColor: "BE123C", labelColor: "881337" },
+      { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: "FEF2F2", border: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: "ECFEFF", border: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
+    ];
+
+    categoryGrid.forEach((k, idx) => {
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      const px = 0.8 + col * 2.98;
+      const py = 2.78 + row * 1.95;
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 1.8,
+        fill: { color: k.bg }, line: { color: k.border, width: 1.2 }, rectRadius: 0.1
+      });
+
+      slide.addText(`${k.icon}  ${k.val}`, {
+        x: px + 0.18, y: py + 0.15, w: 2.46, h: 0.5,
+        fontFace: font, fontSize: 24, bold: true, color: k.valColor
+      });
+
+      slide.addText(k.label, {
+        x: px + 0.18, y: py + 0.7, w: 2.46, h: 0.38,
+        fontFace: font, fontSize: 11, bold: true, color: k.labelColor
+      });
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.18, y: py + 1.18, w: 2.46, h: 0.4,
+        fill: { color: "FFFFFF" }, line: { color: k.border, width: 0.5 }, rectRadius: 0.05
+      });
+      slide.addText(k.note, {
+        x: px + 0.22, y: py + 1.18, w: 2.38, h: 0.4,
+        fontFace: font, fontSize: 8, bold: true, color: k.valColor, valign: "middle"
+      });
+    });
+
+    this._addExecutiveRedFooter(slide, pptx, font, monthName, 2, totalSlideCount);
   }
 
   /**
@@ -1039,74 +1254,99 @@ class PPTXGenerator {
   }
 
   /**
-   * Slide 3: Executive Management Dashboard (Replicating Image 1)
+   * Slide 3: Dynamic Rolling 6-Month Realized Cost Savings Slide (Requirement 9)
    */
   _addExecutiveRedDashboardSlide(slide, pptx, font, monthName, totalSlideCount, data = null) {
     const redPrimary = "C5161D";
     const charcoalDark = "0F172A";
-    const textMuted = "64748B";
-    const shape = (name) => (pptx && pptx.ShapeType && pptx.ShapeType[name]) ? pptx.ShapeType[name] : name;
 
-    this._addExecutiveHeader(slide, pptx, font, "AC PRODUCT • MANAGEMENT DASHBOARD", "Executive Performance & Cost Savings");
+    this._addExecutiveHeader(slide, pptx, font, "FINANCIAL PERFORMANCE • COST OPTIMIZATION", "Rolling 6-Month Realized Cost Savings & Financial Impact");
 
-    const currentImpact = (data && data.currentImpact) || "234,200 TK";
-    const currentMonthLabel = (data && data.currentMonthLabel) || "August 2026";
-    const yearlyImpact = (data && data.yearlyImpact) || "2,812,151 TK";
+    // Dynamic Rolling 6-Month calculation
+    let rolling = null;
+    if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.getRolling6Months) {
+      rolling = CostSavingTracker.getRolling6Months(monthName);
+    }
 
-    // Left: Monthly Cost Saving Table
-    const savings = (data && data.monthlySavings) || [
-      { m: "April", val: "BDT 0" },
-      { m: "May", val: "BDT 0" },
-      { m: "June", val: "BDT 0" },
-      { m: "July", val: "BDT 0" },
-      { m: "August", val: "BDT 0" },
-      { m: "September", val: "BDT 0" }
-    ];
+    let savings = [];
+    let currentImpact = "BDT 0";
+    let yearlyImpact = "BDT 0";
+    let rollingTotalStr = "BDT 0";
 
+    if (rolling && Array.isArray(rolling.months)) {
+      savings = rolling.months.map(m => ({ m: m.shortLabel, val: m.displayAmount, amount: m.amount || 0 }));
+      rollingTotalStr = rolling.displayTotal || "BDT 0";
+      currentImpact = rolling.displayCurrentMonth || "BDT 0";
+    }
+
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlyImpact = ct.displayCumulativeYTD || yearlyImpact;
+      if (currentImpact === "BDT 0") currentImpact = ct.displayMonthlySaving || "BDT 0";
+      if (yearlyImpact === "BDT 0") yearlyImpact = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    if (savings.length === 0) {
+      savings = [
+        { m: "Apr 26", val: "BDT 0", amount: 0 },
+        { m: "May 26", val: "BDT 0", amount: 0 },
+        { m: "Jun 26", val: "BDT 0", amount: 0 },
+        { m: "Jul 26", val: "BDT 0", amount: 0 },
+        { m: "Aug 26", val: "BDT 0", amount: 0 },
+        { m: "Sep 26", val: "BDT 0", amount: 0 }
+      ];
+    }
+
+    // Left: Dynamic Rolling 6-Month Table
     const savingsRows = [
       [
-        { text: "Month", options: { bold: true, fill: charcoalDark, color: "FFFFFF" } },
-        { text: "Impact (BDT)", options: { bold: true, fill: charcoalDark, color: "FFFFFF", align: "right" } }
+        { text: "Rolling 6-Month Calendar", options: { bold: true, fill: charcoalDark, color: "FFFFFF", fontSize: 9 } },
+        { text: "Impact (BDT)", options: { bold: true, fill: charcoalDark, color: "FFFFFF", align: "right", fontSize: 9 } }
       ],
-      ...savings.map(s => [
-        { text: s.m },
-        { text: s.val, options: { align: "right", bold: true } }
-      ])
+      ...savings.map((s, idx) => {
+        const isCurrent = (idx === savings.length - 1);
+        return [
+          { text: `${s.m} ${isCurrent ? '★ (Selected)' : ''}`, options: { bold: isCurrent, color: isCurrent ? redPrimary : charcoalDark, fill: isCurrent ? "FEF2F2" : (idx % 2 === 0 ? "FFFFFF" : "F8FAFC"), fontSize: 8.5 } },
+          { text: s.val, options: { align: "right", bold: true, color: isCurrent ? redPrimary : charcoalDark, fill: isCurrent ? "FEF2F2" : (idx % 2 === 0 ? "FFFFFF" : "F8FAFC"), fontSize: 8.5 } }
+        ];
+      }),
+      [
+        { text: "Total 6-Month Savings:", options: { bold: true, fill: "F1F5F9", color: charcoalDark, fontSize: 9 } },
+        { text: rollingTotalStr, options: { align: "right", bold: true, fill: "F1F5F9", color: "047857", fontSize: 9 } }
+      ]
     ];
 
     slide.addTable(savingsRows, {
-      x: 0.8, y: 1.35, w: 5.4, h: 2.5,
-      fontFace: font, fontSize: 10, color: charcoalDark,
-      fill: "FFFFFF", border: { pt: 0.5, color: "E2E8F0" },
+      x: 0.8, y: 1.35, w: 5.4, h: 2.4,
+      fontFace: font, border: { pt: 0.5, color: "CBD5E1" },
       align: "left", valign: "middle"
     });
 
-    // Right: 2 Financial Impact Cards (Vibrant Colorful Cards - Image 3)
-    // Card 1: Monthly (Sunset Orange)
+    // Middle Card: Monthly (Sunset Orange)
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 6.45, y: 1.35, w: 3.0, h: 2.5,
+      x: 6.45, y: 1.35, w: 3.0, h: 2.4,
       fill: { color: "EA580C" }, line: { color: "F97316", width: 1.5 }, rectRadius: 0.1
     });
     slide.addShape(pptx.ShapeType.roundRect, {
       x: 6.65, y: 1.5, w: 2.6, h: 0.35,
       fill: { color: "FFFFFF" }, line: { color: "FFFFFF", width: 1 }, rectRadius: 0.08
     });
-    slide.addText(`🪙 ${currentMonthLabel.toUpperCase()}`, {
+    slide.addText(`🪙 ${monthName.toUpperCase()}`, {
       x: 6.65, y: 1.5, w: 2.6, h: 0.35,
-      fontFace: font, fontSize: 9, bold: true, color: "9A3412", align: "center", valign: "middle"
+      fontFace: font, fontSize: 8.5, bold: true, color: "9A3412", align: "center", valign: "middle"
     });
     slide.addText(currentImpact, {
-      x: 6.65, y: 1.95, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 24, bold: true, color: "FFFFFF"
+      x: 6.65, y: 1.95, w: 2.6, h: 0.7,
+      fontFace: font, fontSize: 22, bold: true, color: "FFFFFF", align: "center"
     });
     slide.addText("Monthly Financial Impact\nPlant-wide Optimization (100% Realized)", {
-      x: 6.65, y: 2.85, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", lineSpacing: 13
+      x: 6.65, y: 2.7, w: 2.6, h: 0.8,
+      fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", lineSpacing: 13
     });
 
-    // Card 2: Yearly (Emerald Green)
+    // Right Card: Yearly (Emerald Green)
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 9.65, y: 1.35, w: 3.0, h: 2.5,
+      x: 9.65, y: 1.35, w: 3.0, h: 2.4,
       fill: { color: "059669" }, line: { color: "10B981", width: 1.5 }, rectRadius: 0.1
     });
     slide.addShape(pptx.ShapeType.roundRect, {
@@ -1115,66 +1355,85 @@ class PPTXGenerator {
     });
     slide.addText("📈 YEARLY IMPACT (FY 26-27)", {
       x: 9.85, y: 1.5, w: 2.6, h: 0.35,
-      fontFace: font, fontSize: 9, bold: true, color: "065F46", align: "center", valign: "middle"
+      fontFace: font, fontSize: 8.5, bold: true, color: "065F46", align: "center", valign: "middle"
     });
     slide.addText(yearlyImpact, {
-      x: 9.85, y: 1.95, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 24, bold: true, color: "FFFFFF"
+      x: 9.85, y: 1.95, w: 2.6, h: 0.7,
+      fontFace: font, fontSize: 22, bold: true, color: "FFFFFF", align: "center"
     });
     slide.addText("Cumulative Realized Savings\nDirect Process Engineering Value Add", {
-      x: 9.85, y: 2.85, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", lineSpacing: 13
+      x: 9.85, y: 2.7, w: 2.6, h: 0.8,
+      fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", lineSpacing: 13
     });
 
-    // LOWER SECTION: 8 COLORFUL KPI CARDS (4x2 Grid)
-    const kpis = (data && data.kpis) || [
-      { val: "61", label: "Process Developed" },
-      { val: "3", label: "Tools Developed" },
-      { val: "12", label: "Parts Developed" },
-      { val: "3", label: "Cost Optimisation", note: "Cost: BDT 2,312,151 Tk/Yr" },
-      { val: "0", label: "Manpower Optimization" },
-      { val: "47", label: "BOM Verification" },
-      { val: "1", label: "Completed Projects", note: "Cost: BDT 500,000 Tk/Yr" },
-      { val: "12", label: "New Projects / Ongoing", note: "Scope: BDT 2,200,000 Tk/Yr" }
-    ];
+    // LOWER SECTION: 6-Month Visual Bar Chart & 4 Process Drivers
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 0.8, y: 3.9, w: 11.85, h: 2.8,
+      fill: { color: "F8FAFC" }, line: { color: "E2E8F0", width: 1.2 }, rectRadius: 0.1
+    });
 
-    const kpiPptxPalettes = [
-      { bg: "EFF6FF", line: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
-      { bg: "EEF2FF", line: "818CF8", valColor: "4338CA", labelColor: "312E81" },
-      { bg: "ECFDF5", line: "34D399", valColor: "047857", labelColor: "064E3B" },
-      { bg: "FFFBEB", line: "FBBF24", valColor: "B45309", labelColor: "78350F" },
-      { bg: "FAF5FF", line: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
-      { bg: "FFF1F2", line: "FB7185", valColor: "BE123C", labelColor: "881337" },
-      { bg: "FEF2F2", line: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
-      { bg: "ECFEFF", line: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
-    ];
+    slide.addText("📊 ROLLING 6-MONTH SAVINGS TRAJECTORY & TREND", {
+      x: 1.0, y: 4.02, w: 6.5, h: 0.3,
+      fontFace: font, fontSize: 9.5, bold: true, color: charcoalDark
+    });
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 9.8, y: 4.02, w: 2.65, h: 0.28,
+      fill: { color: "ECFDF5" }, line: { color: "A7F3D0", width: 1 }, rectRadius: 0.08
+    });
+    slide.addText("Verified Accounting Savings", {
+      x: 9.8, y: 4.02, w: 2.65, h: 0.28,
+      fontFace: font, fontSize: 8, bold: true, color: "047857", align: "center", valign: "middle"
+    });
 
-    kpis.forEach((k, idx) => {
-      const col = idx % 4;
-      const row = Math.floor(idx / 4);
-      const px = 0.8 + col * 2.98;
-      const py = 4.05 + row * 1.35;
-      const pal = kpiPptxPalettes[idx % kpiPptxPalettes.length];
+    // 6 Visual Bars
+    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+    const chartBaseY = 5.75;
+    const maxBarHeight = 1.1;
 
+    savings.forEach((s, idx) => {
+      const isLast = (idx === savings.length - 1);
+      const colX = 1.2 + idx * 1.85;
+      const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
+      const barH = (pct / 100) * maxBarHeight;
+      const barY = chartBaseY - barH;
+
+      // Amount label above bar
+      slide.addText(s.val, {
+        x: colX - 0.2, y: barY - 0.26, w: 1.8, h: 0.24,
+        fontFace: font, fontSize: 8, bold: true, color: isLast ? redPrimary : "475569", align: "center"
+      });
+
+      // Bar Shape
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px, y: py, w: 2.82, h: 1.25,
-        fill: { color: pal.bg }, line: { color: pal.line, width: 1.2 }, rectRadius: 0.08
+        x: colX + 0.3, y: barY, w: 0.8, h: barH,
+        fill: { color: isLast ? "EF4444" : "0284C7" }, line: { color: isLast ? redPrimary : "0369A1", width: 1 }, rectRadius: 0.06
       });
 
-      slide.addText(k.val, {
-        x: px + 0.18, y: py + 0.08, w: 1.2, h: 0.45,
-        fontFace: font, fontSize: 20, bold: true, color: pal.valColor
+      // Month label below bar
+      slide.addText(s.m, {
+        x: colX - 0.2, y: chartBaseY + 0.05, w: 1.8, h: 0.25,
+        fontFace: font, fontSize: 8.5, bold: isLast, color: isLast ? redPrimary : charcoalDark, align: "center"
       });
-      slide.addText(k.label, {
-        x: px + 0.18, y: py + 0.55, w: 2.5, h: 0.35,
-        fontFace: font, fontSize: 10, bold: true, color: pal.labelColor
+    });
+
+    // 4 Process Drivers along the bottom of the card
+    const drivers = [
+      { text: "🔧 Tool & Die Optimization", bg: "EFF6FF", line: "BFDBFE", color: "1E3A8A" },
+      { text: "♻️ Scrap & Material Recovery", bg: "ECFDF5", line: "A7F3D0", color: "065F46" },
+      { text: "⚡ Cycle Time Compression", bg: "FFFBEB", line: "FDE68A", color: "78350F" },
+      { text: "🧪 Material & Chemical Trial", bg: "FDF4FF", line: "F5D0FE", color: "701A75" }
+    ];
+
+    drivers.forEach((d, idx) => {
+      const dx = 1.0 + idx * 2.85;
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: dx, y: 6.22, w: 2.7, h: 0.35,
+        fill: { color: d.bg }, line: { color: d.line, width: 0.8 }, rectRadius: 0.06
       });
-      if (k.note) {
-        slide.addText(k.note, {
-          x: px + 0.18, y: py + 0.88, w: 2.5, h: 0.28,
-          fontFace: font, fontSize: 7.5, bold: true, color: pal.valColor
-        });
-      }
+      slide.addText(d.text, {
+        x: dx, y: 6.22, w: 2.7, h: 0.35,
+        fontFace: font, fontSize: 7.5, bold: true, color: d.color, align: "center", valign: "middle"
+      });
     });
 
     this._addExecutiveRedFooter(slide, pptx, font, monthName, 3, totalSlideCount);
@@ -1511,6 +1770,179 @@ class PPTXGenerator {
   }
 
   /**
+   * Slide 2: Industrial Innovation Blue Operations Overview Slide
+   */
+  _addIndustrialBlueOverviewSlide(slide, pptx, font, monthName, totalSlideCount, data = null) {
+    const blueDark = "0052CC";
+    const charcoalDark = "0F172A";
+
+    this._addIndustrialBlueHeader(slide, pptx, font, "OPERATIONS CONTROL • EXECUTIVE OVERVIEW", `Plant Engineering Operations & Work Distribution (${monthName.toUpperCase()})`);
+
+    // 1. Resolve tasks list & metrics
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(monthName);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    const totalTasks = tasksList.length;
+    const reportTasks = tasksList.filter(t => t.monthly_report === 'YES').length;
+    const internalTasks = totalTasks - reportTasks;
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    const engineersSet = new Set();
+
+    tasksList.forEach(t => {
+      const eng = (t.concern_engineer || t.concern || '').trim();
+      if (eng) engineersSet.add(eng);
+
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjCount++;
+        } else {
+          ongoingProjCount++;
+        }
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    let monthlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+      monthlySavings = ct.displayMonthlySaving || "BDT 0";
+    }
+
+    // 4 Top Hero Metric Cards
+    const heroCards = [
+      {
+        val: `${totalTasks}`,
+        label: "Total Engineering Tasks",
+        sub: `Report: ${reportTasks} | Internal: ${internalTasks}`,
+        icon: "📋",
+        bg: "1E1B4B",
+        border: "4338CA"
+      },
+      {
+        val: `${completedProjCount + ongoingProjCount}`,
+        label: "Strategic Projects",
+        sub: `Completed: ${completedProjCount} | Ongoing: ${ongoingProjCount}`,
+        icon: "🚀",
+        bg: "064E3B",
+        border: "059669"
+      },
+      {
+        val: `${engineersSet.size || 8}`,
+        label: "Active Concern Engineers",
+        sub: "Plant-Wide Coverage",
+        icon: "👥",
+        bg: "7C2D12",
+        border: "EA580C"
+      },
+      {
+        val: yearlySavings,
+        label: "Realized Annual Savings",
+        sub: `Monthly: ${monthlySavings}`,
+        icon: "💰",
+        bg: "065F46",
+        border: "10B981"
+      }
+    ];
+
+    heroCards.forEach((c, idx) => {
+      const px = 0.8 + idx * 2.98;
+      const py = 1.35;
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 1.25,
+        fill: { color: c.bg }, line: { color: c.border, width: 1.5 }, rectRadius: 0.1
+      });
+      slide.addText(`${c.icon}  ${c.label.toUpperCase()}`, {
+        x: px + 0.15, y: py + 0.1, w: 2.52, h: 0.25,
+        fontFace: font, fontSize: 8, bold: true, color: "FFFFFF"
+      });
+      slide.addText(c.val, {
+        x: px + 0.15, y: py + 0.35, w: 2.52, h: 0.5,
+        fontFace: font, fontSize: 22, bold: true, color: "FFFFFF"
+      });
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.15, y: py + 0.88, w: 2.52, h: 0.25,
+        fill: { color: "FFFFFF", transparency: 80 }, line: { color: "FFFFFF", transparency: 80 }, rectRadius: 0.05
+      });
+      slide.addText(c.sub, {
+        x: px + 0.15, y: py + 0.88, w: 2.52, h: 0.25,
+        fontFace: font, fontSize: 7.5, bold: true, color: "FFFFFF", align: "center", valign: "middle"
+      });
+    });
+
+    // 8 Colorful Process Pillars (4x2 Grid)
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: "EFF6FF", border: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: "EEF2FF", border: "818CF8", valColor: "4338CA", labelColor: "312E81" },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: "ECFDF5", border: "34D399", valColor: "047857", labelColor: "064E3B" },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlySavings}/Yr`, icon: "💰", bg: "FFFBEB", border: "FBBF24", valColor: "B45309", labelColor: "78350F" },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: "FAF5FF", border: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: "FFF1F2", border: "FB7185", valColor: "BE123C", labelColor: "881337" },
+      { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: "FEF2F2", border: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: "ECFEFF", border: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
+    ];
+
+    categoryGrid.forEach((k, idx) => {
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      const px = 0.8 + col * 2.98;
+      const py = 2.78 + row * 1.95;
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 1.8,
+        fill: { color: k.bg }, line: { color: k.border, width: 1.2 }, rectRadius: 0.1
+      });
+
+      slide.addText(`${k.icon}  ${k.val}`, {
+        x: px + 0.18, y: py + 0.15, w: 2.46, h: 0.5,
+        fontFace: font, fontSize: 24, bold: true, color: k.valColor
+      });
+
+      slide.addText(k.label, {
+        x: px + 0.18, y: py + 0.7, w: 2.46, h: 0.38,
+        fontFace: font, fontSize: 11, bold: true, color: k.labelColor
+      });
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.18, y: py + 1.18, w: 2.46, h: 0.4,
+        fill: { color: "FFFFFF" }, line: { color: k.border, width: 0.5 }, rectRadius: 0.05
+      });
+      slide.addText(k.note, {
+        x: px + 0.22, y: py + 1.18, w: 2.38, h: 0.4,
+        fontFace: font, fontSize: 8, bold: true, color: k.valColor, valign: "middle"
+      });
+    });
+
+    this._addIndustrialBlueFooter(slide, pptx, font, monthName, 2, totalSlideCount);
+  }
+
+  /**
    * Slide 2: Pattern 2 - Industrial Innovation Blue Table of Contents
    */
   _addIndustrialBlueTableOfContents(slide, pptx, font, monthName, taskCount, totalSlideCount) {
@@ -1601,73 +2033,100 @@ class PPTXGenerator {
   }
 
   /**
-   * Slide 3: Pattern 2 - Industrial Innovation Blue Dashboard Slide
+   * Slide 3: Industrial Innovation Blue Dynamic Rolling 6-Month Realized Cost Savings Slide (Requirement 9)
    */
   _addIndustrialBlueDashboardSlide(slide, pptx, font, monthName, totalSlideCount, data = null) {
     const blueDark = "0052CC";
     const blueCorporate = "0284C7";
     const charcoalDark = "0F172A";
 
-    this._addIndustrialBlueHeader(slide, pptx, font, "AC PROCESS • MANAGEMENT DASHBOARD", "Industrial Performance & Cost Savings");
+    this._addIndustrialBlueHeader(slide, pptx, font, "FINANCIAL PERFORMANCE • COST OPTIMIZATION", "Rolling 6-Month Realized Cost Savings & Financial Impact");
 
-    const currentImpact = (data && data.currentImpact) || "234,200 TK";
-    const currentMonthLabel = (data && data.currentMonthLabel) || "August 2026";
-    const yearlyImpact = (data && data.yearlyImpact) || "2,812,151 TK";
+    // Dynamic Rolling 6-Month calculation
+    let rolling = null;
+    if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.getRolling6Months) {
+      rolling = CostSavingTracker.getRolling6Months(monthName);
+    }
 
-    // Left: Monthly Cost Saving Table with Blue Header
-    const savings = (data && data.monthlySavings) || [
-      { m: "April", val: "BDT 0" },
-      { m: "May", val: "BDT 0" },
-      { m: "June", val: "BDT 0" },
-      { m: "July", val: "BDT 0" },
-      { m: "August", val: "BDT 0" },
-      { m: "September", val: "BDT 0" }
-    ];
+    let savings = [];
+    let currentImpact = "BDT 0";
+    let yearlyImpact = "BDT 0";
+    let rollingTotalStr = "BDT 0";
 
+    if (rolling && Array.isArray(rolling.months)) {
+      savings = rolling.months.map(m => ({ m: m.shortLabel, val: m.displayAmount, amount: m.amount || 0 }));
+      rollingTotalStr = rolling.displayTotal || "BDT 0";
+      currentImpact = rolling.displayCurrentMonth || "BDT 0";
+    }
+
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlyImpact = ct.displayCumulativeYTD || yearlyImpact;
+      if (currentImpact === "BDT 0") currentImpact = ct.displayMonthlySaving || "BDT 0";
+      if (yearlyImpact === "BDT 0") yearlyImpact = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    if (savings.length === 0) {
+      savings = [
+        { m: "Apr 26", val: "BDT 0", amount: 0 },
+        { m: "May 26", val: "BDT 0", amount: 0 },
+        { m: "Jun 26", val: "BDT 0", amount: 0 },
+        { m: "Jul 26", val: "BDT 0", amount: 0 },
+        { m: "Aug 26", val: "BDT 0", amount: 0 },
+        { m: "Sep 26", val: "BDT 0", amount: 0 }
+      ];
+    }
+
+    // Left: Dynamic Rolling 6-Month Table with Blue Header
     const savingsRows = [
       [
-        { text: "Month", options: { bold: true, fill: blueDark, color: "FFFFFF" } },
-        { text: "Impact (BDT)", options: { bold: true, fill: blueDark, color: "FFFFFF", align: "right" } }
+        { text: "Rolling 6-Month Calendar", options: { bold: true, fill: blueDark, color: "FFFFFF", fontSize: 9 } },
+        { text: "Impact (BDT)", options: { bold: true, fill: blueDark, color: "FFFFFF", align: "right", fontSize: 9 } }
       ],
-      ...savings.map(s => [
-        { text: s.m },
-        { text: s.val, options: { align: "right", bold: true } }
-      ])
+      ...savings.map((s, idx) => {
+        const isCurrent = (idx === savings.length - 1);
+        return [
+          { text: `${s.m} ${isCurrent ? '★ (Selected)' : ''}`, options: { bold: isCurrent, color: isCurrent ? blueDark : charcoalDark, fill: isCurrent ? "E0F2FE" : (idx % 2 === 0 ? "FFFFFF" : "F8FAFC"), fontSize: 8.5 } },
+          { text: s.val, options: { align: "right", bold: true, color: isCurrent ? blueDark : charcoalDark, fill: isCurrent ? "E0F2FE" : (idx % 2 === 0 ? "FFFFFF" : "F8FAFC"), fontSize: 8.5 } }
+        ];
+      }),
+      [
+        { text: "Total 6-Month Savings:", options: { bold: true, fill: "F1F5F9", color: charcoalDark, fontSize: 9 } },
+        { text: rollingTotalStr, options: { align: "right", bold: true, fill: "F1F5F9", color: "0284C7", fontSize: 9 } }
+      ]
     ];
 
     slide.addTable(savingsRows, {
-      x: 0.8, y: 1.35, w: 5.4, h: 2.5,
-      fontFace: font, fontSize: 10, color: charcoalDark,
-      fill: "FFFFFF", border: { pt: 0.5, color: "BAE6FD" },
+      x: 0.8, y: 1.35, w: 5.4, h: 2.4,
+      fontFace: font, border: { pt: 0.5, color: "BAE6FD" },
       align: "left", valign: "middle"
     });
 
-    // Right: 2 Financial Impact Cards (Vibrant Colorful Cards - Image 3)
-    // Card 1: Monthly (Sunset Orange)
+    // Middle Card: Monthly (Sunset Orange)
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 6.45, y: 1.35, w: 3.0, h: 2.5,
+      x: 6.45, y: 1.35, w: 3.0, h: 2.4,
       fill: { color: "EA580C" }, line: { color: "F97316", width: 1.5 }, rectRadius: 0.1
     });
     slide.addShape(pptx.ShapeType.roundRect, {
       x: 6.65, y: 1.5, w: 2.6, h: 0.35,
       fill: { color: "FFFFFF" }, line: { color: "FFFFFF", width: 1 }, rectRadius: 0.08
     });
-    slide.addText(`🪙 ${currentMonthLabel.toUpperCase()}`, {
+    slide.addText(`🪙 ${monthName.toUpperCase()}`, {
       x: 6.65, y: 1.5, w: 2.6, h: 0.35,
-      fontFace: font, fontSize: 9, bold: true, color: "9A3412", align: "center", valign: "middle"
+      fontFace: font, fontSize: 8.5, bold: true, color: "9A3412", align: "center", valign: "middle"
     });
     slide.addText(currentImpact, {
-      x: 6.65, y: 1.95, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 24, bold: true, color: "FFFFFF"
+      x: 6.65, y: 1.95, w: 2.6, h: 0.7,
+      fontFace: font, fontSize: 22, bold: true, color: "FFFFFF", align: "center"
     });
     slide.addText("Monthly Financial Impact\nPlant-wide Optimization (100% Realized)", {
-      x: 6.65, y: 2.85, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", lineSpacing: 13
+      x: 6.65, y: 2.7, w: 2.6, h: 0.8,
+      fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", lineSpacing: 13
     });
 
-    // Card 2: Yearly (Emerald Green)
+    // Right Card: Yearly (Emerald Green)
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 9.65, y: 1.35, w: 3.0, h: 2.5,
+      x: 9.65, y: 1.35, w: 3.0, h: 2.4,
       fill: { color: "059669" }, line: { color: "10B981", width: 1.5 }, rectRadius: 0.1
     });
     slide.addShape(pptx.ShapeType.roundRect, {
@@ -1676,66 +2135,85 @@ class PPTXGenerator {
     });
     slide.addText("📈 YEARLY IMPACT (FY 26-27)", {
       x: 9.85, y: 1.5, w: 2.6, h: 0.35,
-      fontFace: font, fontSize: 9, bold: true, color: "065F46", align: "center", valign: "middle"
+      fontFace: font, fontSize: 8.5, bold: true, color: "065F46", align: "center", valign: "middle"
     });
     slide.addText(yearlyImpact, {
-      x: 9.85, y: 1.95, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 24, bold: true, color: "FFFFFF"
+      x: 9.85, y: 1.95, w: 2.6, h: 0.7,
+      fontFace: font, fontSize: 22, bold: true, color: "FFFFFF", align: "center"
     });
     slide.addText("Cumulative Realized Savings\nDirect Process Engineering Value Add", {
-      x: 9.85, y: 2.85, w: 2.6, h: 0.8,
-      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", lineSpacing: 13
+      x: 9.85, y: 2.7, w: 2.6, h: 0.8,
+      fontFace: font, fontSize: 8.5, bold: true, color: "FFFFFF", align: "center", lineSpacing: 13
     });
 
-    // LOWER SECTION: 8 COLORFUL KPI CARDS (4x2 Grid)
-    const kpis = (data && data.kpis) || [
-      { val: "61", label: "Process Developed" },
-      { val: "3", label: "Tools Developed" },
-      { val: "12", label: "Parts Developed" },
-      { val: "3", label: "Cost Optimisation", note: "Cost: BDT 2,312,151 Tk/Yr" },
-      { val: "0", label: "Manpower Optimization" },
-      { val: "47", label: "BOM Verification" },
-      { val: "1", label: "Completed Projects", note: "Cost: BDT 500,000 Tk/Yr" },
-      { val: "12", label: "New Projects / Ongoing", note: "Scope: BDT 2,200,000 Tk/Yr" }
-    ];
+    // LOWER SECTION: 6-Month Visual Bar Chart & 4 Process Drivers
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 0.8, y: 3.9, w: 11.85, h: 2.8,
+      fill: { color: "F8FAFC" }, line: { color: "BAE6FD", width: 1.2 }, rectRadius: 0.1
+    });
 
-    const kpiPptxPalettes = [
-      { bg: "EFF6FF", line: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
-      { bg: "EEF2FF", line: "818CF8", valColor: "4338CA", labelColor: "312E81" },
-      { bg: "ECFDF5", line: "34D399", valColor: "047857", labelColor: "064E3B" },
-      { bg: "FFFBEB", line: "FBBF24", valColor: "B45309", labelColor: "78350F" },
-      { bg: "FAF5FF", line: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
-      { bg: "FFF1F2", line: "FB7185", valColor: "BE123C", labelColor: "881337" },
-      { bg: "FEF2F2", line: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
-      { bg: "ECFEFF", line: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
-    ];
+    slide.addText("📊 ROLLING 6-MONTH SAVINGS TRAJECTORY & TREND", {
+      x: 1.0, y: 4.02, w: 6.5, h: 0.3,
+      fontFace: font, fontSize: 9.5, bold: true, color: charcoalDark
+    });
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 9.8, y: 4.02, w: 2.65, h: 0.28,
+      fill: { color: "ECFDF5" }, line: { color: "A7F3D0", width: 1 }, rectRadius: 0.08
+    });
+    slide.addText("Verified Accounting Savings", {
+      x: 9.8, y: 4.02, w: 2.65, h: 0.28,
+      fontFace: font, fontSize: 8, bold: true, color: "047857", align: "center", valign: "middle"
+    });
 
-    kpis.forEach((k, idx) => {
-      const col = idx % 4;
-      const row = Math.floor(idx / 4);
-      const px = 0.8 + col * 2.98;
-      const py = 4.05 + row * 1.35;
-      const pal = kpiPptxPalettes[idx % kpiPptxPalettes.length];
+    // 6 Visual Bars
+    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+    const chartBaseY = 5.75;
+    const maxBarHeight = 1.1;
 
+    savings.forEach((s, idx) => {
+      const isLast = (idx === savings.length - 1);
+      const colX = 1.2 + idx * 1.85;
+      const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
+      const barH = (pct / 100) * maxBarHeight;
+      const barY = chartBaseY - barH;
+
+      // Amount label above bar
+      slide.addText(s.val, {
+        x: colX - 0.2, y: barY - 0.26, w: 1.8, h: 0.24,
+        fontFace: font, fontSize: 8, bold: true, color: isLast ? blueDark : "475569", align: "center"
+      });
+
+      // Bar Shape
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px, y: py, w: 2.82, h: 1.25,
-        fill: { color: pal.bg }, line: { color: pal.line, width: 1.2 }, rectRadius: 0.08
+        x: colX + 0.3, y: barY, w: 0.8, h: barH,
+        fill: { color: isLast ? "0284C7" : "38BDF8" }, line: { color: isLast ? blueDark : "0284C7", width: 1 }, rectRadius: 0.06
       });
 
-      slide.addText(k.val, {
-        x: px + 0.18, y: py + 0.08, w: 1.2, h: 0.45,
-        fontFace: font, fontSize: 20, bold: true, color: pal.valColor
+      // Month label below bar
+      slide.addText(s.m, {
+        x: colX - 0.2, y: chartBaseY + 0.05, w: 1.8, h: 0.25,
+        fontFace: font, fontSize: 8.5, bold: isLast, color: isLast ? blueDark : charcoalDark, align: "center"
       });
-      slide.addText(k.label, {
-        x: px + 0.18, y: py + 0.55, w: 2.5, h: 0.35,
-        fontFace: font, fontSize: 10, bold: true, color: pal.labelColor
+    });
+
+    // 4 Process Drivers along the bottom of the card
+    const drivers = [
+      { text: "🔧 Tool & Die Optimization", bg: "EFF6FF", line: "BFDBFE", color: "1E3A8A" },
+      { text: "♻️ Scrap & Material Recovery", bg: "ECFDF5", line: "A7F3D0", color: "065F46" },
+      { text: "⚡ Cycle Time Compression", bg: "FFFBEB", line: "FDE68A", color: "78350F" },
+      { text: "🧪 Material & Chemical Trial", bg: "FDF4FF", line: "F5D0FE", color: "701A75" }
+    ];
+
+    drivers.forEach((d, idx) => {
+      const dx = 1.0 + idx * 2.85;
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: dx, y: 6.22, w: 2.7, h: 0.35,
+        fill: { color: d.bg }, line: { color: d.line, width: 0.8 }, rectRadius: 0.06
       });
-      if (k.note) {
-        slide.addText(k.note, {
-          x: px + 0.18, y: py + 0.88, w: 2.5, h: 0.28,
-          fontFace: font, fontSize: 7.5, bold: true, color: pal.valColor
-        });
-      }
+      slide.addText(d.text, {
+        x: dx, y: 6.22, w: 2.7, h: 0.35,
+        fontFace: font, fontSize: 7.5, bold: true, color: d.color, align: "center", valign: "middle"
+      });
     });
 
     this._addIndustrialBlueFooter(slide, pptx, font, monthName, 3, totalSlideCount);
@@ -2733,6 +3211,364 @@ class PPTXGenerator {
     slide.addText("Process Development, Air Conditioner, Walton Hi-Tech Industries PLC", {
       x: 6.0, y: 7.0, w: 6.5, h: 0.3,
       fontFace: font, fontSize: 8.5, italic: true, color: "94A3B8", align: "right"
+    });
+  }
+
+  /**
+   * Slide N+1: Final Summary Report Slide (Dashboard Color Card Pattern - Requirement 11)
+   */
+  _addFinalSummaryDashboardSlide(slide, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData) {
+    const redPrimary = "C5161D";
+    const charcoalDark = "0F172A";
+
+    this._addExecutiveHeader(slide, pptx, font, "MONTHLY DELIVERABLES SUMMARY • EXECUTIVE AUDIT", `Comprehensive Deliverables & Impact Summary (${monthName.toUpperCase()})`);
+
+    let tasksList = (reportData && (reportData.slides || reportData.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(monthName);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    let totalPoints = 0;
+
+    tasksList.forEach(t => {
+      totalPoints += (t.task_point || 0);
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
+        else ongoingProjCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    const cards = [
+      { val: `${processCount}`, label: "Process Developed", icon: "⚙️", bg: "EFF6FF", line: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
+      { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", bg: "EEF2FF", line: "818CF8", valColor: "4338CA", labelColor: "312E81" },
+      { val: `${partsCount}`, label: "Parts Developed", icon: "🔩", bg: "ECFDF5", line: "34D399", valColor: "047857", labelColor: "064E3B" },
+      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", bg: "FFFBEB", line: "FBBF24", valColor: "B45309", labelColor: "78350F" },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", icon: "👥", bg: "FAF5FF", line: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
+      { val: `${bomCount}`, label: "BOM Verification", icon: "📋", bg: "FFF1F2", line: "FB7185", valColor: "BE123C", labelColor: "881337" },
+      { val: `${completedProjCount}`, label: "Completed Projects", icon: "🏆", bg: "FEF2F2", line: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", icon: "🚀", bg: "ECFEFF", line: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
+    ];
+
+    cards.forEach((k, idx) => {
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      const px = 0.8 + col * 2.98;
+      const py = 1.45 + row * 2.25;
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 2.1,
+        fill: { color: k.bg }, line: { color: k.line, width: 1.5 }, rectRadius: 0.1
+      });
+
+      slide.addText(`${k.icon}  ${k.val}`, {
+        x: px + 0.2, y: py + 0.18, w: 2.42, h: 0.6,
+        fontFace: font, fontSize: 26, bold: true, color: k.valColor
+      });
+
+      slide.addText(k.label, {
+        x: px + 0.2, y: py + 0.85, w: 2.42, h: 0.45,
+        fontFace: font, fontSize: 11.5, bold: true, color: k.labelColor
+      });
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.2, y: py + 1.45, w: 2.42, h: 0.4,
+        fill: { color: "FFFFFF" }, line: { color: k.line, width: 0.5 }, rectRadius: 0.05
+      });
+      slide.addText("Status: Verified 100%", {
+        x: px + 0.2, y: py + 1.45, w: 2.42, h: 0.4,
+        fontFace: font, fontSize: 8.5, bold: true, color: k.valColor, align: "center", valign: "middle"
+      });
+    });
+
+    // Operational Audit Banner
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 0.8, y: 6.05, w: 11.85, h: 0.55,
+      fill: { color: "F8FAFC" }, line: { color: "CBD5E1", width: 1 }, rectRadius: 0.08
+    });
+    slide.addText(`✅ Plant Audit Verified: ${tasksList.length} Tasks Executed (${totalPoints} Total Task Points)`, {
+      x: 1.0, y: 6.05, w: 7.0, h: 0.55,
+      fontFace: font, fontSize: 9.5, bold: true, color: "334155", valign: "middle"
+    });
+    slide.addText(`Realized Savings: ${yearlySavings}/Year`, {
+      x: 8.0, y: 6.05, w: 4.45, h: 0.55,
+      fontFace: font, fontSize: 10, bold: true, color: "047857", align: "right", valign: "middle"
+    });
+
+    this._addExecutiveRedFooter(slide, pptx, font, monthName, currentSlideNum, totalSlideCount);
+  }
+
+  /**
+   * Slide N+1: Industrial Innovation Blue Final Summary Slide (Requirement 11)
+   */
+  _addIndustrialBlueFinalSummarySlide(slide, pptx, font, monthName, currentSlideNum, totalSlideCount, reportData) {
+    const blueDark = "0052CC";
+    const charcoalDark = "0F172A";
+
+    this._addIndustrialBlueHeader(slide, pptx, font, "MONTHLY DELIVERABLES SUMMARY • EXECUTIVE AUDIT", `Comprehensive Deliverables & Impact Summary (${monthName.toUpperCase()})`);
+
+    let tasksList = (reportData && (reportData.slides || reportData.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(monthName);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    let totalPoints = 0;
+
+    tasksList.forEach(t => {
+      totalPoints += (t.task_point || 0);
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
+        else ongoingProjCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], monthName);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    const cards = [
+      { val: `${processCount}`, label: "Process Developed", icon: "⚙️", bg: "EFF6FF", line: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
+      { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", bg: "EEF2FF", line: "818CF8", valColor: "4338CA", labelColor: "312E81" },
+      { val: `${partsCount}`, label: "Parts Developed", icon: "🔩", bg: "ECFDF5", line: "34D399", valColor: "047857", labelColor: "064E3B" },
+      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", bg: "FFFBEB", line: "FBBF24", valColor: "B45309", labelColor: "78350F" },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", icon: "👥", bg: "FAF5FF", line: "C084FC", valColor: "7E22CE", labelColor: "581C87" },
+      { val: `${bomCount}`, label: "BOM Verification", icon: "📋", bg: "FFF1F2", line: "FB7185", valColor: "BE123C", labelColor: "881337" },
+      { val: `${completedProjCount}`, label: "Completed Projects", icon: "🏆", bg: "FEF2F2", line: "F87171", valColor: "B91C1C", labelColor: "7F1D1D" },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", icon: "🚀", bg: "ECFEFF", line: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
+    ];
+
+    cards.forEach((k, idx) => {
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      const px = 0.8 + col * 2.98;
+      const py = 1.45 + row * 2.25;
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px, y: py, w: 2.82, h: 2.1,
+        fill: { color: k.bg }, line: { color: k.line, width: 1.5 }, rectRadius: 0.1
+      });
+
+      slide.addText(`${k.icon}  ${k.val}`, {
+        x: px + 0.2, y: py + 0.18, w: 2.42, h: 0.6,
+        fontFace: font, fontSize: 26, bold: true, color: k.valColor
+      });
+
+      slide.addText(k.label, {
+        x: px + 0.2, y: py + 0.85, w: 2.42, h: 0.45,
+        fontFace: font, fontSize: 11.5, bold: true, color: k.labelColor
+      });
+
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: px + 0.2, y: py + 1.45, w: 2.42, h: 0.4,
+        fill: { color: "FFFFFF" }, line: { color: k.line, width: 0.5 }, rectRadius: 0.05
+      });
+      slide.addText("Status: Verified 100%", {
+        x: px + 0.2, y: py + 1.45, w: 2.42, h: 0.4,
+        fontFace: font, fontSize: 8.5, bold: true, color: k.valColor, align: "center", valign: "middle"
+      });
+    });
+
+    // Operational Audit Banner
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 0.8, y: 6.05, w: 11.85, h: 0.55,
+      fill: { color: "F8FAFC" }, line: { color: "BAE6FD", width: 1 }, rectRadius: 0.08
+    });
+    slide.addText(`✅ Plant Audit Verified: ${tasksList.length} Tasks Executed (${totalPoints} Total Task Points)`, {
+      x: 1.0, y: 6.05, w: 7.0, h: 0.55,
+      fontFace: font, fontSize: 9.5, bold: true, color: "334155", valign: "middle"
+    });
+    slide.addText(`Realized Savings: ${yearlySavings}/Year`, {
+      x: 8.0, y: 6.05, w: 4.45, h: 0.55,
+      fontFace: font, fontSize: 10, bold: true, color: "0284C7", align: "right", valign: "middle"
+    });
+
+    this._addIndustrialBlueFooter(slide, pptx, font, monthName, currentSlideNum, totalSlideCount);
+  }
+
+  /**
+   * Slide N+2: Thank You / Closing Slide (Requirement 11)
+   */
+  _addThankYouSlide(slide, pptx, font, monthName) {
+    // Top subtle bar
+    slide.addShape(pptx.ShapeType.diamond, {
+      x: 0.8, y: 0.45, w: 0.35, h: 0.35,
+      fill: { color: "C5161D" }, line: { color: "E11D48" }
+    });
+    slide.addText([
+      { text: "WALTON Hi-Tech Industries PLC\n", options: { fontSize: 11, bold: true, color: "FFFFFF" } },
+      { text: "PROCESS DEVELOPMENT DEPARTMENT", options: { fontSize: 8, bold: true, color: "94A3B8" } }
+    ], {
+      x: 1.25, y: 0.4, w: 6.5, h: 0.55,
+      fontFace: font, valign: "middle"
+    });
+
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 10.4, y: 0.45, w: 2.1, h: 0.4,
+      fill: { color: "0B2038" }, line: { color: "334155", width: 1 }, rectRadius: 0.2
+    });
+    slide.addText(monthName.toUpperCase(), {
+      x: 10.4, y: 0.45, w: 2.1, h: 0.4,
+      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", align: "center", valign: "middle"
+    });
+
+    // Center Stage
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 5.91, y: 1.7, w: 1.5, h: 1.5,
+      fill: { color: "C5161D" }, line: { color: "F59E0B", width: 2 }, rectRadius: 0.3
+    });
+    slide.addText("💎", {
+      x: 5.91, y: 1.7, w: 1.5, h: 1.5,
+      fontSize: 40, align: "center", valign: "middle"
+    });
+
+    slide.addText("THANK YOU", {
+      x: 0.8, y: 3.4, w: 11.7, h: 1.0,
+      fontFace: font, fontSize: 48, bold: true, color: "FFFFFF", align: "center"
+    });
+
+    slide.addText("SMALL CHANGES • BIG IMPACT", {
+      x: 0.8, y: 4.45, w: 11.7, h: 0.4,
+      fontFace: font, fontSize: 14, bold: true, color: "F97316", align: "center"
+    });
+
+    slide.addText("Open for Technical Discussions, Feedback & Strategic Suggestions for Plant-Wide Process Improvements.", {
+      x: 2.5, y: 5.0, w: 8.33, h: 0.6,
+      fontFace: font, fontSize: 11, color: "94A3B8", align: "center"
+    });
+
+    // Bottom Bar
+    slide.addShape(pptx.ShapeType.line, {
+      x: 0.8, y: 6.6, w: 11.7, h: 0,
+      line: { color: "1E293B", width: 1 }
+    });
+    slide.addText("📍 Chandra, Gazipur, Bangladesh   •   Continuous Innovation", {
+      x: 0.8, y: 6.75, w: 6.0, h: 0.35,
+      fontFace: font, fontSize: 8.5, color: "64748B"
+    });
+    slide.addText("Process Engineering Excellence", {
+      x: 7.0, y: 6.75, w: 5.5, h: 0.35,
+      fontFace: font, fontSize: 8.5, bold: true, color: "94A3B8", align: "right"
+    });
+  }
+
+  /**
+   * Slide N+2: Industrial Innovation Blue Thank You Slide (Requirement 11)
+   */
+  _addIndustrialBlueThankYouSlide(slide, pptx, font, monthName) {
+    // Top subtle bar
+    slide.addShape(pptx.ShapeType.diamond, {
+      x: 0.8, y: 0.45, w: 0.35, h: 0.35,
+      fill: { color: "0284C7" }, line: { color: "38BDF8" }
+    });
+    slide.addText([
+      { text: "WALTON Hi-Tech Industries PLC\n", options: { fontSize: 11, bold: true, color: "FFFFFF" } },
+      { text: "PROCESS DEVELOPMENT DEPARTMENT", options: { fontSize: 8, bold: true, color: "94A3B8" } }
+    ], {
+      x: 1.25, y: 0.4, w: 6.5, h: 0.55,
+      fontFace: font, valign: "middle"
+    });
+
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 10.4, y: 0.45, w: 2.1, h: 0.4,
+      fill: { color: "0B2038" }, line: { color: "334155", width: 1 }, rectRadius: 0.2
+    });
+    slide.addText(monthName.toUpperCase(), {
+      x: 10.4, y: 0.45, w: 2.1, h: 0.4,
+      fontFace: font, fontSize: 9, bold: true, color: "FFFFFF", align: "center", valign: "middle"
+    });
+
+    // Center Stage
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: 5.91, y: 1.7, w: 1.5, h: 1.5,
+      fill: { color: "0284C7" }, line: { color: "38BDF8", width: 2 }, rectRadius: 0.3
+    });
+    slide.addText("💎", {
+      x: 5.91, y: 1.7, w: 1.5, h: 1.5,
+      fontSize: 40, align: "center", valign: "middle"
+    });
+
+    slide.addText("THANK YOU", {
+      x: 0.8, y: 3.4, w: 11.7, h: 1.0,
+      fontFace: font, fontSize: 48, bold: true, color: "FFFFFF", align: "center"
+    });
+
+    slide.addText("CONTINUOUS INNOVATION • INDUSTRIAL EXCELLENCE", {
+      x: 0.8, y: 4.45, w: 11.7, h: 0.4,
+      fontFace: font, fontSize: 13, bold: true, color: "38BDF8", align: "center"
+    });
+
+    slide.addText("Open for Technical Discussions, Feedback & Strategic Suggestions for Plant-Wide Process Improvements.", {
+      x: 2.5, y: 5.0, w: 8.33, h: 0.6,
+      fontFace: font, fontSize: 11, color: "94A3B8", align: "center"
+    });
+
+    // Bottom Bar
+    slide.addShape(pptx.ShapeType.line, {
+      x: 0.8, y: 6.6, w: 11.7, h: 0,
+      line: { color: "1E293B", width: 1 }
+    });
+    slide.addText("📍 Chandra, Gazipur, Bangladesh   •   Continuous Innovation", {
+      x: 0.8, y: 6.75, w: 6.0, h: 0.35,
+      fontFace: font, fontSize: 8.5, color: "64748B"
+    });
+    slide.addText("Process Engineering Excellence", {
+      x: 7.0, y: 6.75, w: 5.5, h: 0.35,
+      fontFace: font, fontSize: 8.5, bold: true, color: "94A3B8", align: "right"
     });
   }
 

@@ -45,7 +45,37 @@ const HTMLReportGenerator = {
       }
     });
 
-    const orderedSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
+    // Engineer-sequenced Task Slides
+    let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
+    if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
+      try { engineerSeq = SettingsView.getMonthlyEngineerSequence(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      const customSeq = localStorage.getItem('walton_monthly_engineer_seq');
+      if (customSeq) {
+        try { engineerSeq = JSON.parse(customSeq); } catch(e) {}
+      }
+    }
+
+    const sequencedStandardTasks = [];
+    const matchedTaskIds = new Set();
+    engineerSeq.forEach(engName => {
+      const cleanEng = (engName || '').trim().toLowerCase();
+      if (!cleanEng) return;
+      standardTaskSlides.forEach(task => {
+        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+          sequencedStandardTasks.push(task);
+          matchedTaskIds.add(task.task_id);
+        }
+      });
+    });
+    standardTaskSlides.forEach(task => {
+      if (!matchedTaskIds.has(task.task_id)) {
+        sequencedStandardTasks.push(task);
+      }
+    });
+
+    const orderedSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
     const reportDataOrdered = { ...reportData, slides: orderedSlides };
 
     // Render the complete sequential deck via SlideLayoutEngine
@@ -55,15 +85,16 @@ const HTMLReportGenerator = {
     // Generate readable titles for navigation dropdown
     const titles = [
       "1. Executive Cover Page",
-      "2. Table of Contents & Agenda",
-      "3. Executive Management Dashboard"
+      "2. Executive Overview & Operations Dashboard",
+      "3. Rolling 6-Month Realized Cost Savings"
     ];
     orderedSlides.forEach((t, i) => {
       const cleanTitle = (t.slide_title || t.task_name || `Task ${i + 1}`).replace(/<[^>]*>?/gm, '');
+      const eng = t.concern_engineer || t.concern || '';
       const cat = (t.category || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
       const isProj = Boolean(t.is_project || cat.includes('project') || (t.task_name || '').toLowerCase().includes('project'));
-      let prefix = '[Task]';
+      let prefix = eng ? `[${eng}]` : '[Task]';
       if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
           prefix = '[Completed Project]';
@@ -73,7 +104,8 @@ const HTMLReportGenerator = {
       }
       titles.push(`${i + 4}. ${prefix} ${cleanTitle}`);
     });
-    titles.push(`${totalSlides}. Top 5 Works & Projects Summary`);
+    titles.push(`${totalSlides - 1}. Final Summary Report & Metric Audit`);
+    titles.push(`${totalSlides}. Executive Thank You & Q&A`);
 
     const slidesJson = JSON.stringify(slides);
     const titlesJson = JSON.stringify(titles);

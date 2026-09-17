@@ -38,10 +38,34 @@ const ManagementHTMLGenerator = {
       groups[c].push(t);
     });
 
-    const sortedConcerns = Object.keys(groups).sort((a, b) => {
-      if (a.includes("Sazzad")) return -1;
-      if (b.includes("Sazzad")) return 1;
-      return a.localeCompare(b);
+    // Engineer-sequenced Concern sorting (Requirement 10)
+    let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
+    if (typeof SettingsView !== 'undefined' && SettingsView.getMgmtEngineerSequence) {
+      try { engineerSeq = SettingsView.getMgmtEngineerSequence(); } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      const customSeq = localStorage.getItem('walton_mgmt_engineer_seq');
+      if (customSeq) {
+        try { engineerSeq = JSON.parse(customSeq); } catch(e) {}
+      }
+    }
+
+    const concernKeys = Object.keys(groups);
+    const sortedConcerns = [];
+    const matchedConcerns = new Set();
+    engineerSeq.forEach(engName => {
+      const clean = (engName || '').trim().toLowerCase();
+      if (!clean) return;
+      concernKeys.forEach(c => {
+        if (!matchedConcerns.has(c) && c.toLowerCase().includes(clean)) {
+          sortedConcerns.push(c);
+          matchedConcerns.add(c);
+        }
+      });
+    });
+    concernKeys.forEach(c => {
+      if (!matchedConcerns.has(c)) {
+        sortedConcerns.push(c);
+      }
     });
 
     const sequencedTasks = [];

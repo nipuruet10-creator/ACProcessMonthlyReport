@@ -86,8 +86,8 @@ const ManagementReportView = {
                 <span>📊</span> <span>Export Management PPTX</span>
               </button>
 
-              <button onclick="ManagementReportView.openStandaloneDeck()" class="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                <span>🖨️</span> <span>View / Print Deck</span>
+              <button onclick="ManagementReportView.openDownloadModal()" class="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <span>📥</span> <span>Download &amp; Online Docs</span>
               </button>
             </div>
           </div>
@@ -601,6 +601,118 @@ const ManagementReportView = {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+  },
+
+  openOnlineDocs() {
+    const defaultOwner = "nipu.ruet10@gmail.com";
+    const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
+
+    // Verify authorized email if configured
+    if (allowedEmailsStr.trim()) {
+      const allowed = allowedEmailsStr.split(/[\n,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+      const userPromptEmail = prompt(`Online Presentation Access Protected.\nOwner: ${defaultOwner}\nPlease enter your authorized Walton email to verify access:`);
+      if (!userPromptEmail) return;
+      const cleanInput = userPromptEmail.trim().toLowerCase();
+      if (!allowed.includes(cleanInput) && cleanInput !== defaultOwner) {
+        alert(`Access Denied: The email "${userPromptEmail}" is not in the authorized list.\nPlease contact ${defaultOwner} to grant access in Settings.`);
+        return;
+      }
+    }
+
+    this.openStandaloneDeck();
+  },
+
+  openDownloadModal() {
+    const modalContainer = document.getElementById('mgmt-modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+        <div class="relative w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-8">
+          
+          <div class="flex items-start justify-between pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-xl font-bold">
+                📥
+              </div>
+              <div>
+                <h3 class="text-xl font-black text-slate-800">Download Executive Management Report</h3>
+                <p class="text-xs text-slate-400 mt-0.5">High-level strategic presentation for ${this.selectedMonth} with verified cost impacts.</p>
+              </div>
+            </div>
+            <button onclick="ManagementReportView.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition">&times;</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-6">
+            <!-- 1. PPTX -->
+            <div class="bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-4 flex flex-col justify-between transition shadow-sm hover:shadow-md">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-red-50 text-red-600 border border-red-200 flex items-center justify-center text-xl mb-2.5">
+                  📊
+                </div>
+                <h4 class="text-sm font-black text-slate-800">PowerPoint (.pptx)</h4>
+                <p class="text-xs text-slate-400 mt-1">100% native editable OpenXML presentation.</p>
+              </div>
+              <button onclick="ManagementReportView.exportPPTX()" class="mt-4 w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-xs font-bold text-white shadow transition">
+                Download .pptx
+              </button>
+            </div>
+
+            <!-- 2. Standalone HTML -->
+            <div class="bg-white border border-slate-200 hover:border-sky-300 rounded-2xl p-4 flex flex-col justify-between transition shadow-sm hover:shadow-md">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-xl mb-2.5">
+                  🌐
+                </div>
+                <h4 class="text-sm font-black text-slate-800">Standalone HTML</h4>
+                <p class="text-xs text-slate-400 mt-1">Self-contained portable interactive deck.</p>
+              </div>
+              <button onclick="ManagementReportView.openStandaloneDeck()" class="mt-4 w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-sky-600 border border-slate-200 shadow-sm transition">
+                Download .html
+              </button>
+            </div>
+
+            <!-- 3. Vector PDF -->
+            <div class="bg-white border border-slate-200 hover:border-amber-300 rounded-2xl p-4 flex flex-col justify-between transition shadow-sm hover:shadow-md">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-xl mb-2.5">
+                  📄
+                </div>
+                <h4 class="text-sm font-black text-slate-800">Vector PDF</h4>
+                <p class="text-xs text-slate-400 mt-1">Clean vector 16:9 executive landscape output.</p>
+              </div>
+              <button onclick="ManagementReportView.openStandaloneDeck()" class="mt-4 w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-amber-600 border border-slate-200 shadow-sm transition">
+                Download PDF
+              </button>
+            </div>
+
+            <!-- 4. Online Docs Link -->
+            <div class="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 flex flex-col justify-between transition shadow-sm hover:shadow-md">
+              <div>
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-xl mb-2.5">
+                  🔗
+                </div>
+                <h4 class="text-sm font-black text-slate-800">Online Presentation</h4>
+                <p class="text-xs text-slate-400 mt-1">Live presentation for authorized team emails.</p>
+                <div class="mt-2 p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[10px] text-slate-600 font-mono truncate" title="Owner: nipu.ruet10@gmail.com">
+                  Owner: <strong class="text-indigo-600">nipu.ruet10@gmail.com</strong>
+                </div>
+              </div>
+              <button onclick="ManagementReportView.openOnlineDocs()" class="mt-4 w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow transition">
+                Open Online Docs ↗
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex justify-end">
+            <button onclick="ManagementReportView.closeModal()" class="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition">
+              Close
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
   },
 
   previewPresentation() {

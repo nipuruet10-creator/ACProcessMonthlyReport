@@ -87,6 +87,7 @@ function doGet(e) {
         status: 'OK',
         month: month,
         tasks: tasks,
+        cost_savings: getAllCostSavings(),
         timestamp: new Date().toISOString()
       };
     } else if (action === 'GET_RECENT') {

@@ -16,6 +16,9 @@ const SettingsView = {
     const openRouterModel = (typeof geminiClient !== 'undefined') ? geminiClient.getOpenRouterModel() : (HELPERS.storage.get("walton_pd_openrouter_model", "google/gemini-2.0-flash-exp:free") || "google/gemini-2.0-flash-exp:free");
     const currentGasUrl = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getWebAppUrl() : "";
     const syncStatus = (typeof GoogleSheetsSync !== 'undefined') ? GoogleSheetsSync.getStatus() : { status: 'OFFLINE' };
+    const onlineDocsEmails = localStorage.getItem('walton_online_docs_emails') || '';
+    const monthlySeq = this.getMonthlyEngineerSequence();
+    const mgmtSeq = this.getMgmtEngineerSequence();
 
     let statusBadgeHtml = `
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
@@ -262,14 +265,22 @@ const SettingsView = {
               </div>
 
               <div>
-                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Select Free AI Model</label>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[11px] font-semibold text-slate-400">Select Free AI Model</label>
+                  <button type="button" onclick="SettingsView.loadOpenRouterModels()" class="text-[10px] text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1">
+                    <span>🔄 Fetch Live Models</span>
+                  </button>
+                </div>
                 <select id="settings-openrouter-model" onchange="SettingsView.saveOpenRouterModel(this.value)"
                         class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
-                  <option value="google/gemini-2.0-flash-exp:free" ${openRouterModel === 'google/gemini-2.0-flash-exp:free' ? 'selected' : ''}>google/gemini-2.0-flash-exp:free (Fast &amp; Accurate - Recommended)</option>
-                  <option value="meta-llama/llama-3.3-70b-instruct:free" ${openRouterModel === 'meta-llama/llama-3.3-70b-instruct:free' ? 'selected' : ''}>meta-llama/llama-3.3-70b-instruct:free (High Capability)</option>
-                  <option value="deepseek/deepseek-chat:free" ${openRouterModel === 'deepseek/deepseek-chat:free' ? 'selected' : ''}>deepseek/deepseek-chat:free (Process &amp; Reasoning)</option>
-                  <option value="qwen/qwen-2.5-coder-32b-instruct:free" ${openRouterModel === 'qwen/qwen-2.5-coder-32b-instruct:free' ? 'selected' : ''}>qwen/qwen-2.5-coder-32b-instruct:free (Technical)</option>
-                  <option value="mistralai/mistral-small-24b-instruct-2501:free" ${openRouterModel === 'mistralai/mistral-small-24b-instruct-2501:free' ? 'selected' : ''}>mistralai/mistral-small-24b-instruct-2501:free</option>
+                  <optgroup label="🆓 Recommended Free Models (Zero API Cost)">
+                    <option value="google/gemini-2.0-flash-exp:free" ${openRouterModel === 'google/gemini-2.0-flash-exp:free' ? 'selected' : ''}>google/gemini-2.0-flash-exp:free (Fast &amp; Accurate - Recommended)</option>
+                    <option value="deepseek/deepseek-r1:free" ${openRouterModel === 'deepseek/deepseek-r1:free' ? 'selected' : ''}>deepseek/deepseek-r1:free (Reasoning &amp; Logic)</option>
+                    <option value="meta-llama/llama-3.3-70b-instruct:free" ${openRouterModel === 'meta-llama/llama-3.3-70b-instruct:free' ? 'selected' : ''}>meta-llama/llama-3.3-70b-instruct:free (High Capability)</option>
+                    <option value="qwen/qwen-2.5-coder-32b-instruct:free" ${openRouterModel === 'qwen/qwen-2.5-coder-32b-instruct:free' ? 'selected' : ''}>qwen/qwen-2.5-coder-32b-instruct:free (Technical)</option>
+                    <option value="mistralai/mistral-small-24b-instruct-2501:free" ${openRouterModel === 'mistralai/mistral-small-24b-instruct-2501:free' ? 'selected' : ''}>mistralai/mistral-small-24b-instruct-2501:free</option>
+                    <option value="deepseek/deepseek-chat:free" ${openRouterModel === 'deepseek/deepseek-chat:free' ? 'selected' : ''}>deepseek/deepseek-chat:free</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -297,6 +308,107 @@ const SettingsView = {
               <button onclick="SettingsView.saveGeminiKey()" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white shadow">
                 Save Key
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Online Docs Access & Permissions Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-xl font-bold">
+                🔗
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Online Docs Presentation Permissions</h3>
+                <p class="text-xs text-slate-400">Configure online presentation owner and authorized email addresses.</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              Owner: nipu.ruet10@gmail.com
+            </span>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Authorized Team Emails (Comma or Newline Separated)</label>
+              <textarea id="settings-online-docs-emails" rows="3" placeholder="user1@waltonbd.com, user2@waltonbd.com" 
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">${HELPERS.escapeHtml(onlineDocsEmails)}</textarea>
+              <p class="text-[11px] text-slate-500 mt-1">Only the owner (<strong class="text-indigo-400 font-mono">nipu.ruet10@gmail.com</strong>) and authorized emails listed above will be granted access to open the live presentation link.</p>
+            </div>
+            <button onclick="SettingsView.saveOnlineDocsPermissions()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow">
+              Save Permissions
+            </button>
+          </div>
+        </div>
+
+        <!-- Engineer Presentation Sequence Configuration Card (Monthly Report & Management Report) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-xl font-bold">
+                🔀
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Engineer Presentation Sequence &amp; Rotation</h3>
+                <p class="text-xs text-slate-400">Controls order of task slides starting from Slide 4. Rotate or reorder engineers for presentations.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <!-- 1. Monthly Report Sequence -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-rose-300">📅 Monthly Report Sequence</span>
+                <div class="flex items-center gap-2">
+                  <button onclick="SettingsView.rotateEngineerSequence('monthly')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-white transition" title="Move first engineer to bottom">
+                    🔄 Rotate
+                  </button>
+                  <button onclick="SettingsView.resetEngineerSequence('monthly')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-400 hover:text-white transition">
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                ${monthlySeq.map((eng, idx) => `
+                  <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                    <span class="font-mono text-slate-400 mr-2">${idx + 1}.</span>
+                    <span class="font-bold text-white flex-1 truncate">${HELPERS.escapeHtml(eng)}</span>
+                    <div class="flex items-center gap-1">
+                      <button onclick="SettingsView.moveEngineer('monthly', ${idx}, -1)" ${idx === 0 ? 'disabled class="opacity-20"' : 'class="hover:text-rose-400 px-1 font-bold text-slate-400"'}>▲</button>
+                      <button onclick="SettingsView.moveEngineer('monthly', ${idx}, 1)" ${idx === monthlySeq.length - 1 ? 'disabled class="opacity-20"' : 'class="hover:text-rose-400 px-1 font-bold text-slate-400"'}>▼</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- 2. Management Report Sequence -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-300">👔 Management Report Sequence</span>
+                <div class="flex items-center gap-2">
+                  <button onclick="SettingsView.rotateEngineerSequence('mgmt')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-white transition" title="Move first engineer to bottom">
+                    🔄 Rotate
+                  </button>
+                  <button onclick="SettingsView.resetEngineerSequence('mgmt')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-400 hover:text-white transition">
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                ${mgmtSeq.map((eng, idx) => `
+                  <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                    <span class="font-mono text-slate-400 mr-2">${idx + 1}.</span>
+                    <span class="font-bold text-white flex-1 truncate">${HELPERS.escapeHtml(eng)}</span>
+                    <div class="flex items-center gap-1">
+                      <button onclick="SettingsView.moveEngineer('mgmt', ${idx}, -1)" ${idx === 0 ? 'disabled class="opacity-20"' : 'class="hover:text-indigo-400 px-1 font-bold text-slate-400"'}>▲</button>
+                      <button onclick="SettingsView.moveEngineer('mgmt', ${idx}, 1)" ${idx === mgmtSeq.length - 1 ? 'disabled class="opacity-20"' : 'class="hover:text-indigo-400 px-1 font-bold text-slate-400"'}>▼</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
         </div>
@@ -924,6 +1036,132 @@ function syncCostSavingsTable(costList) {
       MonthlyInputView.openChangePasswordModal();
     } else {
       alert("Password change modal unavailable.");
+    }
+  },
+
+  DEFAULT_ENGINEER_SEQUENCE: ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'],
+
+  getMonthlyEngineerSequence() {
+    try {
+      const saved = localStorage.getItem('walton_monthly_engineer_seq');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [...this.DEFAULT_ENGINEER_SEQUENCE];
+  },
+
+  saveMonthlyEngineerSequence(seq) {
+    localStorage.setItem('walton_monthly_engineer_seq', JSON.stringify(seq));
+  },
+
+  getMgmtEngineerSequence() {
+    try {
+      const saved = localStorage.getItem('walton_mgmt_engineer_seq');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [...this.DEFAULT_ENGINEER_SEQUENCE];
+  },
+
+  saveMgmtEngineerSequence(seq) {
+    localStorage.setItem('walton_mgmt_engineer_seq', JSON.stringify(seq));
+  },
+
+  moveEngineer(type, index, direction) {
+    const isMonthly = (type === 'monthly');
+    const seq = isMonthly ? this.getMonthlyEngineerSequence() : this.getMgmtEngineerSequence();
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= seq.length) return;
+    const temp = seq[index];
+    seq[index] = seq[newIdx];
+    seq[newIdx] = temp;
+    if (isMonthly) {
+      this.saveMonthlyEngineerSequence(seq);
+    } else {
+      this.saveMgmtEngineerSequence(seq);
+    }
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast(`Updated ${isMonthly ? 'Monthly' : 'Management'} sequence order!`, 'success');
+    }
+  },
+
+  rotateEngineerSequence(type) {
+    const isMonthly = (type === 'monthly');
+    const seq = isMonthly ? this.getMonthlyEngineerSequence() : this.getMgmtEngineerSequence();
+    if (seq.length > 1) {
+      const first = seq.shift();
+      seq.push(first);
+      if (isMonthly) {
+        this.saveMonthlyEngineerSequence(seq);
+      } else {
+        this.saveMgmtEngineerSequence(seq);
+      }
+      this.render();
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Rotated ${isMonthly ? 'Monthly' : 'Management'} presentation sequence!`, 'info');
+      }
+    }
+  },
+
+  resetEngineerSequence(type) {
+    const isMonthly = (type === 'monthly');
+    if (isMonthly) {
+      this.saveMonthlyEngineerSequence(this.DEFAULT_ENGINEER_SEQUENCE);
+    } else {
+      this.saveMgmtEngineerSequence(this.DEFAULT_ENGINEER_SEQUENCE);
+    }
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast(`Reset ${isMonthly ? 'Monthly' : 'Management'} sequence to default!`, 'info');
+    }
+  },
+
+  saveOnlineDocsPermissions() {
+    const textarea = document.getElementById('settings-online-docs-emails');
+    const val = textarea ? textarea.value.trim() : '';
+    localStorage.setItem('walton_online_docs_emails', val);
+    if (typeof window.showToast === 'function') {
+      window.showToast("✅ Online Docs permissions saved!", "success");
+    } else {
+      alert("Online Docs permissions saved!");
+    }
+  },
+
+  async loadOpenRouterModels() {
+    const select = document.getElementById('settings-openrouter-model');
+    if (!select) return;
+    const originalText = select.innerHTML;
+    select.innerHTML = '<option>Loading live models from OpenRouter...</option>';
+
+    if (typeof geminiClient !== 'undefined' && geminiClient.fetchOpenRouterModels) {
+      const { freeModels, otherModels } = await geminiClient.fetchOpenRouterModels();
+      const currentModel = geminiClient.getOpenRouterModel();
+      
+      let html = `<optgroup label="🆓 Recommended Free Models (Zero API Cost)">`;
+      freeModels.forEach(m => {
+        html += `<option value="${m.id}" ${currentModel === m.id ? 'selected' : ''}>${m.name}</option>`;
+      });
+      html += `</optgroup>`;
+
+      if (otherModels && otherModels.length > 0) {
+        html += `<optgroup label="✨ All OpenRouter Models (${otherModels.length})">`;
+        otherModels.slice(0, 60).forEach(m => {
+          html += `<option value="${m.id}" ${currentModel === m.id ? 'selected' : ''}>${m.name}</option>`;
+        });
+        html += `</optgroup>`;
+      }
+
+      select.innerHTML = html;
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Loaded ${freeModels.length} free models from OpenRouter!`, 'success');
+      }
+    } else {
+      select.innerHTML = originalText;
     }
   }
 };

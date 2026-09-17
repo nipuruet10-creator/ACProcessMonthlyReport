@@ -78,7 +78,25 @@ class PhotoManager {
   }
 
   getTaskPhotos(taskId) {
-    return this.photoMap[taskId] || { photo_1: null, photo_2: null, before_photo: null, after_photo: null };
+    const mem = this.photoMap[taskId] || {};
+    let taskP1 = null;
+    let taskP2 = null;
+    if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
+      const wbMgr = window.appState.workbookMgr;
+      const t = wbMgr.getTask(wbMgr.activeMonth, taskId);
+      if (t) {
+        taskP1 = t.photo_1 || null;
+        taskP2 = t.photo_2 || null;
+      }
+    }
+    const p1 = mem.photo_1 || mem.before_photo || taskP1 || null;
+    const p2 = mem.photo_2 || mem.after_photo || taskP2 || null;
+    return {
+      photo_1: p1,
+      photo_2: p2,
+      before_photo: p1,
+      after_photo: p2
+    };
   }
 
   /**

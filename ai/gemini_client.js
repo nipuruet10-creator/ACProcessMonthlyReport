@@ -115,6 +115,58 @@ class GeminiClient {
   }
 
   /**
+   * Fetches all available models from OpenRouter API, prioritizing free models
+   */
+  async fetchOpenRouterModels(apiKey = null) {
+    const key = apiKey || this.getOpenRouterKey();
+    const headers = {
+      "HTTP-Referer": "https://waltonbd.com",
+      "X-Title": "Walton AC Process Monthly Report"
+    };
+    if (key) {
+      headers["Authorization"] = `Bearer ${key}`;
+    }
+
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models", { method: "GET", headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data && Array.isArray(data.data)) {
+        const freeModels = [];
+        const otherModels = [];
+
+        data.data.forEach(m => {
+          const id = m.id;
+          const name = m.name || id;
+          const isFree = id.endsWith(':free') || (m.pricing && m.pricing.prompt === 0 && m.pricing.completion === 0);
+          if (isFree) {
+            freeModels.push({ id, name: `${name} (FREE)`, isFree: true, context_length: m.context_length });
+          } else {
+            otherModels.push({ id, name, isFree: false, context_length: m.context_length });
+          }
+        });
+
+        // Sort free models nicely
+        freeModels.sort((a, b) => a.name.localeCompare(b.name));
+        return { freeModels, otherModels, all: [...freeModels, ...otherModels] };
+      }
+    } catch (e) {
+      console.warn("Could not dynamically load OpenRouter models, using verified catalog:", e.message);
+    }
+
+    // Fallback verified models
+    const fallbackFree = [
+      { id: "google/gemini-2.0-flash-exp:free", name: "Google: Gemini 2.0 Flash (Fast & Accurate - Recommended)", isFree: true },
+      { id: "deepseek/deepseek-r1:free", name: "DeepSeek: R1 Reasoning (Deep Logic - Free)", isFree: true },
+      { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Meta: Llama 3.3 70B Instruct (High Capability - Free)", isFree: true },
+      { id: "qwen/qwen-2.5-coder-32b-instruct:free", name: "Qwen: 2.5 Coder 32B (Technical & Code - Free)", isFree: true },
+      { id: "mistralai/mistral-small-24b-instruct-2501:free", name: "Mistral: Small 24B Instruct (Free)", isFree: true },
+      { id: "deepseek/deepseek-chat:free", name: "DeepSeek: V3 Chat (Free)", isFree: true }
+    ];
+    return { freeModels: fallbackFree, otherModels: [], all: fallbackFree };
+  }
+
+  /**
    * Low-level helper to call OpenRouter Chat Completions
    */
   async callOpenRouter(messages, temperature = 0.2, maxTokens = 600, jsonMode = false) {
@@ -301,16 +353,20 @@ class GeminiClient {
     // 1. Try OpenRouter
     if (provider === "openrouter" && this.getOpenRouterKey()) {
       try {
-        const prompt = `Generate strictly 3 to 4 sequential, realistic engineering steps for this task:
+        const prompt = `You are a real-world manufacturing plant engineer at Walton AC production line.
+Write 3 to 4 sequential, realistic, concrete engineering milestones as written by a human factory engineer on the floor:
 Task: "${taskName}"
 Category: "${category}"
 
-Format strictly as a single line: "1. First milestone 2. Second milestone 3. Third milestone 4. Fourth milestone".
-Keep it concise, actionable, and suitable for manufacturing plant execution.
-Do not use markdown, bullets, or extra commentary.`;
+RULES FOR HUMAN TONE:
+- Write strictly in concise, practical engineering steps.
+- Use natural shop-floor terms: CAD model, fabrication, CNC machining, pneumatic clamping fixture, sensor routing, line trial, cycle time verification, work instruction SOP handover.
+- Do NOT use robotic buzzwords or generic AI phrases.
+- Format strictly as a single clean line: "1. First milestone 2. Second milestone 3. Third milestone 4. Fourth milestone".
+- Zero markdown, no commentary.`;
 
         const reply = await this.callOpenRouter([
-          { role: "system", content: "You are an expert industrial process development engineer at Walton Hi-Tech Industries PLC." },
+          { role: "system", content: "You are an experienced industrial process development engineer at Walton Hi-Tech Industries PLC. Write in clean, authentic, human engineering language." },
           { role: "user", content: prompt }
         ], 0.2, 200, false);
 
@@ -327,14 +383,13 @@ Do not use markdown, bullets, or extra commentary.`;
     if (provider === "gemini" && geminiKey) {
       try {
         const url = `${this.config.API_ENDPOINT}/${this.config.DEFAULT_MODEL}:generateContent?key=${geminiKey}`;
-        const prompt = `You are an industrial process development engineer at Walton Hi-Tech Industries PLC.
-Generate strictly 3 to 4 sequential, realistic engineering steps for this task:
+        const prompt = `You are an industrial process development engineer at Walton AC factory.
+Write 3 to 4 sequential, realistic, concrete engineering milestones as written by a human factory engineer:
 Task: "${taskName}"
 Category: "${category}"
 
 Format strictly as a single line: "1. First milestone 2. Second milestone 3. Third milestone 4. Fourth milestone".
-Keep it concise, actionable, and suitable for manufacturing plant execution.
-Do not use markdown, bullets, or additional commentary.`;
+Keep it concise, actionable, and suitable for manufacturing plant execution. Zero markdown.`;
 
         const response = await fetch(url, {
           method: "POST",
@@ -370,22 +425,20 @@ Do not use markdown, bullets, or additional commentary.`;
 
     if (provider === "openrouter" && this.getOpenRouterKey()) {
       try {
-        const prompt = `Generate strictly 3 high-impact executive management outcomes for this manufacturing innovation:
+        const prompt = `Generate strictly 3 high-impact executive management outcomes for this manufacturing project:
 Project Name: "${taskName}"
 Category: "${category}"
-Annual Cost Impact: "${costImpact || 'Significant cost avoidance'}"
-Timeline: "${timeline || '4-5 Months'}"
+Annual Cost Impact: "${costImpact || 'Significant cost avoidance and scrap reduction'}"
+Timeline: "${timeline || 'Target FY 26-27'}"
 
-Format strictly as 3 bullet points starting with '• '.
-Example:
-• Slashing production changeover time by 45% and eliminating operator ergonomic hazards
-• Generating ৳ ${costImpact || '4,50,000'} annual cost savings through raw material scrap reduction
-• Ensuring 100% precision compliance across all Walton AC RAC production lines
-
-Keep it crisp, executive-grade, professional, and without fluff.`;
+RULES FOR HUMAN TONE:
+- Write in an authentic, executive operations director tone at Walton Hi-Tech Industries.
+- Format strictly as 3 bullet points starting with '• '.
+- State genuine operational outcomes: cycle time reduction, scrap elimination, tooling repeatability, worker ergonomic safety, line yield.
+- No robotic filler words. Keep each bullet under 18 words.`;
 
         const reply = await this.callOpenRouter([
-          { role: "system", content: "You are an executive operations director at Walton Hi-Tech Industries PLC." },
+          { role: "system", content: "You are the Head of Process Development at Walton Hi-Tech Industries PLC. Write in a realistic, authoritative, human executive tone." },
           { role: "user", content: prompt }
         ], 0.2, 250, false);
 

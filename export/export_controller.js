@@ -372,7 +372,7 @@ const ExportController = {
           </div>
 
           <!-- Format Cards Grid (3 Formats) -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 my-4">
             
             <!-- 1. PowerPoint (.pptx) -->
             <div class="bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm hover:shadow-md">
@@ -412,22 +412,44 @@ const ExportController = {
               </button>
             </div>
 
-            <!-- 3. Vector PDF Print (.pdf) -->
+            <!-- 3. Vector PDF (.pdf) -->
             <div class="bg-white border border-slate-200 hover:border-amber-300 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm hover:shadow-md">
               <div>
                 <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-2xl mb-3 group-hover:scale-105 transition">
-                  🖨
+                  📄
                 </div>
-                <h3 class="text-sm font-black text-slate-800">Print-Ready PDF</h3>
+                <h3 class="text-sm font-black text-slate-800">Vector PDF</h3>
                 <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                  High-resolution vector PDF export. Crisp 16:9 landscape printing for executive distribution.
+                  High-resolution vector PDF export. Crisp 16:9 landscape layout for executive distribution.
                 </p>
                 <div class="mt-3 flex items-center gap-1.5 text-[10px] font-mono text-amber-600 font-bold">
-                  <span>✔</span> <span>Crisp vector print & PDF</span>
+                  <span>✔</span> <span>Crisp vector format</span>
                 </div>
               </div>
               <button id="btn-export-pdf" onclick="ExportController.handleDownloadPDF('${selectedMonth}')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-xs font-black text-amber-600 border border-slate-200 transition flex items-center justify-center gap-2 shadow-sm">
-                <span>Save / Print PDF</span>
+                <span>Download PDF</span>
+              </button>
+            </div>
+
+            <!-- 4. Online Docs / Presentation Link -->
+            <div class="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-5 flex flex-col justify-between transition group shadow-sm hover:shadow-md">
+              <div>
+                <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center text-2xl mb-3 group-hover:scale-105 transition">
+                  🔗
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <h3 class="text-sm font-black text-slate-800">Online Presentation</h3>
+                  <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-100 text-indigo-700">Cloud</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                  Live cloud presentation link. Access granted to authorized team emails.
+                </p>
+                <div class="mt-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px] text-slate-600 font-mono truncate" title="Owner: nipu.ruet10@gmail.com">
+                  Owner: <strong class="text-indigo-600">nipu.ruet10@gmail.com</strong>
+                </div>
+              </div>
+              <button onclick="ExportController.openOnlineDocs('${selectedMonth}')" class="mt-5 w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-black text-white shadow-md shadow-indigo-200/40 transition flex items-center justify-center gap-2">
+                <span>Open Online Docs ↗</span>
               </button>
             </div>
 
@@ -512,6 +534,29 @@ const ExportController = {
       alert("Bulk export failed: " + e.message);
       if (btn) btn.innerHTML = '<span>🚀</span> <span>Download All Formats</span>';
     }
+  },
+
+  /**
+   * Opens online cloud presentation link with permission verification
+   */
+  openOnlineDocs(selectedMonth) {
+    const defaultOwner = "nipu.ruet10@gmail.com";
+    const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
+    
+    // Check permission if restriction list is configured
+    if (allowedEmailsStr.trim()) {
+      const allowed = allowedEmailsStr.split(/[\n,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+      const userPromptEmail = prompt(`Online Presentation Access Protected.\nOwner: ${defaultOwner}\nPlease enter your authorized Walton email to verify access:`);
+      if (!userPromptEmail) return;
+      const cleanInput = userPromptEmail.trim().toLowerCase();
+      if (!allowed.includes(cleanInput) && cleanInput !== defaultOwner) {
+        alert(`Access Denied: The email "${userPromptEmail}" is not in the authorized list.\nPlease contact ${defaultOwner} to grant access in Settings.`);
+        return;
+      }
+    }
+
+    // Generate and open standalone presentation in a new tab
+    this.exportHTML(selectedMonth, this.selectedTemplate);
   }
 };
 

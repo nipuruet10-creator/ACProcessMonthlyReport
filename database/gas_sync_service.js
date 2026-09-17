@@ -386,6 +386,37 @@ const GoogleSheetsSync = {
   },
 
   /**
+   * Synchronize Cost Savings records to Google Sheets
+   */
+  async syncCostSavings(records = null) {
+    const url = this.getWebAppUrl();
+    if (!url) return false;
+
+    const list = records || ((typeof CostSavingTracker !== 'undefined' && CostSavingTracker.getAllRecords) ? CostSavingTracker.getAllRecords() : []);
+    if (!Array.isArray(list)) return false;
+
+    try {
+      await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'SYNC_COST_SAVINGS',
+          payload: list
+        })
+      }, 20000);
+      this.lastSyncTime = new Date().toISOString();
+      localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
+      this.status = 'CONNECTED';
+      this._broadcastUpdate('COST_SAVINGS_SYNCED');
+      return true;
+    } catch (e) {
+      console.warn("Cost savings cloud sync notice:", e);
+      return false;
+    }
+  },
+
+  /**
    * Verify username & password against Google Apps Script
    */
   async verifyInputAuth(username, password) {
@@ -540,6 +571,12 @@ const GoogleSheetsSync = {
           changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks) || changed;
         }
 
+        // Merge cost savings into CostSavingTracker across devices
+        if (data.cost_savings && typeof CostSavingTracker !== 'undefined' && CostSavingTracker.mergeFromCloud) {
+          const costChanged = CostSavingTracker.mergeFromCloud(data.cost_savings);
+          if (costChanged) changed = true;
+        }
+
         this.lastSyncTime = new Date().toISOString();
         localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
         this.status = 'CONNECTED';
@@ -675,16 +712,40 @@ const GoogleSheetsSync = {
         return;
       }
 
+      // Smooth scroll preservation to prevent screen shaking/vibration
+      const savedScrollY = (typeof window !== 'undefined') ? window.scrollY : 0;
+      const tableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
+      const savedTableTop = tableScroll ? tableScroll.scrollTop : 0;
+      const savedTableLeft = tableScroll ? tableScroll.scrollLeft : 0;
+
+      const restoreScroll = () => {
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => {
+            if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+              window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+            }
+            const newTableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
+            if (newTableScroll) {
+              newTableScroll.scrollTop = savedTableTop;
+              newTableScroll.scrollLeft = savedTableLeft;
+            }
+          });
+        }
+      };
+
       if (window.appState && window.appState.activeTab === 'monthly-input' && window.appState.monthlyInputView) {
-        window.appState.monthlyInputView.render();
-      }
-
-      if (window.appState && window.appState.activeTab === 'projects' && window.appState.projectsView) {
+        const p = window.appState.monthlyInputView.render();
+        if (p && typeof p.then === 'function') {
+          p.then(restoreScroll).catch(restoreScroll);
+        } else {
+          restoreScroll();
+        }
+      } else if (window.appState && window.appState.activeTab === 'projects' && window.appState.projectsView) {
         window.appState.projectsView.render();
-      }
-
-      if (window.appState && window.appState.activeTab === 'dashboard' && window.appState.dashboardView) {
+      } else if (window.appState && window.appState.activeTab === 'dashboard' && window.appState.dashboardView) {
         window.appState.dashboardView.render();
+      } else if (window.appState && window.appState.activeTab === 'photos' && typeof PhotoManagerView !== 'undefined' && PhotoManagerView.render) {
+        PhotoManagerView.render();
       }
     } catch (e) {
       console.warn("View refresh notice:", e);

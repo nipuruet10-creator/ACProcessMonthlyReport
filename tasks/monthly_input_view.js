@@ -1970,19 +1970,19 @@ const MonthlyInputView = {
 
         <!-- METHOD 1: Direct Change / Master PIN (Default, No email needed) -->
         <div id="section-direct-change" class="space-y-3.5">
-          <div class="p-3 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 leading-relaxed">
-            💡 <strong>Instant Change:</strong> Enter current password or Walton Master PIN: <strong class="font-mono text-slate-900 font-black">50463</strong>. No email OTP required!
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] text-slate-700 leading-relaxed">
+            🔒 <strong>Instant Change:</strong> Enter current team password or administrator recovery key to update immediately.
           </div>
 
           <div>
             <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Current Password or Master PIN <span class="text-red-500">*</span>
+              Current Password or Recovery Key <span class="text-red-500">*</span>
             </label>
             <div class="relative">
               <input 
                 type="password" 
                 id="direct-current-password" 
-                placeholder="Current pass or 50463" 
+                placeholder="Enter current password or recovery key" 
                 class="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none bg-slate-50 focus:bg-white"
               >
               <button 
@@ -2185,7 +2185,7 @@ const MonthlyInputView = {
 
     if (!curr) {
       if (errorEl) {
-        errorEl.textContent = 'Please enter current password or Walton Master PIN: 50463.';
+        errorEl.textContent = 'Please enter current password or administrator recovery key.';
         errorEl.classList.remove('hidden');
       }
       return;

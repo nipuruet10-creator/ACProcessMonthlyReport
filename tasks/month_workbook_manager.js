@@ -694,7 +694,7 @@ class MonthWorkbookManager {
         }
       });
 
-        // Handle un-synced local tasks and remote deletions safely
+        // Handle un-synced local tasks and remote deletions safely across multiple devices
         if (remoteList.length > 0) {
           let deletedIds = [];
           try {
@@ -703,12 +703,22 @@ class MonthWorkbookManager {
 
           const filtered = localTasks.filter(lt => {
             if (!remoteIdSet.has(lt.task_id)) {
-              // If user explicitly deleted it, prune it
+              // 1. If explicitly deleted on this device, prune it
               if (deletedIds.includes(lt.task_id)) {
                 return false;
               }
-              // If not deleted, it's a locally created task that needs pushing!
-              // DO NOT delete it! Push it to cloud so all devices get it!
+
+              // 2. If this task was previously synced or is an established task (not a brand new local draft),
+              // then it was deleted in the cloud by another user/device! Prune it immediately!
+              const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
+              const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 40000 && !lt._syncedToCloud);
+              
+              if (!isFreshLocalDraft) {
+                // Established task missing from authoritative cloud sheet -> DELETED ON CLOUD!
+                return false;
+              }
+
+              // 3. Brand new local draft created within the last 40 seconds: push to cloud so all devices get it
               if (typeof photoManager !== 'undefined' && !lt.photo_1) {
                 const lp = photoManager.getTaskPhotos(lt.task_id);
                 if (lp && (lp.before_photo || lp.photo_1)) {
@@ -720,6 +730,8 @@ class MonthWorkbookManager {
               }
               return true;
             }
+            // Present in remote list: flag as synced to cloud
+            lt._syncedToCloud = true;
             return true;
           });
           if (filtered.length !== localTasks.length) {

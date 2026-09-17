@@ -192,6 +192,9 @@ const CostSavingTracker = {
       }
     }
     this._saveSavings(savings);
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.syncCostSavings) {
+      GoogleSheetsSync.syncCostSavings();
+    }
     return this.getMonthSaving(month, defaultYear);
   },
 
@@ -205,6 +208,139 @@ const CostSavingTracker = {
 
   getAllSavings() {
     return this._loadSavings();
+  },
+
+  /**
+   * Retrieve all monthly records for Google Sheets sync
+   */
+  getAllRecords() {
+    const savings = this._loadSavings();
+    const records = [];
+    const processed = new Set();
+
+    this.FY_MONTHS.forEach(fm => {
+      const code = fm.code;
+      const [mCode, yrStr] = code.split("-");
+      const yr = parseInt(yrStr, 10) || 2026;
+      const amt = this.getMonthSaving(code, yr);
+      records.push({
+        year: yr,
+        month_code: code,
+        target_bdt: 0,
+        achieved_bdt: amt,
+        project_count: 0,
+        remarks: "",
+        last_updated: new Date().toISOString()
+      });
+      processed.add(code);
+    });
+
+    for (let i = 0; i < 12; i++) {
+      const code2026 = `${this.MONTH_CODES[i]}-2026`;
+      if (!processed.has(code2026)) {
+        const amt = this.getMonthSaving(code2026, 2026);
+        records.push({
+          year: 2026,
+          month_code: code2026,
+          target_bdt: 0,
+          achieved_bdt: amt,
+          project_count: 0,
+          remarks: "",
+          last_updated: new Date().toISOString()
+        });
+        processed.add(code2026);
+      }
+    }
+
+    return records;
+  },
+
+  /**
+   * Merge cloud cost savings into local storage across all devices
+   */
+  mergeFromCloud(remoteList) {
+    if (!Array.isArray(remoteList) || remoteList.length === 0) return false;
+    const savings = this._loadSavings();
+    let anyChanges = false;
+
+    remoteList.forEach(item => {
+      if (!item || !item.month_code) return;
+      const mCode = String(item.month_code).trim().toUpperCase();
+      const yr = parseInt(item.year, 10) || 2026;
+      const val = parseFloat(item.achieved_bdt !== undefined && item.achieved_bdt !== null && item.achieved_bdt !== "" ? item.achieved_bdt : 0);
+      
+      const currentVal = parseFloat(savings[mCode] || 0);
+      if (currentVal !== val && !isNaN(val)) {
+        savings[mCode] = val;
+        anyChanges = true;
+        const name = this.normalizeMonthName(mCode);
+        const mIdx = this.MONTH_NAMES.indexOf(name);
+        if (mIdx >= 0) {
+          const isoKey = `${yr}-${String(mIdx + 1).padStart(2, '0')}`;
+          savings[isoKey] = val;
+          savings[`${name} ${yr}`] = val;
+        }
+      }
+    });
+
+    if (anyChanges) {
+      this._saveSavings(savings);
+    }
+    return anyChanges;
+  },
+
+  /**
+   * Dynamically calculates rolling 6 calendar months ending at selected month
+   * e.g. For SEP-2026: APR-2026, MAY-2026, JUN-2026, JUL-2026, AUG-2026, SEP-2026
+   */
+  getRolling6Months(selectedMonth = "SEP-2026") {
+    const targetName = this.normalizeMonthName(selectedMonth);
+    let targetIdx = this.MONTH_NAMES.indexOf(targetName);
+    if (targetIdx === -1) targetIdx = 8; // Default September
+    const targetYear = this.extractYear(selectedMonth) || 2026;
+
+    const monthsList = [];
+    let total6Months = 0;
+    let maxAmount = 0;
+
+    for (let offset = 5; offset >= 0; offset--) {
+      let mIdx = targetIdx - offset;
+      let yr = targetYear;
+      if (mIdx < 0) {
+        mIdx += 12;
+        yr -= 1;
+      }
+      const mName = this.MONTH_NAMES[mIdx];
+      const mCode = `${this.MONTH_CODES[mIdx]}-${yr}`;
+      const amt = this.getMonthSaving(mCode, yr);
+      total6Months += amt;
+      if (amt > maxAmount) maxAmount = amt;
+
+      monthsList.push({
+        month: mName,
+        monthYear: `${mName} ${yr}`,
+        code: mCode,
+        shortCode: this.MONTH_CODES[mIdx],
+        year: yr,
+        amount: amt,
+        val: amt > 0 ? `BDT ${amt.toLocaleString()}` : 'BDT 0',
+        displayBDT: `৳ ${amt.toLocaleString()}`,
+        isCurrent: (offset === 0)
+      });
+    }
+
+    const currentMonthData = monthsList[monthsList.length - 1];
+    const currentMonthAmount = currentMonthData ? currentMonthData.amount : 0;
+
+    return {
+      selectedMonth,
+      months: monthsList,
+      total6Months,
+      currentMonthAmount,
+      maxAmount: Math.max(maxAmount, 10000),
+      displayTotal: total6Months > 0 ? `BDT ${total6Months.toLocaleString()}` : 'BDT 0',
+      displayCurrent: currentMonthAmount > 0 ? `BDT ${currentMonthAmount.toLocaleString()}` : 'BDT 0'
+    };
   },
 
   /**

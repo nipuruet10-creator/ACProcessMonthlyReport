@@ -2048,101 +2048,121 @@ const SlideLayoutEngine = {
   },
 
   /**
-   * Renders the Executive Management Dashboard Slide (Slide 3, replicating Image 1)
+   * Renders the Executive Operations Overview & Dashboard Layout Slide (Slide 2)
    */
-  renderExecutiveDashboardSlide(month = "SEPTEMBER 2026", data = null) {
+  renderExecutiveOverviewSlide(month = "SEPTEMBER 2026", data = null) {
     const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
     
-    // 1. Resolve Monthly Cost Savings (Prioritize passed data, fallback to CostSavingTracker)
-    let savings = (data && data.monthlySavings);
-    let currentImpact = (data && data.currentImpact);
-    let currentMonthLabel = (data && data.currentMonthLabel) || monthUpper;
-    let yearlyImpact = (data && data.yearlyImpact);
-
-    if (!savings || !currentImpact || !yearlyImpact) {
-      if (typeof CostSavingTracker !== 'undefined') {
-        const ct = CostSavingTracker.calculate([], month);
-        savings = savings || ct.monthlySavings || ct.monthlySavingsTable;
-        currentImpact = currentImpact || ct.currentImpact || ct.displayMonthlySaving;
-        yearlyImpact = yearlyImpact || ct.yearlyImpact || ct.displayCumulativeYTD;
-      }
+    // 1. Resolve tasks list
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
     }
+    tasksList = tasksList || [];
 
-    if (!Array.isArray(savings)) {
-      savings = [
-        { m: "April", val: "BDT 0" },
-        { m: "May", val: "BDT 0" },
-        { m: "June", val: "BDT 0" },
-        { m: "July", val: "BDT 0" },
-        { m: "August", val: "BDT 0" },
-        { m: "September", val: "BDT 0" }
-      ];
-      currentImpact = currentImpact || "0 TK";
-      yearlyImpact = yearlyImpact || "0 TK";
-    }
+    const totalTasks = tasksList.length;
+    const reportTasks = tasksList.filter(t => t.monthly_report === 'YES').length;
+    const internalTasks = totalTasks - reportTasks;
 
-    // 2. Dynamic Category Counting for the 8 KPI Cards
-    let kpis = (data && data.kpis);
-    if (!kpis) {
-      let tasksList = (data && (data.slides || data.tasks));
-      if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
-        try {
-          const mgr = new MonthWorkbookManager();
-          tasksList = mgr.getTasksForMonth(month);
-        } catch(e) {}
-      }
-      tasksList = tasksList || [];
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    const engineersSet = new Set();
 
-      let processCount = 0;
-      let toolsCount = 0;
-      let partsCount = 0;
-      let costCount = 0;
-      let manpowerCount = 0;
-      let bomCount = 0;
-      let completedCount = 0;
-      let ongoingCount = 0;
+    tasksList.forEach(t => {
+      const eng = (t.concern_engineer || t.concern || '').trim();
+      if (eng) engineersSet.add(eng);
 
-      tasksList.forEach(t => {
-        const cat = (t.category || '').toLowerCase();
-        const title = (t.slide_title || t.task_name || '').toLowerCase();
-        const status = (t.status || '').toLowerCase();
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
 
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) {
+          completedProjCount++;
+        } else {
+          ongoingProjCount++;
+        }
+      } else {
         if (cat.includes('process') || title.includes('process')) processCount++;
         if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
         if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
         if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
         if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
         if (cat.includes('bom') || title.includes('bom')) bomCount++;
-
-        if (status.includes('complete') || status.includes('done')) {
-          completedCount++;
-        } else {
-          ongoingCount++;
-        }
-      });
-
-      // Check top works manager for ongoing if needed
-      if (ongoingCount === 0 && typeof TopWorksManager !== 'undefined') {
-        const tw = TopWorksManager.getTopWorksForMonth(month);
-        if (tw && tw.ongoingTop5) {
-          ongoingCount = tw.ongoingTop5.filter(p => p.name && p.name.trim()).length;
-        }
       }
+    });
 
-      kpis = [
-        { val: `${processCount}`, label: "Process Developed", note: null },
-        { val: `${toolsCount}`, label: "Tools Developed", note: null },
-        { val: `${partsCount}`, label: "Parts Developed", note: null },
-        { val: `${costCount}`, label: "Cost Optimisation", note: (yearlyImpact && yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null) },
-        { val: `${manpowerCount}`, label: "Manpower Optimization", note: null },
-        { val: `${bomCount}`, label: "BOM Verification", note: null },
-        { val: `${completedCount}`, label: "Completed Projects", note: (currentImpact && currentImpact !== "0 TK" ? `Cost Saved: ${currentImpact}` : null) },
-        { val: `${ongoingCount}`, label: "New Projects / Ongoing", note: "Cost Save Scope: Target FY 26-27" }
-      ];
+    let yearlySavings = "BDT 0";
+    let monthlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+      monthlySavings = ct.displayMonthlySaving || "BDT 0";
     }
 
+    const heroKpis = [
+      {
+        val: `${totalTasks}`,
+        label: "Total Engineering Tasks",
+        sub: `Report: ${reportTasks} | Internal: ${internalTasks}`,
+        icon: "📋",
+        bg: "linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)",
+        border: "#4338CA",
+        textColor: "#FFFFFF"
+      },
+      {
+        val: `${completedProjCount + ongoingProjCount}`,
+        label: "Strategic Projects",
+        sub: `Completed: ${completedProjCount} | Ongoing: ${ongoingProjCount}`,
+        icon: "🚀",
+        bg: "linear-gradient(135deg, #064E3B 0%, #047857 100%)",
+        border: "#059669",
+        textColor: "#FFFFFF"
+      },
+      {
+        val: `${engineersSet.size || 8}`,
+        label: "Active Concern Engineers",
+        sub: "Plant-Wide Coverage",
+        icon: "👥",
+        bg: "linear-gradient(135deg, #7C2D12 0%, #C2410C 100%)",
+        border: "#EA580C",
+        textColor: "#FFFFFF"
+      },
+      {
+        val: yearlySavings,
+        label: "Realized Annual Savings",
+        sub: `Monthly: ${monthlySavings}`,
+        icon: "💰",
+        bg: "linear-gradient(135deg, #065F46 0%, #0D9488 100%)",
+        border: "#10B981",
+        textColor: "#FFFFFF"
+      }
+    ];
+
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlySavings}/Yr`, icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
+
     return `
-    <div class="walton-dashboard-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+    <div class="walton-dashboard-slide walton-overview-slide walton-executive-overview-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF;">
       
       <!-- TOP HEADER BAR -->
@@ -2168,109 +2188,448 @@ const SlideLayoutEngine = {
         </div>
       </div>
 
-      <!-- SUBHEADER TITLE BAR (Matching Image 2) -->
-      <div class="flex items-center gap-3 my-1.5 flex-shrink-0">
-        <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #FEE2E2; color: #C5161D; border: 1px solid #FCA5A5; font-size: 11px; font-weight: 800; padding: 3.5px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
-          AC PRODUCT &bull; MANAGEMENT DASHBOARD <!-- AC Product Dashboard -->
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span style="background: #FEE2E2; color: #C5161D; border: 1px solid #FCA5A5; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          OPERATIONS CONTROL &bull; EXECUTIVE OVERVIEW
         </span>
-        <h2 style="font-size: 21px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
-          Executive Performance &amp; Cost Savings
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Plant Engineering Operations &amp; Work Distribution (${monthUpper})
         </h2>
       </div>
 
-      <!-- MAIN CONTENT: UPPER SECTION (TABLE + 2 FINANCIAL IMPACT CARDS) -->
-      <div style="display: grid; grid-template-columns: 4.4fr 3.8fr 3.8fr; gap: 16px; margin: 4px 0 10px 0; min-height: 175px; align-items: stretch; flex: 1.1;">
-        
-        <!-- Left: Monthly Savings Table -->
-        <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-          <div style="background: #0F172A; color: #FFFFFF; padding: 7px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; flex-shrink: 0;">
-            <span>Month</span>
-            <span>Impact (BDT)</span>
-          </div>
-          <div style="display: flex; flex-direction: column; justify-content: space-around; flex: 1; padding: 2px 0;">
-            ${savings.map((s, idx) => `
-              <div style="padding: 5px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 600; color: #334155; border-bottom: ${idx === savings.length - 1 ? 'none' : '1px solid #F1F5F9'}; background: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">
-                <span>${s.m}</span>
-                <span style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #0F172A;">${s.val}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <!-- Middle: Monthly Financial Impact Card (Sunset Orange Gradient - High Contrast) -->
-        <div style="background: linear-gradient(135deg, #EA580C 0%, #F59E0B 100%); border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(234,88,12,0.22); color: #FFFFFF;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="background: #FFFFFF; color: #9A3412; padding: 3.5px 12px; border-radius: 9999px; font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 5px;">🪙 ${currentMonthLabel}</span>
-            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 3px 10px; border-radius: 9999px; font-size: 9.5px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">MONTHLY SAVINGS</span>
-          </div>
-          <div style="margin: 6px 0;">
-            <div style="font-size: 38px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
-              ${currentImpact}
+      <!-- 4 TOP HERO OPERATIONAL METRIC CARDS -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 2px 0 8px 0; flex-shrink: 0;">
+        ${heroKpis.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 16px; color: ${k.textColor}; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.4px;">${k.label}</span>
+              <span style="font-size: 15px;">${k.icon}</span>
             </div>
+            <div style="font-size: 28px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1.1; margin: 4px 0;">${k.val}</div>
+            <div style="font-size: 10px; font-weight: 700; opacity: 0.85; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 6px; width: fit-content;">${k.sub}</div>
           </div>
-          <div>
-            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Monthly Financial Impact</div>
-            <div style="font-size: 11.5px; font-weight: 700; color: #FFF7ED; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Plant-wide Optimization (100% Realized)</div>
-          </div>
-        </div>
-
-        <!-- Right: Yearly Cumulative Impact Card (Emerald / Teal Gradient - High Contrast) -->
-        <div style="background: linear-gradient(135deg, #059669 0%, #0D9488 100%); border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(5,150,105,0.22); color: #FFFFFF;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="background: #FFFFFF; color: #065F46; padding: 3.5px 12px; border-radius: 9999px; font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 5px;">📈 YEARLY IMPACT (FY 26-27)</span>
-            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 3px 10px; border-radius: 9999px; font-size: 9.5px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">CUMULATIVE YTD</span>
-          </div>
-          <div style="margin: 6px 0;">
-            <div style="font-size: 38px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
-              ${yearlyImpact}
-            </div>
-          </div>
-          <div>
-            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Cumulative Realized Savings</div>
-            <div style="font-size: 11.5px; font-weight: 700; color: #F0FDF4; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Direct Process Engineering Value Add</div>
-          </div>
-        </div>
-
+        `).join('')}
       </div>
 
-      <!-- LOWER SECTION: 8 COLORFUL KPI METRIC CARDS (4x2 Grid) -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; min-height: 175px; align-items: stretch; flex: 1;">
-        ${(() => {
-          const kpiPalettes = [
-            { bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A', shadow: 'rgba(59,130,246,0.14)', icon: '⚙️' },
-            { bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81', shadow: 'rgba(99,102,241,0.14)', icon: '🔧' },
-            { bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B', shadow: 'rgba(16,185,129,0.14)', icon: '🔩' },
-            { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F', shadow: 'rgba(245,158,11,0.14)', icon: '💰' },
-            { bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87', shadow: 'rgba(168,85,247,0.14)', icon: '👥' },
-            { bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337', shadow: 'rgba(244,63,94,0.14)', icon: '📋' },
-            { bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D', shadow: 'rgba(239,68,68,0.16)', icon: '🏆' },
-            { bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63', shadow: 'rgba(6,182,212,0.14)', icon: '🚀' }
-          ];
-          return kpis.map((k, idx) => {
-            const pal = kpiPalettes[idx % kpiPalettes.length];
-            return `
-            <div style="background: ${pal.bg}; border: 1.5px solid ${pal.border}; border-radius: 12px; padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 3px 8px ${pal.shadow}; position: relative; overflow: hidden;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="font-size: 32px; font-weight: 900; color: ${pal.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
-                <span style="font-size: 16px; opacity: 0.85;">${pal.icon}</span>
-              </div>
-              <div style="font-size: 13px; font-weight: 800; color: ${pal.labelColor}; margin-top: 5px; line-height: 1.2;">${k.label}</div>
-              ${k.note ? `<div style="font-size: 10.5px; font-weight: 800; color: ${pal.valColor}; margin-top: 3px; line-height: 1.2; background: rgba(255,255,255,0.75); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>` : ''}
+      <!-- CATEGORY WORK DISTRIBUTION (8 COLORFUL PROCESS PILLARS) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch;">
+        ${categoryGrid.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 26px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 15px; opacity: 0.9;">${k.icon}</span>
             </div>
-            `;
-          }).join('');
-        })()}
+            <div style="font-size: 12px; font-weight: 800; color: ${k.labelColor}; margin-top: 4px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 2px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>
+          </div>
+        `).join('')}
       </div>
 
-      <!-- FOOTER (PROCESS DEVELOPMENT DEPARTMENT ONLY - 2 TAGLINES) -->
+      <!-- FOOTER -->
       <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
         <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
         <div class="flex items-center gap-4 text-slate-500">
           <span>🏆 Continuous Improvement</span>
-          <span>•</span>
+          <span>&bull;</span>
           <span>💡 A Smarter Tomorrow</span>
         </div>
         <div class="text-red-600 font-mono font-bold">${monthUpper}</div>
+      </div>
+
+    </div>`;
+  },
+
+  /**
+   * Renders Dynamic Rolling 6-Month Cost Saving Slide & Visualization (Slide 3)
+   */
+  renderExecutiveDashboardSlide(month = "SEPTEMBER 2026", data = null) {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    
+    // 1. Dynamic Rolling 6-Month Data Calculation
+    let rolling = null;
+    if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.getRolling6Months) {
+      rolling = CostSavingTracker.getRolling6Months(month);
+    }
+
+    let savings = [];
+    let currentImpact = "BDT 0";
+    let yearlyImpact = "BDT 0";
+    let rollingTotalStr = "BDT 0";
+
+    if (rolling && Array.isArray(rolling.months)) {
+      savings = rolling.months.map(m => ({ m: m.shortLabel, val: m.displayAmount, amount: m.amount || 0 }));
+      rollingTotalStr = rolling.displayTotal || "BDT 0";
+      currentImpact = rolling.displayCurrentMonth || "BDT 0";
+    }
+
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlyImpact = ct.displayCumulativeYTD || yearlyImpact;
+      if (currentImpact === "BDT 0") currentImpact = ct.displayMonthlySaving || "BDT 0";
+      if (yearlyImpact === "BDT 0") yearlyImpact = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    if (savings.length === 0) {
+      savings = [
+        { m: "Apr 26", val: "BDT 0", amount: 0 },
+        { m: "May 26", val: "BDT 0", amount: 0 },
+        { m: "Jun 26", val: "BDT 0", amount: 0 },
+        { m: "Jul 26", val: "BDT 0", amount: 0 },
+        { m: "Aug 26", val: "BDT 0", amount: 0 },
+        { m: "Sep 26", val: "BDT 0", amount: 0 }
+      ];
+    }
+
+    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+
+    return `
+    <div class="walton-dashboard-slide walton-cost-saving-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF;">
+      
+      <!-- TOP HEADER BAR -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 flex-shrink-0">
+            <svg viewBox="0 0 40 40" fill="none" class="w-full h-full">
+              <path d="M20 2L38 20L20 38L2 20Z" fill="#C5161D"/>
+              <path d="M20 2L38 20L20 20Z" fill="#E11D48"/>
+              <path d="M2 20L20 20L20 38Z" fill="#991B1B"/>
+              <path d="M20 20L38 20L20 38Z" fill="#B91C1C"/>
+              <path d="M20 7L33 20L20 33L7 20Z" fill="#FFFFFF" fill-opacity="0.25"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0F172A; letter-spacing: 0.04em;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748B; letter-spacing: 0.08em;">SMALL CHANGES</div>
+          <div style="font-size: 17px; font-weight: 900; color: #C5161D; line-height: 1; letter-spacing: 0.02em;">BIG IMPACT</div>
+        </div>
+      </div>
+
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #FEE2E2; color: #C5161D; border: 1px solid #FCA5A5; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          FINANCIAL PERFORMANCE &bull; COST OPTIMIZATION <!-- AC Product Dashboard -->
+        </span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Rolling 6-Month Realized Cost Savings &amp; Financial Impact
+        </h2>
+      </div>
+
+      <!-- UPPER SECTION (TABLE + 2 FINANCIAL IMPACT CARDS) -->
+      <div style="display: grid; grid-template-columns: 4.4fr 3.8fr 3.8fr; gap: 14px; margin: 2px 0 8px 0; min-height: 165px; align-items: stretch; flex: 1;">
+        
+        <!-- Left: Dynamic Rolling 6-Month Savings Table -->
+        <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+          <div style="background: #0F172A; color: #FFFFFF; padding: 7px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 800; letter-spacing: 0.5px; flex-shrink: 0;">
+            <span>Rolling 6-Month Calendar</span>
+            <span>Impact (BDT)</span>
+          </div>
+          <div style="display: flex; flex-direction: column; justify-content: space-around; flex: 1; padding: 1px 0;">
+            ${savings.map((s, idx) => {
+              const isCurrent = (idx === savings.length - 1);
+              return `
+              <div style="padding: 4.5px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #334155; border-bottom: 1px solid #F1F5F9; background: ${isCurrent ? '#FEF2F2' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')};">
+                <span style="${isCurrent ? 'font-weight: 800; color: #C5161D;' : ''}">${s.m} ${isCurrent ? '★ (Selected)' : ''}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isCurrent ? '#C5161D' : '#0F172A'};">${s.val}</span>
+              </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="background: #F1F5F9; border-top: 1.5px solid #CBD5E1; padding: 6px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 900; color: #0F172A;">
+            <span>Total 6-Month Savings:</span>
+            <span style="font-family: 'JetBrains Mono', monospace; color: #047857;">${rollingTotalStr}</span>
+          </div>
+        </div>
+
+        <!-- Middle: Monthly Financial Impact Card -->
+        <div style="background: linear-gradient(135deg, #EA580C 0%, #F59E0B 100%); border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(234,88,12,0.22); color: #FFFFFF;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="background: #FFFFFF; color: #9A3412; padding: 3px 10px; border-radius: 9999px; font-size: 10.5px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 4px;">🪙 ${monthUpper}</span>
+            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 2.5px 8px; border-radius: 9999px; font-size: 9px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">MONTHLY SAVINGS</span>
+          </div>
+          <div style="margin: 4px 0;">
+            <div style="font-size: 34px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              ${currentImpact}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Monthly Financial Impact</div>
+            <div style="font-size: 11px; font-weight: 700; color: #FFF7ED; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Plant-wide Optimization (100% Realized)</div>
+          </div>
+        </div>
+
+        <!-- Right: Yearly Cumulative Impact Card -->
+        <div style="background: linear-gradient(135deg, #059669 0%, #0D9488 100%); border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(5,150,105,0.22); color: #FFFFFF;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="background: #FFFFFF; color: #065F46; padding: 3px 10px; border-radius: 9999px; font-size: 10.5px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 4px;">📈 YEARLY IMPACT (FY 26-27)</span>
+            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 2.5px 8px; border-radius: 9999px; font-size: 9px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">CUMULATIVE YTD</span>
+          </div>
+          <div style="margin: 4px 0;">
+            <div style="font-size: 34px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              ${yearlyImpact}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Cumulative Realized Savings</div>
+            <div style="font-size: 11px; font-weight: 700; color: #F0FDF4; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Direct Process Engineering Value Add</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- LOWER SECTION: DYNAMIC 6-MONTH TRAJECTORY & VALUE CREATION PILLARS -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: space-between; flex: 1; min-height: 155px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px;">📊</span>
+            <span style="font-size: 12px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Rolling 6-Month Savings Trajectory &amp; Trend</span>
+          </div>
+          <span style="font-size: 10.5px; font-weight: 700; color: #047857; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 2px 10px; border-radius: 9999px;">Verified Accounting Savings</span>
+        </div>
+
+        <!-- 6-Month Visual Bar Chart -->
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-items: flex-end; flex: 1; padding: 6px 10px 4px 10px; border-bottom: 1px solid #E2E8F0;">
+          ${savings.map((s, idx) => {
+            const isLast = idx === savings.length - 1;
+            const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
+            return `
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px;">
+                <span style="font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isLast ? '#C5161D' : '#475569'};">${s.val}</span>
+                <div style="width: 100%; max-width: 52px; height: ${pct}%; min-height: 18px; border-radius: 8px; background: ${isLast ? 'linear-gradient(180deg, #EF4444 0%, #B91C1C 100%)' : 'linear-gradient(180deg, #38BDF8 0%, #0284C7 100%)'}; box-shadow: 0 2px 6px ${isLast ? 'rgba(239,68,68,0.3)' : 'rgba(2,132,199,0.25)'}; display: flex; align-items: center; justify-content: center;">
+                  <span style="font-size: 9px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace;">${pct}%</span>
+                </div>
+                <span style="font-size: 10.5px; font-weight: ${isLast ? '900' : '700'}; color: ${isLast ? '#C5161D' : '#0F172A'};">${s.m}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- 4 Process Drivers -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #1E3A8A; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 3px 6px; border-radius: 6px; text-align: center;">🔧 Tool &amp; Die Optimization</div>
+          <div style="font-size: 10px; font-weight: 700; color: #065F46; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 3px 6px; border-radius: 6px; text-align: center;">♻️ Scrap &amp; Material Recovery</div>
+          <div style="font-size: 10px; font-weight: 700; color: #78350F; background: #FFFBEB; border: 1px solid #FDE68A; padding: 3px 6px; border-radius: 6px; text-align: center;">⚡ Cycle Time Compression</div>
+          <div style="font-size: 10px; font-weight: 700; color: #701A75; background: #FDF4FF; border: 1px solid #F5D0FE; padding: 3px 6px; border-radius: 6px; text-align: center;">🧪 Material &amp; Chemical Trial</div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
+        <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
+        <div class="flex items-center gap-4 text-slate-500">
+          <span>🏆 Continuous Improvement</span>
+          <span>&bull;</span>
+          <span>💡 A Smarter Tomorrow</span>
+        </div>
+        <div class="text-red-600 font-mono font-bold">${monthUpper}</div>
+      </div>
+
+    </div>`;
+  },
+
+  /**
+   * Renders Final Summary Report Slide (Dashboard Color Card Pattern)
+   */
+  renderFinalSummaryDashboardSlide(month = "SEPTEMBER 2026", data = null) {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    
+    // Resolve tasks list
+    let tasksList = (data && (data.slides || data.tasks));
+    if (!tasksList && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
+    }
+    tasksList = tasksList || [];
+
+    let processCount = 0;
+    let toolsCount = 0;
+    let partsCount = 0;
+    let costCount = 0;
+    let manpowerCount = 0;
+    let bomCount = 0;
+    let completedProjCount = 0;
+    let ongoingProjCount = 0;
+    let totalPoints = 0;
+
+    tasksList.forEach(t => {
+      totalPoints += (t.task_point || 0);
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
+        else ongoingProjCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    const cards = [
+      { val: `${processCount}`, label: "Process Developed", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedProjCount}`, label: "Completed Projects", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
+
+    return `
+    <div class="walton-dashboard-slide walton-final-summary-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF;">
+      
+      <!-- TOP HEADER BAR -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 flex-shrink-0">
+            <svg viewBox="0 0 40 40" fill="none" class="w-full h-full">
+              <path d="M20 2L38 20L20 38L2 20Z" fill="#C5161D"/>
+              <path d="M20 2L38 20L20 20Z" fill="#E11D48"/>
+              <path d="M2 20L20 20L20 38Z" fill="#991B1B"/>
+              <path d="M20 20L38 20L20 38Z" fill="#B91C1C"/>
+              <path d="M20 7L33 20L20 33L7 20Z" fill="#FFFFFF" fill-opacity="0.25"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0F172A; letter-spacing: 0.04em;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748B; letter-spacing: 0.08em;">SMALL CHANGES</div>
+          <div style="font-size: 17px; font-weight: 900; color: #C5161D; line-height: 1; letter-spacing: 0.02em;">BIG IMPACT</div>
+        </div>
+      </div>
+
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span style="background: #FEE2E2; color: #C5161D; border: 1px solid #FCA5A5; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          MONTHLY DELIVERABLES SUMMARY &bull; EXECUTIVE AUDIT
+        </span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Comprehensive Deliverables &amp; Impact Summary (${monthUpper})
+        </h2>
+      </div>
+
+      <!-- 8 VIBRANT DASHBOARD COLOR CARDS (DASHBOARD PATTERN) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; flex: 1; min-height: 220px; align-items: stretch; margin: 4px 0 8px 0;">
+        ${cards.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 32px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 18px; opacity: 0.9;">${k.icon}</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 800; color: ${k.labelColor}; margin-top: 5px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 3px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">Status: Verified 100%</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- OPERATIONAL AUDIT FOOTER BANNER -->
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px;">✅</span>
+          <span style="font-size: 11px; font-weight: 700; color: #334155;">Plant Audit Verified: <strong>${tasksList.length} Tasks Executed</strong> (${totalPoints} Total Task Points)</span>
+        </div>
+        <div style="font-size: 11px; font-weight: 800; color: #047857; font-family: 'JetBrains Mono', monospace;">
+          Realized Savings: ${yearlySavings}/Year
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
+        <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
+        <div class="flex items-center gap-4 text-slate-500">
+          <span>🏆 Continuous Improvement</span>
+          <span>&bull;</span>
+          <span>💡 A Smarter Tomorrow</span>
+        </div>
+        <div class="text-red-600 font-mono font-bold">${monthUpper}</div>
+      </div>
+
+    </div>`;
+  },
+
+  /**
+   * Renders Thank You / Closing Slide
+   */
+  renderThankYouSlide(month = "SEPTEMBER 2026") {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    return `
+    <div class="walton-thank-you-slide bg-slate-900 relative overflow-hidden rounded-xl shadow-2xl border border-slate-800" 
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 36px 44px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(145deg, #07172B 0%, #0B2038 50%, #021226 100%);">
+      
+      <!-- Top Subtle Bar -->
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 flex-shrink-0">
+            <svg viewBox="0 0 40 40" fill="none" class="w-full h-full">
+              <path d="M20 2L38 20L20 38L2 20Z" fill="#C5161D"/>
+              <path d="M20 2L38 20L20 20Z" fill="#E11D48"/>
+              <path d="M2 20L20 20L20 38Z" fill="#991B1B"/>
+              <path d="M20 20L38 20L20 38Z" fill="#B91C1C"/>
+              <path d="M20 7L33 20L20 33L7 20Z" fill="#FFFFFF" fill-opacity="0.35"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.05em;">WALTON Hi-Tech Industries PLC</div>
+            <div style="font-size: 9px; font-weight: 700; color: #94A3B8; letter-spacing: 0.15em;">PROCESS DEVELOPMENT DEPARTMENT</div>
+          </div>
+        </div>
+        <div class="px-3.5 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-mono font-bold text-white">
+          ${monthUpper}
+        </div>
+      </div>
+
+      <!-- Center Stage: Grand Thank You -->
+      <div class="flex-1 flex flex-col items-center justify-center text-center my-auto py-4">
+        <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-2xl mb-4 border border-white/20">
+          <span style="font-size: 38px;">💎</span>
+        </div>
+        <h1 style="font-size: 54px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.04em; margin: 0; line-height: 1.1; text-shadow: 0 4px 18px rgba(0,0,0,0.5);">
+          THANK YOU
+        </h1>
+        <div style="font-size: 16px; font-weight: 800; color: #F97316; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 10px;">
+          SMALL CHANGES &bull; BIG IMPACT
+        </div>
+        <p style="font-size: 13px; font-weight: 500; color: #94A3B8; max-width: 520px; margin: 12px auto 0 auto; line-height: 1.5;">
+          Open for Technical Discussions, Feedback &amp; Strategic Suggestions for Plant-Wide Process Improvements.
+        </p>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-medium text-slate-400 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <span>📍 Chandra, Gazipur, Bangladesh</span>
+          <span>&bull;</span>
+          <span>Continuous Innovation</span>
+        </div>
+        <div class="text-white/80 font-mono font-bold">
+          Process Engineering Excellence
+        </div>
       </div>
 
     </div>`;
@@ -2682,80 +3041,80 @@ const SlideLayoutEngine = {
   },
 
   /**
-   * Pattern 2: Industrial Innovation Blue Dashboard Slide
+   * Pattern 2: Industrial Innovation Blue Overview Slide (Slide 2)
    */
-  renderIndustrialBlueDashboardSlide(month = "SEPTEMBER 2026", data = null) {
+  renderIndustrialBlueOverviewSlide(month = "SEPTEMBER 2026", data = null) {
     const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
-    
-    let savings = (data && data.monthlySavings);
-    let currentImpact = (data && data.currentImpact);
-    let currentMonthLabel = (data && data.currentMonthLabel) || monthUpper;
-    let yearlyImpact = (data && data.yearlyImpact);
-
-    if (!savings || !currentImpact || !yearlyImpact) {
-      if (typeof CostSavingTracker !== 'undefined') {
-        const ct = CostSavingTracker.calculate([], month);
-        savings = savings || ct.monthlySavings || ct.monthlySavingsTable;
-        currentImpact = currentImpact || ct.currentImpact || ct.displayMonthlySaving;
-        yearlyImpact = yearlyImpact || ct.yearlyImpact || ct.displayCumulativeYTD;
-      }
+    let tasksList = (data && (data.slides || data.tasks)) || [];
+    if (!tasksList.length && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
     }
 
-    if (!Array.isArray(savings)) {
-      savings = [
-        { m: "April", val: "BDT 0" },
-        { m: "May", val: "BDT 0" },
-        { m: "June", val: "BDT 0" },
-        { m: "July", val: "BDT 0" },
-        { m: "August", val: "BDT 0" },
-        { m: "September", val: "BDT 0" }
-      ];
-      currentImpact = currentImpact || "0 TK";
-      yearlyImpact = yearlyImpact || "0 TK";
-    }
+    const totalTasks = tasksList.length;
+    const reportTasks = tasksList.filter(t => t.monthly_report === 'YES').length;
+    const internalTasks = totalTasks - reportTasks;
 
-    let kpis = (data && data.kpis);
-    if (!kpis) {
-      let tasksList = (data && (data.slides || data.tasks)) || [];
-      let processCount = 0, toolsCount = 0, partsCount = 0, costCount = 0, manpowerCount = 0, bomCount = 0, completedCount = 0, ongoingCount = 0;
+    let processCount = 0, toolsCount = 0, partsCount = 0, costCount = 0, manpowerCount = 0, bomCount = 0, completedCount = 0, ongoingCount = 0;
+    const engineersSet = new Set();
 
-      tasksList.forEach(t => {
-        const cat = (t.category || '').toLowerCase();
-        const title = (t.slide_title || t.task_name || '').toLowerCase();
-        const status = (t.status || '').toLowerCase();
+    tasksList.forEach(t => {
+      const eng = (t.concern_engineer || t.concern || '').trim();
+      if (eng) engineersSet.add(eng);
 
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedCount++;
+        else ongoingCount++;
+      } else {
         if (cat.includes('process') || title.includes('process')) processCount++;
         if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
         if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
         if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
         if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
         if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
 
-        if (status.includes('complete') || status.includes('done')) {
-          completedCount++;
-        } else {
-          ongoingCount++;
-        }
-      });
-
-      kpis = [
-        { val: `${processCount}`, label: "Process Developed", note: null },
-        { val: `${toolsCount}`, label: "Tools Developed", note: null },
-        { val: `${partsCount}`, label: "Parts Developed", note: null },
-        { val: `${costCount}`, label: "Cost Optimisation", note: (yearlyImpact && yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null) },
-        { val: `${manpowerCount}`, label: "Manpower Optimization", note: null },
-        { val: `${bomCount}`, label: "BOM Verification", note: null },
-        { val: `${completedCount}`, label: "Completed Projects", note: null },
-        { val: `${ongoingCount}`, label: "New Projects / Ongoing", note: null }
-      ];
+    let yearlySavings = "BDT 0";
+    let monthlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+      monthlySavings = ct.displayMonthlySaving || "BDT 0";
     }
 
+    const heroKpis = [
+      { val: `${totalTasks}`, label: "Total Tasks", sub: `Report: ${reportTasks} | Internal: ${internalTasks}`, icon: "📋", bg: "linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%)", border: "#2563EB", textColor: "#FFFFFF" },
+      { val: `${completedCount + ongoingCount}`, label: "Strategic Projects", sub: `Done: ${completedCount} | Active: ${ongoingCount}`, icon: "🚀", bg: "linear-gradient(135deg, #0369A1 0%, #0284C7 100%)", border: "#38BDF8", textColor: "#FFFFFF" },
+      { val: `${engineersSet.size || 8}`, label: "Active Engineers", sub: "Line Integration", icon: "👥", bg: "linear-gradient(135deg, #065F46 0%, #059669 100%)", border: "#34D399", textColor: "#FFFFFF" },
+      { val: yearlySavings, label: "Realized Savings", sub: `Monthly: ${monthlySavings}`, icon: "💰", bg: "linear-gradient(135deg, #047857 0%, #0D9488 100%)", border: "#14B8A6", textColor: "#FFFFFF" }
+    ];
+
+    const categoryGrid = [
+      { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", note: `Cost: ${yearlySavings}/Yr`, icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", note: "Cycle Time & Line Balance", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", note: "Material Confirmations", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedCount}`, label: "Completed Projects", note: "Commissioned", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
+
     return `
-    <div class="walton-dashboard-slide walton-blue-dashboard bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
-         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 25px 40px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="walton-dashboard-slide walton-blue-dashboard walton-blue-overview bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between;">
       
       <!-- HEADER -->
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 flex-shrink-0">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-shrink-0">
         <div class="flex items-center gap-3">
           <svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="flex-shrink-0">
             <polygon points="20,2 38,20 20,20" fill="#0284C7" />
@@ -2764,116 +3123,255 @@ const SlideLayoutEngine = {
             <polygon points="20,38 38,20 20,20" fill="#38BDF8" />
           </svg>
           <div>
-            <div style="font-size: 13px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT</div>
             <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
           </div>
         </div>
-
-        <div class="px-4 py-1.5 rounded-full bg-[#0052CC] text-white font-black text-xs uppercase tracking-wider shadow-sm">
-          AC PRODUCT DASHBOARD
-        </div>
-
         <div class="text-right">
           <div style="font-size: 9.5px; font-weight: 700; color: #64748B;">CONTINUOUS IMPROVEMENT</div>
-          <div style="font-size: 16px; font-weight: 900; color: #0052CC; line-height: 1;">FOR BETTER PRODUCTION</div>
+          <div style="font-size: 17px; font-weight: 900; color: #0052CC; line-height: 1;">FOR BETTER PRODUCTION</div>
         </div>
       </div>
 
-      <!-- UPPER ROW: SAVINGS TABLE + FINANCIAL CARDS -->
-      <div class="grid grid-cols-12 gap-5 my-2 flex-shrink-0" style="height: 175px;">
-        <!-- Left Table: Monthly Cost Saving (5 cols) -->
-        <div class="col-span-5 bg-white border border-sky-200 rounded-2xl overflow-hidden flex flex-col justify-between shadow-sm">
-          <div class="bg-[#0052CC] text-white px-3.5 py-1.5 flex items-center justify-between text-xs font-extrabold flex-shrink-0">
-            <span>Month</span>
-            <span>Impact (BDT)</span>
-          </div>
-          <div class="divide-y divide-sky-100 overflow-y-auto flex-1 text-xs">
-            ${savings.map((s, idx) => `
-              <div class="flex items-center justify-between px-3.5 py-1.5 ${idx % 2 === 0 ? 'bg-white' : 'bg-sky-50/30'}">
-                <span class="font-medium text-slate-700">${s.m}</span>
-                <span class="font-bold text-slate-900 font-mono">${s.val}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <!-- Center Card: Monthly Financial Impact (Sunset Orange Gradient - High Contrast) -->
-        <div class="col-span-3 lg:col-span-3 flex flex-col justify-between p-4 rounded-2xl shadow-md text-white"
-             style="background: linear-gradient(135deg, #EA580C 0%, #F59E0B 100%); box-shadow: 0 4px 14px rgba(234,88,12,0.22);">
-          <div>
-            <div class="text-[11px] font-mono font-black uppercase tracking-wide flex items-center justify-between">
-              <span style="background: #FFFFFF; color: #9A3412; padding: 3px 10px; border-radius: 9999px; font-weight: 900; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">🪙 ${currentMonthLabel.toUpperCase()}</span>
-              <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 3px 8px; border-radius: 9999px; font-size: 9.5px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25);">MONTHLY SAVINGS</span>
-            </div>
-            <div class="text-2xl lg:text-3xl font-black text-white mt-2 font-mono tracking-tight leading-none" style="text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-              ${currentImpact}
-            </div>
-          </div>
-          <div class="text-xs font-semibold text-white/95 mt-2">
-            Monthly Financial Impact<br>
-            <span class="text-[10px] text-amber-100 font-medium font-mono">Plant-wide Optimization (100% Realized)</span>
-          </div>
-        </div>
-
-        <!-- Right Card: Yearly Impact (Emerald / Teal Gradient - High Contrast) -->
-        <div class="col-span-4 lg:col-span-4 flex flex-col justify-between p-4 rounded-2xl shadow-md text-white"
-             style="background: linear-gradient(135deg, #059669 0%, #0D9488 100%); box-shadow: 0 4px 14px rgba(5,150,105,0.22);">
-          <div>
-            <div class="text-[11px] font-mono font-black uppercase tracking-wide flex items-center justify-between">
-              <span style="background: #FFFFFF; color: #065F46; padding: 3px 10px; border-radius: 9999px; font-weight: 900; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">📈 YEARLY IMPACT (FY 26-27)</span>
-              <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 3px 8px; border-radius: 9999px; font-size: 9.5px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25);">CUMULATIVE YTD</span>
-            </div>
-            <div class="text-2xl lg:text-3xl font-black text-white mt-2 font-mono tracking-tight leading-none" style="text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-              ${yearlyImpact}
-            </div>
-          </div>
-          <div class="text-xs font-semibold text-white/95 mt-2">
-            Cumulative Realized Savings<br>
-            <span class="text-[10px] text-emerald-100 font-medium font-mono">Direct Process Engineering Value Add</span>
-          </div>
-        </div>
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span style="background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          OPERATIONS CONTROL &bull; EXECUTIVE OVERVIEW
+        </span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Plant Engineering Operations &amp; Work Distribution (${monthUpper})
+        </h2>
       </div>
 
-      <!-- LOWER ROW: 8 COLORFUL CORE KPI CARDS (4x2 Grid) -->
-      <div class="grid grid-cols-4 gap-3 my-1 flex-1 items-stretch">
-        ${(() => {
-          const kpiPalettes = [
-            { bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A', shadow: 'rgba(59,130,246,0.14)', icon: '⚙️' },
-            { bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81', shadow: 'rgba(99,102,241,0.14)', icon: '🔧' },
-            { bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B', shadow: 'rgba(16,185,129,0.14)', icon: '🔩' },
-            { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F', shadow: 'rgba(245,158,11,0.14)', icon: '💰' },
-            { bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87', shadow: 'rgba(168,85,247,0.14)', icon: '👥' },
-            { bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337', shadow: 'rgba(244,63,94,0.14)', icon: '📋' },
-            { bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D', shadow: 'rgba(239,68,68,0.16)', icon: '🏆' },
-            { bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63', shadow: 'rgba(6,182,212,0.14)', icon: '🚀' }
-          ];
-          return kpis.map((k, idx) => {
-            const pal = kpiPalettes[idx % kpiPalettes.length];
-            return `
-            <div style="background: ${pal.bg}; border: 1.5px solid ${pal.border}; border-radius: 12px; padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 3px 8px ${pal.shadow}; position: relative; overflow: hidden;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="font-size: 32px; font-weight: 900; color: ${pal.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
-                <span style="font-size: 16px; opacity: 0.85;">${pal.icon}</span>
-              </div>
-              <div style="font-size: 13px; font-weight: 800; color: ${pal.labelColor}; margin-top: 5px; line-height: 1.2;">${k.label}</div>
-              ${k.note ? `<div style="font-size: 10.5px; font-weight: 800; color: ${pal.valColor}; margin-top: 3px; line-height: 1.2; background: rgba(255,255,255,0.75); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>` : ''}
+      <!-- 4 TOP HERO OPERATIONAL METRIC CARDS -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 2px 0 8px 0; flex-shrink: 0;">
+        ${heroKpis.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 16px; color: ${k.textColor}; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.4px;">${k.label}</span>
+              <span style="font-size: 15px;">${k.icon}</span>
             </div>
-            `;
-          }).join('');
-        })()}
+            <div style="font-size: 28px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1.1; margin: 4px 0;">${k.val}</div>
+            <div style="font-size: 10px; font-weight: 700; opacity: 0.85; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 6px; width: fit-content;">${k.sub}</div>
+          </div>
+        `).join('')}
       </div>
 
-      <!-- FOOTER (PROCESS DEVELOPMENT DEPARTMENT ONLY - 2 TAGLINES) -->
+      <!-- CATEGORY WORK DISTRIBUTION (8 COLORFUL PROCESS PILLARS) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch;">
+        ${categoryGrid.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 26px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 15px; opacity: 0.9;">${k.icon}</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 800; color: ${k.labelColor}; margin-top: 4px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 2px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- FOOTER -->
       <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
         <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
         <div class="flex items-center gap-4 text-slate-500">
           <span>🏆 Continuous Improvement</span>
-          <span>•</span>
+          <span>&bull;</span>
           <span>💡 A Smarter Tomorrow</span>
         </div>
         <div class="text-[#0052CC] font-mono font-bold">${monthUpper}</div>
       </div>
 
+    </div>`;
+  },
+
+  /**
+   * Pattern 2: Industrial Innovation Blue Dynamic Cost Saving Dashboard Slide (Slide 3)
+   */
+  renderIndustrialBlueDashboardSlide(month = "SEPTEMBER 2026", data = null) {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    
+    // Dynamic Rolling 6-Month Data Calculation
+    let rolling = null;
+    if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.getRolling6Months) {
+      rolling = CostSavingTracker.getRolling6Months(month);
+    }
+
+    let savings = [];
+    let currentImpact = "BDT 0";
+    let yearlyImpact = "BDT 0";
+    let rollingTotalStr = "BDT 0";
+
+    if (rolling && Array.isArray(rolling.months)) {
+      savings = rolling.months.map(m => ({ m: m.shortLabel, val: m.displayAmount, amount: m.amount || 0 }));
+      rollingTotalStr = rolling.displayTotal || "BDT 0";
+      currentImpact = rolling.displayCurrentMonth || "BDT 0";
+    }
+
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlyImpact = ct.displayCumulativeYTD || yearlyImpact;
+      if (currentImpact === "BDT 0") currentImpact = ct.displayMonthlySaving || "BDT 0";
+      if (yearlyImpact === "BDT 0") yearlyImpact = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    if (savings.length === 0) {
+      savings = [
+        { m: "Apr 26", val: "BDT 0", amount: 0 },
+        { m: "May 26", val: "BDT 0", amount: 0 },
+        { m: "Jun 26", val: "BDT 0", amount: 0 },
+        { m: "Jul 26", val: "BDT 0", amount: 0 },
+        { m: "Aug 26", val: "BDT 0", amount: 0 },
+        { m: "Sep 26", val: "BDT 0", amount: 0 }
+      ];
+    }
+
+    const maxAmount = Math.max(...savings.map(s => s.amount || 0), 1000);
+
+    return `
+    <div class="walton-dashboard-slide walton-blue-dashboard bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between;">
+      
+      <!-- HEADER -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="flex-shrink-0">
+            <polygon points="20,2 38,20 20,20" fill="#0284C7" />
+            <polygon points="2,20 20,2 20,20" fill="#2563EB" />
+            <polygon points="2,20 20,38 20,20" fill="#1D4ED8" />
+            <polygon points="20,38 38,20 20,20" fill="#38BDF8" />
+          </svg>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
+          </div>
+        </div>
+
+        <div class="text-right">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748B;">CONTINUOUS IMPROVEMENT</div>
+          <div style="font-size: 17px; font-weight: 900; color: #0052CC; line-height: 1;">FOR BETTER PRODUCTION</div>
+        </div>
+      </div>
+
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          FINANCIAL PERFORMANCE &bull; COST OPTIMIZATION <!-- AC Product Dashboard -->
+        </span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Rolling 6-Month Realized Cost Savings &amp; Financial Impact
+        </h2>
+      </div>
+
+      <!-- UPPER ROW: SAVINGS TABLE + FINANCIAL CARDS -->
+      <div style="display: grid; grid-template-columns: 4.4fr 3.8fr 3.8fr; gap: 14px; margin: 2px 0 8px 0; min-height: 165px; align-items: stretch; flex: 1;">
+        
+        <!-- Left Table: Monthly Cost Saving -->
+        <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+          <div style="background: #0052CC; color: #FFFFFF; padding: 7px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 800; letter-spacing: 0.5px; flex-shrink: 0;">
+            <span>Rolling 6-Month Calendar</span>
+            <span>Impact (BDT)</span>
+          </div>
+          <div style="display: flex; flex-direction: column; justify-content: space-around; flex: 1; padding: 1px 0;">
+            ${savings.map((s, idx) => {
+              const isCurrent = (idx === savings.length - 1);
+              return `
+              <div style="padding: 4.5px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #334155; border-bottom: 1px solid #F1F5F9; background: ${isCurrent ? '#EFF6FF' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')};">
+                <span style="${isCurrent ? 'font-weight: 800; color: #0052CC;' : ''}">${s.m} ${isCurrent ? '★ (Selected)' : ''}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isCurrent ? '#0052CC' : '#0F172A'};">${s.val}</span>
+              </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="background: #F1F5F9; border-top: 1.5px solid #CBD5E1; padding: 6px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 900; color: #0F172A;">
+            <span>Total 6-Month Savings:</span>
+            <span style="font-family: 'JetBrains Mono', monospace; color: #047857;">${rollingTotalStr}</span>
+          </div>
+        </div>
+
+        <!-- Center Card: Monthly Financial Impact -->
+        <div style="background: linear-gradient(135deg, #EA580C 0%, #F59E0B 100%); border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(234,88,12,0.22); color: #FFFFFF;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="background: #FFFFFF; color: #9A3412; padding: 3px 10px; border-radius: 9999px; font-size: 10.5px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 4px;">🪙 ${monthUpper}</span>
+            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 2.5px 8px; border-radius: 9999px; font-size: 9px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">MONTHLY SAVINGS</span>
+          </div>
+          <div style="margin: 4px 0;">
+            <div style="font-size: 34px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              ${currentImpact}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Monthly Financial Impact</div>
+            <div style="font-size: 11px; font-weight: 700; color: #FFF7ED; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Plant-wide Optimization (100% Realized)</div>
+          </div>
+        </div>
+
+        <!-- Right Card: Yearly Cumulative Impact -->
+        <div style="background: linear-gradient(135deg, #059669 0%, #0D9488 100%); border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 14px rgba(5,150,105,0.22); color: #FFFFFF;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="background: #FFFFFF; color: #065F46; padding: 3px 10px; border-radius: 9999px; font-size: 10.5px; font-weight: 900; font-family: 'JetBrains Mono', monospace; box-shadow: 0 2px 5px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 4px;">📈 YEARLY IMPACT (FY 26-27)</span>
+            <span style="background: rgba(0,0,0,0.25); color: #FFFFFF; padding: 2.5px 8px; border-radius: 9999px; font-size: 9px; font-weight: 800; border: 1px solid rgba(255,255,255,0.25); letter-spacing: 0.5px;">CUMULATIVE YTD</span>
+          </div>
+          <div style="margin: 4px 0;">
+            <div style="font-size: 34px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; line-height: 1.05; letter-spacing: -0.5px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+              ${yearlyImpact}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #FFFFFF; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25);">Cumulative Realized Savings</div>
+            <div style="font-size: 11px; font-weight: 700; color: #F0FDF4; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Direct Process Engineering Value Add</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- LOWER SECTION: DYNAMIC 6-MONTH TRAJECTORY & VALUE CREATION PILLARS -->
+      <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: space-between; flex: 1; min-height: 155px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 14px;">📊</span>
+            <span style="font-size: 12px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Rolling 6-Month Savings Trajectory &amp; Trend</span>
+          </div>
+          <span style="font-size: 10.5px; font-weight: 700; color: #047857; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 2px 10px; border-radius: 9999px;">Verified Accounting Savings</span>
+        </div>
+
+        <!-- 6-Month Visual Bar Chart -->
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-items: flex-end; flex: 1; padding: 6px 10px 4px 10px; border-bottom: 1px solid #E2E8F0;">
+          ${savings.map((s, idx) => {
+            const isLast = idx === savings.length - 1;
+            const pct = Math.max(16, Math.round(((s.amount || 0) / maxAmount) * 100));
+            return `
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px;">
+                <span style="font-size: 10px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: ${isLast ? '#0052CC' : '#475569'};">${s.val}</span>
+                <div style="width: 100%; max-width: 52px; height: ${pct}%; min-height: 18px; border-radius: 8px; background: ${isLast ? 'linear-gradient(180deg, #38BDF8 0%, #0052CC 100%)' : 'linear-gradient(180deg, #93C5FD 0%, #2563EB 100%)'}; box-shadow: 0 2px 6px rgba(0,82,204,0.25); display: flex; align-items: center; justify-content: center;">
+                  <span style="font-size: 9px; font-weight: 900; color: #FFFFFF; font-family: 'JetBrains Mono', monospace;">${pct}%</span>
+                </div>
+                <span style="font-size: 10.5px; font-weight: ${isLast ? '900' : '700'}; color: ${isLast ? '#0052CC' : '#0F172A'};">${s.m}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- 4 Process Drivers -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #1E3A8A; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 3px 6px; border-radius: 6px; text-align: center;">🔧 Tool &amp; Die Optimization</div>
+          <div style="font-size: 10px; font-weight: 700; color: #065F46; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 3px 6px; border-radius: 6px; text-align: center;">♻️ Scrap &amp; Material Recovery</div>
+          <div style="font-size: 10px; font-weight: 700; color: #78350F; background: #FFFBEB; border: 1px solid #FDE68A; padding: 3px 6px; border-radius: 6px; text-align: center;">⚡ Cycle Time Compression</div>
+          <div style="font-size: 10px; font-weight: 700; color: #701A75; background: #FDF4FF; border: 1px solid #F5D0FE; padding: 3px 6px; border-radius: 6px; text-align: center;">🧪 Material &amp; Chemical Trial</div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
+        <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
+        <div class="flex items-center gap-4 text-slate-500">
+          <span>🏆 Continuous Improvement</span>
+          <span>&bull;</span>
+          <span>💡 A Smarter Tomorrow</span>
+        </div>
+        <div class="text-[#0052CC] font-mono font-bold">${monthUpper}</div>
+      </div>
     </div>`;
   },
 
@@ -3029,8 +3527,199 @@ const SlideLayoutEngine = {
   },
 
   /**
-   * Renders the complete sequential slide deck (Cover, TOC, Dashboard, Tasks, Top 5 Works)
-   * Supports both: 'walton_executive_crimson' and 'industrial_innovation_blue'
+   * Pattern 2: Industrial Innovation Blue Final Summary Report Slide
+   */
+  renderIndustrialBlueFinalSummarySlide(month = "SEPTEMBER 2026", data = null) {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    let tasksList = (data && (data.slides || data.tasks)) || [];
+    if (!tasksList.length && typeof MonthWorkbookManager !== 'undefined') {
+      try {
+        const mgr = new MonthWorkbookManager();
+        tasksList = mgr.getTasksForMonth(month);
+      } catch(e) {}
+    }
+
+    let processCount = 0, toolsCount = 0, partsCount = 0, costCount = 0, manpowerCount = 0, bomCount = 0, completedCount = 0, ongoingCount = 0, totalPoints = 0;
+
+    tasksList.forEach(t => {
+      totalPoints += (t.task_point || 0);
+      const cat = (t.category || '').toLowerCase();
+      const title = (t.slide_title || t.task_name || '').toLowerCase();
+      const status = (t.status || t.project_status || '').toLowerCase();
+      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+
+      if (isProj || cat.includes('project')) {
+        if (status.includes('complete') || cat.includes('completed project')) completedCount++;
+        else ongoingCount++;
+      } else {
+        if (cat.includes('process') || title.includes('process')) processCount++;
+        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
+        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
+        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
+        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
+        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+      }
+    });
+
+    let yearlySavings = "BDT 0";
+    if (typeof CostSavingTracker !== 'undefined') {
+      const ct = CostSavingTracker.calculate([], month);
+      yearlySavings = ct.displayCumulativeYTD || "BDT 0";
+    }
+
+    const cards = [
+      { val: `${processCount}`, label: "Process Developed", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
+      { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
+      { val: `${partsCount}`, label: "Parts Developed", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
+      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FBBF24', valColor: '#B45309', labelColor: '#78350F' },
+      { val: `${manpowerCount}`, label: "Manpower Optimization", icon: "👥", bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#C084FC', valColor: '#7E22CE', labelColor: '#581C87' },
+      { val: `${bomCount}`, label: "BOM Verification", icon: "📋", bg: 'linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)', border: '#FB7185', valColor: '#BE123C', labelColor: '#881337' },
+      { val: `${completedCount}`, label: "Completed Projects", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
+      { val: `${ongoingCount}`, label: "New Projects / Ongoing", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
+    ];
+
+    return `
+    <div class="walton-dashboard-slide walton-blue-dashboard walton-blue-final-summary bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
+         data-title="AC Product Dashboard"
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 22px 36px 16px 36px; display: flex; flex-direction: column; justify-content: space-between;">
+      
+      <!-- HEADER -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="flex-shrink-0">
+            <polygon points="20,2 38,20 20,20" fill="#0284C7" />
+            <polygon points="2,20 20,2 20,20" fill="#2563EB" />
+            <polygon points="2,20 20,38 20,20" fill="#1D4ED8" />
+            <polygon points="20,38 38,20 20,20" fill="#38BDF8" />
+          </svg>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748B;">CONTINUOUS IMPROVEMENT</div>
+          <div style="font-size: 17px; font-weight: 900; color: #0052CC; line-height: 1;">FOR BETTER PRODUCTION</div>
+        </div>
+      </div>
+
+      <!-- SUBHEADER TITLE BAR -->
+      <div class="flex items-center gap-3 my-1 flex-shrink-0">
+        <span style="background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          MONTHLY DELIVERABLES SUMMARY &bull; EXECUTIVE AUDIT
+        </span>
+        <h2 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0; line-height: 1.2;">
+          Comprehensive Deliverables &amp; Impact Summary (${monthUpper})
+        </h2>
+      </div>
+
+      <!-- 8 VIBRANT DASHBOARD COLOR CARDS -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; flex: 1; min-height: 220px; align-items: stretch; margin: 4px 0 8px 0;">
+        ${cards.map(k => `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="font-size: 32px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
+              <span style="font-size: 18px; opacity: 0.9;">${k.icon}</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 800; color: ${k.labelColor}; margin-top: 5px; line-height: 1.2;">${k.label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 3px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">Status: Verified 100%</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- OPERATIONAL AUDIT FOOTER BANNER -->
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px;">✅</span>
+          <span style="font-size: 11px; font-weight: 700; color: #334155;">Plant Audit Verified: <strong>${tasksList.length} Tasks Executed</strong> (${totalPoints} Total Task Points)</span>
+        </div>
+        <div style="font-size: 11px; font-weight: 800; color: #047857; font-family: 'JetBrains Mono', monospace;">
+          Realized Savings: ${yearlySavings}/Year
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-semibold flex-shrink-0">
+        <div class="font-bold text-[#0F172A] uppercase tracking-wider">⚙ PROCESS DEVELOPMENT DEPARTMENT</div>
+        <div class="flex items-center gap-4 text-slate-500">
+          <span>🏆 Continuous Improvement</span>
+          <span>&bull;</span>
+          <span>💡 A Smarter Tomorrow</span>
+        </div>
+        <div class="text-[#0052CC] font-mono font-bold">${monthUpper}</div>
+      </div>
+
+    </div>`;
+  },
+
+  /**
+   * Pattern 2: Industrial Innovation Blue Thank You Slide
+   */
+  renderIndustrialBlueThankYouSlide(month = "SEPTEMBER 2026") {
+    const monthUpper = (month || "SEPTEMBER 2026").toUpperCase();
+    return `
+    <div class="walton-thank-you-slide walton-blue-thank-you bg-slate-900 relative overflow-hidden rounded-xl shadow-2xl border border-slate-800" 
+         style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 36px 44px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(145deg, #07172B 0%, #002B66 50%, #001A40 100%);">
+      
+      <!-- Top Subtle Bar -->
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" class="flex-shrink-0">
+            <polygon points="20,2 38,20 20,20" fill="#0284C7" />
+            <polygon points="2,20 20,2 20,20" fill="#2563EB" />
+            <polygon points="2,20 20,38 20,20" fill="#1D4ED8" />
+            <polygon points="20,38 38,20 20,20" fill="#38BDF8" />
+          </svg>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.05em;">WALTON Hi-Tech Industries PLC</div>
+            <div style="font-size: 9px; font-weight: 700; color: #94A3B8; letter-spacing: 0.15em;">PROCESS DEVELOPMENT DEPARTMENT</div>
+          </div>
+        </div>
+        <div class="px-3.5 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-mono font-bold text-white">
+          ${monthUpper}
+        </div>
+      </div>
+
+      <!-- Center Stage: Grand Thank You -->
+      <div class="flex-1 flex flex-col items-center justify-center text-center my-auto py-4">
+        <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center shadow-2xl mb-4 border border-white/20">
+          <span style="font-size: 38px;">💎</span>
+        </div>
+        <h1 style="font-size: 54px; font-weight: 900; color: #FFFFFF; letter-spacing: 0.04em; margin: 0; line-height: 1.1; text-shadow: 0 4px 18px rgba(0,0,0,0.5);">
+          THANK YOU
+        </h1>
+        <div style="font-size: 16px; font-weight: 800; color: #38BDF8; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 10px;">
+          CONTINUOUS IMPROVEMENT &bull; BETTER PRODUCTION
+        </div>
+        <p style="font-size: 13px; font-weight: 500; color: #94A3B8; max-width: 520px; margin: 12px auto 0 auto; line-height: 1.5;">
+          Open for Technical Discussions, Feedback &amp; Strategic Suggestions for Plant-Wide Process Improvements.
+        </p>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="pt-3 border-t border-white/10 flex items-center justify-between text-xs font-medium text-slate-400 flex-shrink-0">
+        <div class="flex items-center gap-3">
+          <span>📍 Chandra, Gazipur, Bangladesh</span>
+          <span>&bull;</span>
+          <span>Continuous Innovation</span>
+        </div>
+        <div class="text-white/80 font-mono font-bold">
+          Process Engineering Excellence
+        </div>
+      </div>
+
+    </div>`;
+  },
+
+  /**
+   * Renders the complete sequential slide deck:
+   * Slide 1: Cover Page
+   * Slide 2: Executive Overview / Dashboard Layout (Requirement 8)
+   * Slide 3: Dynamic rolling 6-month Cost Saving table & visualization (Requirement 9)
+   * Slides 4+: Engineer-sequenced Task Slides (Requirement 10)
+   * Then: Ongoing & Completed project slides (Requirement 11)
+   * Then: Final Summary report slide (dashboard color card pattern) (Requirement 11)
+   * Then: Thank You slide (Requirement 11)
    */
   renderDeck(reportData = {}, template = "walton_executive_crimson") {
     const activeTemplate = reportData.template || template || "walton_executive_crimson";
@@ -3038,7 +3727,7 @@ const SlideLayoutEngine = {
     const month = reportData.month || "SEPTEMBER 2026";
     const rawSlides = reportData.slides || [];
 
-    // Order slides: Standard tasks first, followed by Completed Projects & Ongoing Projects right before the final summary slide
+    // Separate standard tasks and projects
     const standardTaskSlides = [];
     const completedProjectSlides = [];
     const ongoingProjectSlides = [];
@@ -3060,42 +3749,87 @@ const SlideLayoutEngine = {
       }
     });
 
-    const taskSlides = [...standardTaskSlides, ...completedProjectSlides, ...ongoingProjectSlides];
-    const deck = [];
-    const totalSlideCount = taskSlides.length + 4; // Cover + TOC + Dashboard + Tasks + Top 5 Works
+    // Engineer-sequenced Task Slides: Sazzad > Rafi > Faiyaz > Abdullah > Emon > Pear > Hashmi > Anam (Requirement 10)
+    let engineerSeq = ['Sazzad', 'Rafi', 'Faiyaz', 'Abdullah', 'Emon', 'Pear', 'Hashmi', 'Anam'];
+    if (typeof SettingsView !== 'undefined' && SettingsView.getMonthlyEngineerSequence) {
+      try {
+        engineerSeq = SettingsView.getMonthlyEngineerSequence();
+      } catch(e) {}
+    } else if (typeof localStorage !== 'undefined') {
+      const customSeq = localStorage.getItem('walton_monthly_engineer_seq');
+      if (customSeq) {
+        try { engineerSeq = JSON.parse(customSeq); } catch(e) {}
+      }
+    }
 
-    // Slide 1: Cover Page (Crimson or Blue)
+    // Group and order standard tasks by engineer sequence
+    const sequencedStandardTasks = [];
+    const matchedTaskIds = new Set();
+
+    engineerSeq.forEach(engName => {
+      const cleanEng = (engName || '').trim().toLowerCase();
+      if (!cleanEng) return;
+      standardTaskSlides.forEach(task => {
+        const tEng = (task.concern_engineer || task.concern || '').toLowerCase();
+        if (!matchedTaskIds.has(task.task_id) && tEng.includes(cleanEng)) {
+          sequencedStandardTasks.push(task);
+          matchedTaskIds.add(task.task_id);
+        }
+      });
+    });
+
+    // Append any remaining tasks not matched by sequence
+    standardTaskSlides.forEach(task => {
+      if (!matchedTaskIds.has(task.task_id)) {
+        sequencedStandardTasks.push(task);
+      }
+    });
+
+    // Sequence: Engineer Task Slides -> Completed Project Slides -> Ongoing Project Slides
+    const taskSlides = [...sequencedStandardTasks, ...completedProjectSlides, ...ongoingProjectSlides];
+    const deck = [];
+    // Total slides: Task slides + 5 (Cover + Executive Overview + Dynamic 6-Month Cost Saving + Final Summary + Thank You)
+    const totalSlideCount = taskSlides.length + 5;
+
+    // Slide 1: Cover Page
     if (isBlue) {
       deck.push(this.renderIndustrialBlueCoverSlide(month));
     } else {
       deck.push(this.renderExecutiveRedCoverSlide(month));
     }
 
-    // Slide 2: Table of Contents (Crimson or Blue)
+    // Slide 2: Executive Overview / Dashboard Layout (Requirement 8)
     if (isBlue) {
-      deck.push(this.renderIndustrialBlueTableOfContentsSlide(month, taskSlides.length));
+      deck.push(this.renderIndustrialBlueOverviewSlide(month, reportData.dashboardData || reportData));
     } else {
-      deck.push(this.renderTableOfContentsSlide(month, taskSlides.length));
+      deck.push(this.renderExecutiveOverviewSlide(month, reportData.dashboardData || reportData));
     }
 
-    // Slide 3: Executive Management Dashboard (Crimson or Blue)
+    // Slide 3: Dynamic rolling 6-month Cost Saving table & visualization (Requirement 9)
     if (isBlue) {
       deck.push(this.renderIndustrialBlueDashboardSlide(month, reportData.dashboardData));
     } else {
       deck.push(this.renderExecutiveDashboardSlide(month, reportData.dashboardData));
     }
 
-    // Slides 4 to N+3: Task Slides (1 Row = 1 Slide, Crimson or Blue)
+    // Slides 4 to N+3: Task Slides (1 Row = 1 Slide) (Requirements 10 & 11)
     taskSlides.forEach((task, idx) => {
       const taskWithTpl = { ...task, template: task.template || activeTemplate };
       deck.push(this.renderTaskSlide(taskWithTpl, idx + 4, totalSlideCount));
     });
 
-    // Slide N+4: Top 5 Works & Projects Summary (Crimson or Blue)
+    // Slide N+4: Final Summary report slide (dashboard color card pattern) (Requirement 11)
     if (isBlue) {
-      deck.push(this.renderIndustrialBlueTopWorksSlide(month, reportData.topWorksData));
+      deck.push(this.renderIndustrialBlueFinalSummarySlide(month, reportData));
     } else {
-      deck.push(this.renderTopWorksSummarySlide(month, reportData.topWorksData));
+      deck.push(this.renderFinalSummaryDashboardSlide(month, reportData));
+    }
+
+    // Slide N+5: Thank You slide (Requirement 11)
+    if (isBlue) {
+      deck.push(this.renderIndustrialBlueThankYouSlide(month));
+    } else {
+      deck.push(this.renderThankYouSlide(month));
     }
 
     return deck;
