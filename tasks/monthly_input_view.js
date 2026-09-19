@@ -315,6 +315,25 @@ const MonthlyInputView = {
     }
   },
 
+  async deleteTask(taskId) {
+    if (!taskId) return;
+    if (!window.appState || !window.appState.workbookMgr) return;
+    const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
+    const taskName = task ? task.task_name : taskId;
+    if (confirm(`Are you sure you want to delete "${taskName}" from ${this.selectedMonth}?`)) {
+      window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+
+      if (window.appState.syncEngine) {
+        await window.appState.syncEngine.syncMonth(this.selectedMonth);
+      }
+
+      await this.render();
+      if (typeof window.showToast === 'function') {
+        window.showToast(`🗑️ Deleted "${taskName}"`, "info");
+      }
+    }
+  },
+
   fillPointDown(fromTaskId, forcedValue = null) {
     // Disabled & removed per user request
     return;

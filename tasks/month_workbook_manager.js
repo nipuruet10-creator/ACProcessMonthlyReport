@@ -635,8 +635,8 @@ class MonthWorkbookManager {
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
 
-        // CRITICAL: If this task was explicitly deleted on this device, NEVER resurrect it!
-        if (deletedIds.includes(rt.task_id)) {
+        // Only suppress on non-authoritative pushes; authoritative cloud state governs all devices
+        if (!isAuthoritative && deletedIds.includes(rt.task_id)) {
           if (localMap.has(rt.task_id)) {
             const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
             if (idx !== -1) {
@@ -721,7 +721,7 @@ class MonthWorkbookManager {
       const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
       if (shouldReconcile) {
         const filtered = localTasks.filter(lt => {
-          if (deletedIds.includes(lt.task_id)) {
+          if (!isAuthoritative && deletedIds.includes(lt.task_id)) {
             return false;
           }
 
@@ -763,6 +763,16 @@ class MonthWorkbookManager {
           const idB = String(b.task_id || '');
           return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
         });
+
+        // If authoritative cloud confirms tasks are active, purge any conflicting local tombstones
+        if (isAuthoritative && deletedIds.length > 0) {
+          try {
+            const cleaned = deletedIds.filter(id => !remoteIdSet.has(id));
+            if (cleaned.length !== deletedIds.length) {
+              localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
+            }
+          } catch (e) {}
+        }
     });
 
     if (anyChanges) {

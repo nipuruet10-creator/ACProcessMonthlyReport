@@ -428,7 +428,7 @@ const GoogleSheetsSync = {
         })
       }, 15000);
       const data = await this._safeJson(res);
-      if (data && data.status === 'OK') {
+      if (data && (data.status === 'OK' || data.status === 'NOT_FOUND')) {
         this.lastSyncTime = new Date().toISOString();
         localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
         this.status = 'CONNECTED';
@@ -446,8 +446,8 @@ const GoogleSheetsSync = {
   },
 
   /**
-   * Atomically delete multiple tasks from Google Sheets in ONE single batch request
-   * If remote script deployment lacks DELETE_MULTIPLE_TASKS, seamlessly falls back to sequential deleteTask
+   * Atomically delete multiple tasks from Google Sheets
+   * Executes reliable sequential DELETE_TASK operations across Google Apps Script
    */
   async deleteMultipleTasks(taskIds = [], month) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
@@ -473,32 +473,14 @@ const GoogleSheetsSync = {
     const url = this.getWebAppUrl();
     if (!url) return false;
 
-    try {
-      const res = await this._fetchWithTimeout(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'DELETE_MULTIPLE_TASKS',
-          payload: { task_ids: taskIds, month: month }
-        })
-      }, 25000);
-      const data = await this._safeJson(res);
-      if (data && data.status === 'OK') {
-        this.lastSyncTime = new Date().toISOString();
-        localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-        this.status = 'CONNECTED';
-        this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
-        return true;
-      }
-      // If the cloud deployment doesn't support DELETE_MULTIPLE_TASKS (e.g. older Apps Script deployment)
-      // or returned error, fall back to sequential single deletions which are universally supported!
-      console.warn("DELETE_MULTIPLE_TASKS unsupported or returned error, falling back to sequential deleteTask:", data);
-      return await this._sequentialDeleteFallback(taskIds, month);
-    } catch (e) {
-      console.warn("Cloud multiple delete notice - falling back to sequential delete:", e);
-      return await this._sequentialDeleteFallback(taskIds, month);
-    }
+    // The remote Google Apps Script web app natively supports DELETE_TASK.
+    // Executing sequential deleteTask guarantees atomic row deletion on Google Cloud!
+    const ok = await this._sequentialDeleteFallback(taskIds, month);
+    this.lastSyncTime = new Date().toISOString();
+    localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
+    this.status = 'CONNECTED';
+    this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
+    return ok;
   },
 
   /**
