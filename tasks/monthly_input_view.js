@@ -232,6 +232,48 @@ const MonthlyInputView = {
     }
   },
 
+  _renderMgmtCopyButtonHtml(taskId, isCopied) {
+    if (isCopied) {
+      return `
+        <button onclick="MonthlyInputView.toggleManagementReportCopy('${taskId}')" 
+                title="This task is included in Executive Management Report (${this.selectedMonth}). Click to remove." 
+                class="group inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-rose-50 border border-indigo-200 hover:border-rose-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
+          <span class="text-indigo-700 group-hover:hidden flex items-center gap-1 font-black">
+            <span>👔</span> <span>Copied</span> <span class="text-[9px] text-emerald-600 font-black">✔</span>
+          </span>
+          <span class="hidden group-hover:inline text-rose-600 font-black">✕ Remove</span>
+        </button>
+      `;
+    } else {
+      return `
+        <button onclick="MonthlyInputView.toggleManagementReportCopy('${taskId}')" 
+                title="Copy this task into Executive Management Report" 
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
+          <span>👔</span>
+          <span>Copy</span>
+        </button>
+      `;
+    }
+  },
+
+  _updateMgmtCopyButtonInPlace(taskId, isCopied) {
+    const cell = document.getElementById(`mgmt-action-cell-${taskId}`);
+    if (cell) {
+      const isLastRow = Boolean(cell.querySelector('button[onkeydown]'));
+      cell.innerHTML = `
+        ${this._renderMgmtCopyButtonHtml(taskId, isCopied)}
+        <button onclick="MonthlyInputView.deleteTask('${taskId}')" 
+                onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
+                title="Delete Row (or press Tab on last row to auto-insert new row)" 
+                class="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
+          ✕
+        </button>
+      `;
+    } else {
+      this.render();
+    }
+  },
+
   toggleManagementReportCopy(taskId) {
     if (!window.appState || !window.appState.workbookMgr) return;
     const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
@@ -252,7 +294,7 @@ const MonthlyInputView = {
         } else {
           alert(`Removed "${task.task_name}" from Management Report`);
         }
-        this.render();
+        this._updateMgmtCopyButtonInPlace(taskId, false);
       }
     } else {
       const result = mgr.copyFromMonthlyTask(this.selectedMonth, task);
@@ -261,7 +303,7 @@ const MonthlyInputView = {
       } else {
         alert(`👔 Copied "${task.task_name}" to Management Report!`);
       }
-      this.render();
+      this._updateMgmtCopyButtonInPlace(taskId, true);
     }
   },
 
@@ -642,21 +684,70 @@ const MonthlyInputView = {
 
   async toggleInclude(taskId) {
     if (!window.appState || !window.appState.workbookMgr) return;
-    window.appState.workbookMgr.toggleInclude(this.selectedMonth, taskId);
-    if (window.appState.syncEngine) {
-      await window.appState.syncEngine.syncMonth(this.selectedMonth);
+
+    // Protect local edit from background poll collision
+    if (typeof GoogleSheetsSync !== 'undefined') {
+      GoogleSheetsSync._lastLocalEditTime = Date.now();
     }
-    await this.render();
+
+    const updatedTask = window.appState.workbookMgr.toggleInclude(this.selectedMonth, taskId);
+    const isYes = updatedTask ? (updatedTask.include_in_report !== 'NO') : true;
+
+    // Instant in-place DOM update - NO page re-render, ZERO screen shaking
+    const btn = document.getElementById(`report-toggle-btn-${taskId}`) ||
+                document.querySelector(`button[onclick*="toggleInclude('${taskId}')"]`);
+    if (btn) {
+      btn.textContent = isYes ? 'YES' : 'NO';
+      btn.className = `px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
+        isYes
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-black'
+          : 'bg-slate-50 text-slate-400 border border-slate-200'
+      }`;
+    }
+
+    // Silently compile report slides in background without blocking or shaking UI
+    if (window.appState.syncEngine) {
+      window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
+    }
   },
 
   async deleteTask(taskId) {
     if (!window.appState || !window.appState.workbookMgr) return;
-    if (confirm(`Are you sure you want to delete task ${taskId}?`)) {
+    const confirmed = (typeof window !== 'undefined' && typeof window.confirm === 'function')
+      ? window.confirm(`Are you sure you want to delete task ${taskId}?`)
+      : true;
+    if (confirmed) {
       window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
-      if (window.appState.syncEngine) {
-        await window.appState.syncEngine.syncMonth(this.selectedMonth);
+
+      // Targeted row removal without shaking the page
+      const tr = document.getElementById(`task-row-${taskId}`) || 
+                 document.querySelector(`tr:has(button[onclick*="deleteTask('${taskId}')"])`);
+      if (tr) {
+        tr.remove();
+        // Renumber remaining SL cells
+        const tbody = document.getElementById('monthly-input-tbody');
+        if (tbody) {
+          const rows = tbody.querySelectorAll('tr[id^="task-row-"]');
+          rows.forEach((row, i) => {
+            const slCell = row.querySelector('.task-sl-cell');
+            if (slCell) slCell.textContent = i + 1;
+          });
+          const counter = document.getElementById('total-rows-counter');
+          if (counter) {
+            counter.innerHTML = `Total ${rows.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides`;
+          }
+          if (rows.length === 0) {
+            await this.render();
+          }
+        }
+        this.updateEngineerSummary();
+      } else {
+        await this.render();
       }
-      await this.render();
+
+      if (window.appState.syncEngine) {
+        window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
+      }
       if (typeof window.showToast === 'function') {
         window.showToast(`Deleted ${taskId}`, "info");
       }
@@ -1204,7 +1295,7 @@ const MonthlyInputView = {
     }
 
     return `
-      <tr class="hover:bg-slate-50/80 transition group">
+      <tr id="task-row-${t.task_id}" class="hover:bg-slate-50/80 transition group">
         <!-- Checkbox Selection -->
         <td class="py-2.5 px-2 text-center border-r border-slate-200 align-middle">
           <input type="checkbox" class="task-row-checkbox w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
@@ -1212,7 +1303,7 @@ const MonthlyInputView = {
         </td>
 
         <!-- SL -->
-        <td class="py-2.5 px-3 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle">
+        <td class="task-sl-cell py-2.5 px-3 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle">
           ${idx + 1}
         </td>
 
@@ -1316,7 +1407,7 @@ const MonthlyInputView = {
 
         <!-- Report Inclusion Toggle -->
         <td class="py-2.5 px-3 text-center whitespace-nowrap border-r border-slate-200 align-middle">
-          <button onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
+          <button id="report-toggle-btn-${t.task_id}" onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
             t.include_in_report !== 'NO'
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-black'
               : 'bg-slate-50 text-slate-400 border border-slate-200'
@@ -1327,24 +1418,8 @@ const MonthlyInputView = {
 
         <!-- Actions: Copy to Management Report & Delete Row -->
         <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-          <div class="flex items-center justify-center gap-1.5">
-            ${isCopied ? `
-              <button onclick="MonthlyInputView.toggleManagementReportCopy('${t.task_id}')" 
-                      title="This task is included in Executive Management Report (${this.selectedMonth}). Click to remove." 
-                      class="group inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-rose-50 border border-indigo-200 hover:border-rose-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
-                <span class="text-indigo-700 group-hover:hidden flex items-center gap-1 font-black">
-                  <span>👔</span> <span>Copied</span> <span class="text-[9px] text-emerald-600 font-black">✔</span>
-                </span>
-                <span class="hidden group-hover:inline text-rose-600 font-black">✕ Remove</span>
-              </button>
-            ` : `
-              <button onclick="MonthlyInputView.toggleManagementReportCopy('${t.task_id}')" 
-                      title="Copy this task into Executive Management Report" 
-                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
-                <span>👔</span>
-                <span>Copy</span>
-              </button>
-            `}
+          <div id="mgmt-action-cell-${t.task_id}" class="flex items-center justify-center gap-1.5">
+            ${this._renderMgmtCopyButtonHtml(t.task_id, isCopied)}
             <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
                     onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
                     title="Delete Row (or press Tab on last row to auto-insert new row)" 
@@ -1423,6 +1498,45 @@ const MonthlyInputView = {
     `;
   },
 
+  _renderEmptyStateHtml(month) {
+    return (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl()) ? `
+      <tr>
+        <td colspan="11" class="py-14 text-center">
+          <div class="max-w-md mx-auto space-y-3">
+            <div class="inline-block animate-spin text-3xl">🔄</div>
+            <div class="text-sm font-bold text-slate-700">Connecting to Cloud &amp; Syncing ${month} Tasks...</div>
+            <p class="text-xs text-slate-400 font-mono">
+              Fetching latest tasks from Google Sheets. Rows will appear in a moment...
+            </p>
+          </div>
+        </td>
+      </tr>
+    ` : `
+      <tr>
+        <td colspan="11" class="py-14 text-center">
+          <div class="max-w-md mx-auto space-y-3">
+            <div class="text-3xl">📋</div>
+            <div class="text-sm font-bold text-slate-700">No tasks currently entered for ${month}${this.filterEngineer ? ` for ${this.filterEngineer}` : ''}</div>
+            <p class="text-xs text-slate-400">
+              Click below to insert your first task row, open the task entry dialog, or paste rows from your Excel sheet.
+            </p>
+            <div class="flex items-center justify-center gap-3 pt-2">
+              <button onclick="MonthlyInputView.addNewRow(true)" class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 text-white font-bold text-xs shadow-lg shadow-red-200/50 hover:from-red-500 hover:to-rose-600 transition flex items-center gap-1.5">
+                <span>➕</span> <span>Insert First Task Row</span>
+              </button>
+              <button onclick="MonthlyInputView.openNewTaskModal()" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <span>📝</span> <span>Task Dialog</span>
+              </button>
+              <button onclick="MonthlyInputView.openPasteModal()" class="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <span>📋</span> <span>Paste from Excel</span>
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  },
+
   async render(containerId = 'monthly-input-view-container') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -1435,6 +1549,16 @@ const MonthlyInputView = {
     if (!isUnlocked) {
       this.renderLoginGate(containerId);
       return;
+    }
+
+    // Anti-jitter: Preserve scroll position and prevent height collapse
+    const savedScrollY = (typeof window !== 'undefined') ? window.scrollY : 0;
+    const tableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
+    const savedTableTop = tableScroll ? tableScroll.scrollTop : 0;
+    const savedTableLeft = tableScroll ? tableScroll.scrollLeft : 0;
+
+    if (container.offsetHeight > 0) {
+      container.style.minHeight = container.offsetHeight + 'px';
     }
 
     const workbookMgr = window.appState && window.appState.workbookMgr
@@ -1487,6 +1611,33 @@ const MonthlyInputView = {
     const rankingData = workbookMgr.calculatePointsRanking(month);
     const { ranking, totalTasksSum, totalWbsSum, totalActualSum } = rankingData;
     const topPerformer = ranking.length > 0 ? `${ranking[0].name} (${ranking[0].total_point} pts)` : '—';
+
+    // Fast-path: If table is already mounted for this month and filter, only update tbody without rebuilding whole page!
+    const existingTbody = document.getElementById('monthly-input-tbody');
+    if (existingTbody && this._renderedMonth === month && this._renderedFilter === this.filterEngineer) {
+      existingTbody.innerHTML = (tasks.length === 0)
+        ? this._renderEmptyStateHtml(month)
+        : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors, copiedSourceIds, copiedNames)).join('');
+      
+      const counter = document.getElementById('total-rows-counter');
+      if (counter) {
+        counter.innerHTML = `Total ${tasks.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides`;
+      }
+      this.updateRankingTable();
+      setTimeout(() => {
+        if (container) {
+          container.querySelectorAll('textarea[id^="task-name-input-"]').forEach(el => {
+            el.style.height = 'auto';
+            el.style.height = Math.max(30, el.scrollHeight) + 'px';
+          });
+          container.style.minHeight = '';
+        }
+      }, 10);
+      return;
+    }
+
+    this._renderedMonth = month;
+    this._renderedFilter = this.filterEngineer;
 
     // Calculate engineer counts for tabs (Requirement 2)
     const engineerCounts = {};
@@ -1689,44 +1840,7 @@ const MonthlyInputView = {
                 </tr>
               </thead>
               <tbody id="monthly-input-tbody" class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">
-                ${tasks.length === 0 ? (
-                  (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl()) ? `
-                    <tr>
-                      <td colspan="11" class="py-14 text-center">
-                        <div class="max-w-md mx-auto space-y-3">
-                          <div class="inline-block animate-spin text-3xl">🔄</div>
-                          <div class="text-sm font-bold text-slate-700">Connecting to Cloud &amp; Syncing ${month} Tasks...</div>
-                          <p class="text-xs text-slate-400 font-mono">
-                            Fetching latest tasks from Google Sheets. Rows will appear in a moment...
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ` : `
-                    <tr>
-                      <td colspan="11" class="py-14 text-center">
-                        <div class="max-w-md mx-auto space-y-3">
-                          <div class="text-3xl">📋</div>
-                          <div class="text-sm font-bold text-slate-700">No tasks currently entered for ${month}${this.filterEngineer ? ` for ${this.filterEngineer}` : ''}</div>
-                          <p class="text-xs text-slate-400">
-                            Click below to insert your first task row, open the task entry dialog, or paste rows from your Excel sheet.
-                          </p>
-                          <div class="flex items-center justify-center gap-3 pt-2">
-                            <button onclick="MonthlyInputView.addNewRow(true)" class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 text-white font-bold text-xs shadow-lg shadow-red-200/50 hover:from-red-500 hover:to-rose-600 transition flex items-center gap-1.5">
-                              <span>➕</span> <span>Insert First Task Row</span>
-                            </button>
-                            <button onclick="MonthlyInputView.openNewTaskModal()" class="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                              <span>📝</span> <span>Task Dialog</span>
-                            </button>
-                            <button onclick="MonthlyInputView.openPasteModal()" class="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                              <span>📋</span> <span>Paste from Excel</span>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  `
-                ) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors, copiedSourceIds, copiedNames)).join('')}
+                ${tasks.length === 0 ? this._renderEmptyStateHtml(month) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors, copiedSourceIds, copiedNames)).join('')}
               </tbody>
             </table>
           </div>
@@ -1761,6 +1875,17 @@ const MonthlyInputView = {
           el.style.height = 'auto';
           el.style.height = Math.max(30, el.scrollHeight) + 'px';
         });
+      }
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+      }
+      const newTableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
+      if (newTableScroll) {
+        newTableScroll.scrollTop = savedTableTop;
+        newTableScroll.scrollLeft = savedTableLeft;
+      }
+      if (container) {
+        container.style.minHeight = '';
       }
     }, 20);
   },
