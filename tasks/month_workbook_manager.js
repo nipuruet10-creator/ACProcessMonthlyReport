@@ -635,8 +635,8 @@ class MonthWorkbookManager {
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
 
-        // Only suppress on non-authoritative pushes; authoritative cloud state governs all devices
-        if (!isAuthoritative && deletedIds.includes(rt.task_id)) {
+        // Always suppress tasks deleted on this device
+        if (deletedIds.includes(rt.task_id)) {
           if (localMap.has(rt.task_id)) {
             const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
             if (idx !== -1) {
@@ -721,28 +721,22 @@ class MonthWorkbookManager {
       const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
       if (shouldReconcile) {
         const filtered = localTasks.filter(lt => {
-          if (!isAuthoritative && deletedIds.includes(lt.task_id)) {
+          if (deletedIds.includes(lt.task_id)) {
             return false;
           }
 
           if (!remoteIdSet.has(lt.task_id)) {
-            // Established task missing from authoritative cloud sheet -> DELETED ON CLOUD!
+            if (!isAuthoritative) {
+              // Partial non-authoritative sync: preserve unlisted tasks
+              return true;
+            }
+            // Authoritative cloud sync: task is absent on Google Sheet!
+            // Only keep if it is a brand-new local draft created within 10s waiting for background push
             const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
-            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 35000 && !lt._syncedToCloud);
+            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 10000 && !lt._syncedToCloud);
             
             if (!isFreshLocalDraft) {
-              return false;
-            }
-
-            // Fresh local draft: push to cloud so other devices get it
-            if (typeof photoManager !== 'undefined' && !lt.photo_1) {
-              const lp = photoManager.getTaskPhotos(lt.task_id);
-              if (lp && (lp.before_photo || lp.photo_1)) {
-                lt.photo_1 = lp.before_photo || lp.photo_1;
-              }
-            }
-            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-              GoogleSheetsSync.pushTask(lt);
+              return false; // Absent on authoritative cloud -> permanently remove locally
             }
             return true;
           }
@@ -757,22 +751,12 @@ class MonthWorkbookManager {
         }
       }
 
-        // Sort tasks consistently by sequential task ID across all devices
-        this.workbooks[norm].sort((a, b) => {
-          const idA = String(a.task_id || '');
-          const idB = String(b.task_id || '');
-          return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        // If authoritative cloud confirms tasks are active, purge any conflicting local tombstones
-        if (isAuthoritative && deletedIds.length > 0) {
-          try {
-            const cleaned = deletedIds.filter(id => !remoteIdSet.has(id));
-            if (cleaned.length !== deletedIds.length) {
-              localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
-            }
-          } catch (e) {}
-        }
+      // Sort tasks consistently by sequential task ID across all devices
+      this.workbooks[norm].sort((a, b) => {
+        const idA = String(a.task_id || '');
+        const idB = String(b.task_id || '');
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
     });
 
     if (anyChanges) {

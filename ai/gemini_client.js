@@ -490,37 +490,78 @@ class GeminiClient {
   }
 
   /**
-   * Generates 3-4 industrial engineering milestone steps for a task
-   * Uses OpenRouter Free API, Gemini, or local fallback
+   * Generates 4-5 industrial engineering milestone breakdown steps for a task
+   * Uses OpenRouter Free API, Gemini, or domain-rich local template fallback
+   * Ensures STRICT numbered format ("1. ... 2. ... 3. ... 4. ... 5. ...") with ZERO AI reasoning leakage
    */
   async generateTaskSteps(taskName = "", category = "") {
+    const cleanName = (taskName || "").trim();
+    if (!cleanName) return "";
+
     const provider = this.getProvider();
+
+    // Helper to sanitize and normalize AI reply into 4-5 numbered steps
+    const sanitizeSteps = (raw) => {
+      if (!raw || typeof raw !== 'string') return "";
+      let s = raw.trim();
+
+      // 1. Remove thinking / reasoning XML tags from reasoning models (e.g. DeepSeek-R1)
+      s = s.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+      // 2. Locate the start of the actual numbered steps (e.g. "1. ")
+      const firstStepMatch = s.search(/\b1[\.\)]\s/);
+      if (firstStepMatch !== -1) {
+        s = s.substring(firstStepMatch);
+      } else {
+        // Strip common conversational filler prefixes
+        s = s.replace(/^(?:The user wants|Here is|Sure|Here are|Okay|Below are|As an engineer|Step[- ]by[- ]step)[\s\S]*?:/i, '').trim();
+      }
+
+      // 3. Remove markdown bold/italics/bullet symbols
+      s = s.replace(/[*_#`]/g, '');
+
+      // 4. Standardize any bullet/number variations e.g. "1) " -> "1. ", "- 1. " -> "1. "
+      s = s.replace(/^\s*[-•*]\s*/gm, '');
+      s = s.replace(/\b(\d+)[\)]\s/g, '$1. ');
+
+      // 5. Convert multiline steps to single spaced string
+      s = s.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // 6. Ensure it has at least 3 numbered points; if not, reject and use template fallback
+      const stepCount = (s.match(/\b\d+\.\s/g) || []).length;
+      if (stepCount < 3) return "";
+
+      return s;
+    };
 
     // 1. Try OpenRouter
     if (provider === "openrouter" && this.getOpenRouterKey()) {
       try {
-        const prompt = `You are a real-world manufacturing plant engineer at Walton AC production line.
-Write 3 to 4 sequential, realistic, concrete engineering milestones as written by a human factory engineer on the floor:
-Task: "${taskName}"
-Category: "${category}"
+        const prompt = `You are an industrial process development engineer at Walton AC factory.
+Task Name: "${cleanName}"
+Category: "${category || "Process development"}"
 
-RULES FOR HUMAN TONE:
-- Write strictly in concise, practical engineering steps.
-- Use natural shop-floor terms: CAD model, fabrication, CNC machining, pneumatic clamping fixture, sensor routing, line trial, cycle time verification, work instruction SOP handover.
-- Do NOT use robotic buzzwords or generic AI phrases.
-- Format strictly as a single clean line: "1. First milestone 2. Second milestone 3. Third milestone 4. Fourth milestone".
-- Zero markdown, no commentary.`;
+INSTRUCTIONS:
+Break down this exact task into 4 to 5 sequential, concrete, shop-floor engineering steps.
+Include specific engineering actions relevant to "${cleanName}" (e.g., CAD design, tooling fabrication, CNC machining, sensor/pneumatic setup, line trial run, cycle time verification, SOP documentation).
+
+STRICT OUTPUT FORMAT:
+- Output ONLY 4 to 5 numbered steps.
+- Format strictly as: "1. [Step 1] 2. [Step 2] 3. [Step 3] 4. [Step 4] 5. [Step 5]".
+- Absolutely NO introductory phrases, NO thinking/reasoning text, NO conversational filler (do NOT say "The user wants...", "Here are the steps...", etc.).
+- Start directly with "1. ".`;
 
         const reply = await this.callOpenRouter([
-          { role: "system", content: "You are an experienced industrial process development engineer at Walton Hi-Tech Industries PLC. Write in clean, authentic, human engineering language." },
+          { role: "system", content: "You are an expert industrial manufacturing process engineer at Walton AC factory. Output strictly 4 to 5 numbered engineering steps. Start immediately with '1. '. Do not write any thoughts, notes, or intros." },
           { role: "user", content: prompt }
-        ], 0.2, 200, false);
+        ], 0.2, 450, false);
 
-        if (reply && reply.trim()) {
-          return reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+        const cleaned = sanitizeSteps(reply);
+        if (cleaned) {
+          return cleaned;
         }
       } catch (err) {
-        console.warn("OpenRouter step generation fallback:", err.message);
+        console.warn("OpenRouter step generation notice:", err.message);
       }
     }
 
@@ -529,20 +570,20 @@ RULES FOR HUMAN TONE:
     if (provider === "gemini" && geminiKey) {
       try {
         const url = `${this.config.API_ENDPOINT}/${this.config.DEFAULT_MODEL}:generateContent?key=${geminiKey}`;
-        const prompt = `You are an industrial process development engineer at Walton AC factory.
-Write 3 to 4 sequential, realistic, concrete engineering milestones as written by a human factory engineer:
-Task: "${taskName}"
-Category: "${category}"
+        const prompt = `You are a manufacturing process development engineer at Walton AC factory.
+Task Name: "${cleanName}"
+Category: "${category || "Process development"}"
 
-Format strictly as a single line: "1. First milestone 2. Second milestone 3. Third milestone 4. Fourth milestone".
-Keep it concise, actionable, and suitable for manufacturing plant execution. Zero markdown.`;
+Break down this task into 4 to 5 sequential, realistic engineering steps directly related to "${cleanName}".
+Format strictly as: "1. Step 1 2. Step 2 3. Step 3 4. Step 4 5. Step 5".
+No intro, no markdown, no filler. Start directly with "1. ".`;
 
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 200 }
+            generationConfig: { temperature: 0.2, maxOutputTokens: 350 }
           })
         });
 
@@ -550,16 +591,19 @@ Keep it concise, actionable, and suitable for manufacturing plant execution. Zer
           const data = await response.json();
           if (data.candidates && data.candidates[0] && data.candidates[0].content) {
             const text = data.candidates[0].content.parts[0].text.trim();
-            return text.replace(/\n+/g, ' ').replace(/\s+/g, ' ');
+            const cleaned = sanitizeSteps(text);
+            if (cleaned) {
+              return cleaned;
+            }
           }
         }
       } catch (err) {
-        console.warn("Gemini step generation fallback:", err.message);
+        console.warn("Gemini step generation notice:", err.message);
       }
     }
 
-    // 3. Deterministic Local Fallback
-    return this.templates.generateEngineeringSteps(taskName, category);
+    // 3. High-Quality Deterministic Local Fallback (Guaranteed 4-5 numbered steps tailored to taskName)
+    return this.templates.generateEngineeringSteps(cleanName, category);
   }
 
   /**

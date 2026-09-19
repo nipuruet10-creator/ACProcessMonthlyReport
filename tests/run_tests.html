@@ -304,13 +304,13 @@
       // AI TASK DETAILS GENERATION ASSERTIONS
       // ----------------------------------------------------
       const foilSteps = PROMPT_TEMPLATES.generateEngineeringSteps("Compressor Jacket Foil Cutting System", "Major Developments");
-      assert("AI Task Steps", "Generates 4 numbered milestone steps for industrial tasks",
-        foilSteps.includes("1.") && foilSteps.includes("2.") && foilSteps.includes("3.") && foilSteps.includes("4."),
+      assert("AI Task Steps", "Generates 4-5 numbered milestone steps for industrial tasks",
+        foilSteps.includes("1.") && foilSteps.includes("2.") && foilSteps.includes("3.") && foilSteps.includes("4.") && foilSteps.includes("5."),
         `Generated: "${foilSteps}"`);
 
       const qrSteps = await geminiClient.generateTaskSteps("Smart QR Scanning System", "Automation");
-      assert("AI Task Steps", "geminiClient.generateTaskSteps resolves domain-accurate steps",
-        qrSteps.includes("1.") && qrSteps.toLowerCase().includes("qr"),
+      assert("AI Task Steps", "geminiClient.generateTaskSteps resolves 4-5 domain-accurate numbered steps without reasoning leakage",
+        qrSteps.includes("1.") && qrSteps.includes("4.") && qrSteps.toLowerCase().includes("qr") && !qrSteps.toLowerCase().includes("the user wants"),
         `Generated: "${qrSteps}"`);
 
       // ----------------------------------------------------

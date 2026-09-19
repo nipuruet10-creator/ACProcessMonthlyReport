@@ -543,7 +543,7 @@ const MonthlyInputView = {
         steps = PROMPT_TEMPLATES.generateEngineeringSteps(taskName, category);
       }
       if (!steps) {
-        steps = "1. Process requirement study & technical design 2. Tooling fabrication & wiring 3. Calibration, safety check & production trial run 4. Handover to production with SOP";
+        steps = "1. Process requirement study & CAD modeling 2. Tooling fabrication, component assembly & wiring 3. Sensor calibration & pneumatic testing 4. Production trial run & cycle time check 5. Final handover to production with work instruction SOP";
       }
 
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { task_details: steps });
