@@ -496,7 +496,7 @@ class MonthWorkbookManager {
         const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
         if (!deleted.includes(taskId)) {
           deleted.push(taskId);
-          if (deleted.length > 200) deleted.shift();
+          if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
           localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
         }
       } catch (e) {}
@@ -523,14 +523,18 @@ class MonthWorkbookManager {
         taskIds.forEach(id => {
           if (!deleted.includes(id)) deleted.push(id);
         });
-        if (deleted.length > 200) deleted.splice(0, deleted.length - 200);
+        if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
         localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
       } catch (e) {}
       this.save();
-      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
-        taskIds.forEach(id => {
-          GoogleSheetsSync.deleteTask(id, m);
-        });
+      if (typeof GoogleSheetsSync !== 'undefined') {
+        if (GoogleSheetsSync.deleteMultipleTasks) {
+          GoogleSheetsSync.deleteMultipleTasks(taskIds, m);
+        } else if (GoogleSheetsSync.deleteTask) {
+          taskIds.forEach(id => {
+            GoogleSheetsSync.deleteTask(id, m);
+          });
+        }
       }
     }
     return { success: true, deletedCount: deletedCount, count: deletedCount };
@@ -605,10 +609,15 @@ class MonthWorkbookManager {
     };
   }
 
-  mergeFromCloud(remoteWorkbooks) {
+  mergeFromCloud(remoteWorkbooks, isAuthoritative = false) {
     if (!remoteWorkbooks || typeof remoteWorkbooks !== 'object') return false;
     let anyChanges = false;
     const months = Object.keys(remoteWorkbooks);
+
+    let deletedIds = [];
+    try {
+      deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+    } catch (e) {}
 
     months.forEach(m => {
       const norm = this.normalizeMonth(m);
@@ -625,6 +634,20 @@ class MonthWorkbookManager {
 
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
+
+        // CRITICAL: If this task was explicitly deleted on this device, NEVER resurrect it!
+        if (deletedIds.includes(rt.task_id)) {
+          if (localMap.has(rt.task_id)) {
+            const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
+            if (idx !== -1) {
+              localTasks.splice(idx, 1);
+              localMap.delete(rt.task_id);
+              anyChanges = true;
+            }
+          }
+          return;
+        }
+
         remoteIdSet.add(rt.task_id);
         rt.month = norm;
         if (!rt.assignee && rt.engineer) rt.assignee = rt.engineer;
@@ -694,51 +717,45 @@ class MonthWorkbookManager {
         }
       });
 
-        // Handle un-synced local tasks and remote deletions safely across multiple devices
-        if (remoteList.length > 0) {
-          let deletedIds = [];
-          try {
-            deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-          } catch (e) {}
-
-          const filtered = localTasks.filter(lt => {
-            if (!remoteIdSet.has(lt.task_id)) {
-              // 1. If explicitly deleted on this device, prune it
-              if (deletedIds.includes(lt.task_id)) {
-                return false;
-              }
-
-              // 2. If this task was previously synced or is an established task (not a brand new local draft),
-              // then it was deleted in the cloud by another user/device! Prune it immediately!
-              const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
-              const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 40000 && !lt._syncedToCloud);
-              
-              if (!isFreshLocalDraft) {
-                // Established task missing from authoritative cloud sheet -> DELETED ON CLOUD!
-                return false;
-              }
-
-              // 3. Brand new local draft created within the last 40 seconds: push to cloud so all devices get it
-              if (typeof photoManager !== 'undefined' && !lt.photo_1) {
-                const lp = photoManager.getTaskPhotos(lt.task_id);
-                if (lp && (lp.before_photo || lp.photo_1)) {
-                  lt.photo_1 = lp.before_photo || lp.photo_1;
-                }
-              }
-              if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-                GoogleSheetsSync.pushTask(lt);
-              }
-              return true;
-            }
-            // Present in remote list: flag as synced to cloud
-            lt._syncedToCloud = true;
-            return true;
-          });
-          if (filtered.length !== localTasks.length) {
-            this.workbooks[norm] = filtered;
-            anyChanges = true;
+      // Handle un-synced local tasks and remote deletions safely across multiple devices
+      const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
+      if (shouldReconcile) {
+        const filtered = localTasks.filter(lt => {
+          if (deletedIds.includes(lt.task_id)) {
+            return false;
           }
+
+          if (!remoteIdSet.has(lt.task_id)) {
+            // Established task missing from authoritative cloud sheet -> DELETED ON CLOUD!
+            const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
+            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 35000 && !lt._syncedToCloud);
+            
+            if (!isFreshLocalDraft) {
+              return false;
+            }
+
+            // Fresh local draft: push to cloud so other devices get it
+            if (typeof photoManager !== 'undefined' && !lt.photo_1) {
+              const lp = photoManager.getTaskPhotos(lt.task_id);
+              if (lp && (lp.before_photo || lp.photo_1)) {
+                lt.photo_1 = lp.before_photo || lp.photo_1;
+              }
+            }
+            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+              GoogleSheetsSync.pushTask(lt);
+            }
+            return true;
+          }
+          // Present in remote list: flag as synced to cloud
+          lt._syncedToCloud = true;
+          return true;
+        });
+
+        if (filtered.length !== localTasks.length) {
+          this.workbooks[norm] = filtered;
+          anyChanges = true;
         }
+      }
 
         // Sort tasks consistently by sequential task ID across all devices
         this.workbooks[norm].sort((a, b) => {

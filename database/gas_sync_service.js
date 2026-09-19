@@ -188,8 +188,23 @@ const GoogleSheetsSync = {
     const url = this.getWebAppUrl();
     if (!url) return;
 
+    let deletedIds = [];
+    try {
+      deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+    } catch (e) {}
+
+    // Discard any pending SYNC_TASK for tasks that have since been deleted
+    const sanitizedQueue = q.filter(item => {
+      if (item.action === 'SYNC_TASK' && item.payload && item.payload.task_id) {
+        if (deletedIds.includes(item.payload.task_id)) {
+          return false;
+        }
+      }
+      return true;
+    });
+
     const remaining = [];
-    for (const item of q) {
+    for (const item of sanitizedQueue) {
       try {
         await this._fetchWithTimeout(url, {
           method: 'POST',
@@ -294,6 +309,14 @@ const GoogleSheetsSync = {
     const url = this.getWebAppUrl();
     if (!url || !task || !task.task_id) return false;
 
+    // NEVER push a task that has been deleted on this device
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (deletedIds.includes(task.task_id)) {
+        return false;
+      }
+    } catch (e) {}
+
     task.last_updated = task.last_updated || new Date().toISOString();
 
     try {
@@ -360,8 +383,27 @@ const GoogleSheetsSync = {
    * Delete a single task from Google Sheets in background
    */
   async deleteTask(taskId, month) {
+    if (!taskId) return false;
+
+    // 1. Immediately record in deleted tombstones
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (!deleted.includes(taskId)) {
+        deleted.push(taskId);
+        if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+      }
+    } catch (e) {}
+
+    // 2. Immediately purge any pending SYNC_TASK for this task from queue
+    try {
+      const q = this.getPendingQueue();
+      const filtered = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && item.payload.task_id === taskId));
+      this.savePendingQueue(filtered);
+    } catch (e) {}
+
     const url = this.getWebAppUrl();
-    if (!url || !taskId) return false;
+    if (!url) return false;
 
     try {
       await this._fetchWithTimeout(url, {
@@ -381,6 +423,56 @@ const GoogleSheetsSync = {
     } catch (e) {
       console.warn("Cloud delete notice - enqueuing retry:", e);
       this.queuePending({ action: 'DELETE_TASK', payload: { task_id: taskId, month: month } });
+      return false;
+    }
+  },
+
+  /**
+   * Atomically delete multiple tasks from Google Sheets in ONE single batch request
+   * Prevents concurrency rate-limiting and guarantees atomic deletion on cloud
+   */
+  async deleteMultipleTasks(taskIds = [], month) {
+    if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
+
+    // 1. Immediately record in deleted tombstones
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      taskIds.forEach(id => {
+        if (!deleted.includes(id)) deleted.push(id);
+      });
+      if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+      localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+    } catch (e) {}
+
+    // 2. Immediately purge any pending SYNC_TASK for these tasks from queue
+    try {
+      const q = this.getPendingQueue();
+      const idSet = new Set(taskIds);
+      const filtered = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && idSet.has(item.payload.task_id)));
+      this.savePendingQueue(filtered);
+    } catch (e) {}
+
+    const url = this.getWebAppUrl();
+    if (!url) return false;
+
+    try {
+      await this._fetchWithTimeout(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'DELETE_MULTIPLE_TASKS',
+          payload: { task_ids: taskIds, month: month }
+        })
+      }, 25000);
+      this.lastSyncTime = new Date().toISOString();
+      localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
+      this.status = 'CONNECTED';
+      this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
+      return true;
+    } catch (e) {
+      console.warn("Cloud multiple delete notice - enqueuing retry:", e);
+      this.queuePending({ action: 'DELETE_MULTIPLE_TASKS', payload: { task_ids: taskIds, month: month } });
       return false;
     }
   },
@@ -518,9 +610,10 @@ const GoogleSheetsSync = {
         const monthEndpoint = url + (url.includes('?') ? '&' : '?') + 'action=GET_MONTH&month=' + encodeURIComponent(activeMonth) + '&_t=' + Date.now();
         const resMonth = await this._fetchWithTimeout(monthEndpoint, { method: 'GET', mode: 'cors' }, 20000);
         const monthData = await this._safeJson(resMonth);
-        if (monthData && monthData.status === 'OK' && Array.isArray(monthData.tasks) && monthData.tasks.length > 0) {
+        if (monthData && monthData.status === 'OK' && Array.isArray(monthData.tasks)) {
           data = {
             status: 'OK',
+            isAuthoritativeMonth: true,
             workbooks: {
               [activeMonth]: monthData.tasks
             }
@@ -566,9 +659,9 @@ const GoogleSheetsSync = {
         this._consecutiveFailures = 0;
         let changed = false;
 
-        // Merge workbooks into MonthWorkbookManager
+        // Merge workbooks into MonthWorkbookManager with authoritative month flag
         if (data.workbooks && window.appState && window.appState.workbookMgr) {
-          changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks) || changed;
+          changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks, Boolean(data.isAuthoritativeMonth)) || changed;
         }
 
         // Merge cost savings into CostSavingTracker across devices

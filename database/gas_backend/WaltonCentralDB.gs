@@ -143,6 +143,10 @@ function doPost(e) {
       result = syncSingleTask(payload);
     } else if (action === 'DELETE_TASK') {
       result = deleteSingleTask(payload.task_id, payload.month);
+    } else if (action === 'DELETE_MULTIPLE_TASKS') {
+      result = deleteMultipleTasks(payload.task_ids, payload.month);
+    } else if (action === 'CREATE_ONLINE_DOC' || action === 'BUILD_SLIDES') {
+      result = createGoogleSlidesPresentation(payload.month, payload.template);
     } else if (action === 'UPLOAD_PHOTO') {
       result = uploadPhotoToDrive(payload);
     } else if (action === 'BULK_PUSH') {
@@ -519,6 +523,76 @@ function deleteSingleTask(taskId, month) {
   }
 
   return { status: 'NOT_FOUND', task_id: taskId };
+}
+
+/**
+ * Atomically delete multiple tasks by task_ids in a single reverse-indexed loop
+ * Prevents index shifting and eliminates API concurrency rate limits
+ */
+function deleteMultipleTasks(taskIds, month) {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return { status: 'OK', deletedCount: 0, message: 'No task IDs provided' };
+  }
+
+  const sheet = getTasksSheet();
+  const data = sheet.getDataRange().getValues();
+  const taskIdCol = 0;
+  const idSet = {};
+  taskIds.forEach(id => {
+    if (id) idSet[String(id).trim()] = true;
+  });
+
+  let deletedCount = 0;
+  // Iterate in reverse from bottom to top so row indices don't shift!
+  for (let r = data.length - 1; r >= 1; r--) {
+    const rowId = String(data[r][taskIdCol]).trim();
+    if (idSet[rowId]) {
+      sheet.deleteRow(r + 1);
+      deletedCount++;
+    }
+  }
+
+  return {
+    status: 'OK',
+    action: 'DELETED_MULTIPLE',
+    deletedCount: deletedCount,
+    month: month,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Automatically create an official Walton Google Slides Presentation on Google Drive
+ */
+function createGoogleSlidesPresentation(month, template) {
+  try {
+    const m = month || 'SEP-2026';
+    const title = 'WALTON AC Process Development Monthly Report - ' + m;
+    const presentation = SlidesApp.create(title);
+    const presentationId = presentation.getId();
+    const presUrl = 'https://docs.google.com/presentation/d/' + presentationId + '/edit';
+
+    try {
+      const file = DriveApp.getFileById(presentationId);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (driveErr) {
+      // Ignored if domain admin prevents public sharing
+    }
+
+    return {
+      status: 'OK',
+      presentationId: presentationId,
+      url: presUrl,
+      title: title,
+      timestamp: new Date().toISOString()
+    };
+  } catch (err) {
+    return {
+      status: 'ERROR',
+      message: err.message,
+      fallbackUrl: 'https://docs.google.com/presentation/u/0/create'
+    };
+  }
 }
 
 /**

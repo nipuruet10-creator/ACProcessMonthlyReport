@@ -606,7 +606,7 @@ const ManagementReportView = {
   openOnlineDocs() {
     const defaultOwner = "nipu.ruet10@gmail.com";
     const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
-    const googleSlidesUrl = localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/';
+    let targetUrl = (localStorage.getItem('walton_google_slides_url') || '').trim();
 
     // Verify authorized email if configured
     if (allowedEmailsStr.trim()) {
@@ -620,8 +620,12 @@ const ManagementReportView = {
       }
     }
 
+    if (!targetUrl || targetUrl === 'https://docs.google.com/presentation/u/0/' || targetUrl === 'https://docs.google.com/presentation/u/0') {
+      targetUrl = 'https://docs.google.com/presentation/u/0/create';
+    }
+
     // Open live Google Presentation in new tab
-    window.open(googleSlidesUrl, '_blank');
+    window.open(targetUrl, '_blank');
   },
 
   async exportPDF() {

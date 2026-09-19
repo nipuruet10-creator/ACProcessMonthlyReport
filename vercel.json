@@ -1,10 +1,7 @@
 {
-  "version": 2,
-  "cleanUrls": true,
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/report/(.*)", "dest": "/index.html" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/report/(.*)", "destination": "/index.html" },
+    { "source": "/report", "destination": "/index.html" }
   ]
 }

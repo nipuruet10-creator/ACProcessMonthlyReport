@@ -49,7 +49,7 @@ const ExportController = {
     const monthSlug = (selectedMonth || "SEP-2026").toLowerCase().replace(/[^a-z0-9]/g, "-");
 
     if (typeof window === 'undefined') {
-      return `/report/${monthSlug}/${patternSlug}`;
+      return `/#/report/${monthSlug}/${patternSlug}`;
     }
 
     if (window.location.protocol === 'file:') {
@@ -57,7 +57,8 @@ const ExportController = {
       return `${base}#/report/${monthSlug}/${patternSlug}`;
     }
 
-    return `${window.location.origin}/report/${monthSlug}/${patternSlug}`;
+    const origin = window.location.origin || '';
+    return `${origin}/#/report/${monthSlug}/${patternSlug}`;
   },
 
   /**
@@ -542,7 +543,10 @@ const ExportController = {
                 </div>
               </div>
               <div class="flex items-center gap-2 w-full sm:w-auto">
-                <button onclick="ExportController.copyOnlineReportUrl('${selectedMonth}')" class="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition flex items-center justify-center gap-1.5 backdrop-blur-sm">
+                <button onclick="ExportController.openOnlineReport('${selectedMonth}', true)" class="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition flex items-center justify-center gap-1.5 backdrop-blur-sm" title="View interactive presentation directly">
+                  <span>⛶</span> <span>View Fullscreen</span>
+                </button>
+                <button onclick="ExportController.copyOnlineReportUrl('${selectedMonth}')" class="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition flex items-center justify-center gap-1.5 backdrop-blur-sm">
                   <span>📋</span> <span>Copy Link</span>
                 </button>
                 <button onclick="ExportController.openOnlineReport('${selectedMonth}')" class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md shadow-indigo-500/30 transition flex items-center justify-center gap-1.5">
@@ -639,11 +643,12 @@ const ExportController = {
 
   /**
    * Opens online cloud presentation link with permission verification
+   * Automatically creates a new presentation document if default
    */
   openOnlineDocs(selectedMonth) {
     const defaultOwner = "nipu.ruet10@gmail.com";
     const allowedEmailsStr = localStorage.getItem('walton_online_docs_emails') || '';
-    const googleSlidesUrl = localStorage.getItem('walton_google_slides_url') || 'https://docs.google.com/presentation/u/0/';
+    let targetUrl = (localStorage.getItem('walton_google_slides_url') || '').trim();
     
     // Check permission if restriction list is configured
     if (allowedEmailsStr.trim()) {
@@ -657,8 +662,14 @@ const ExportController = {
       }
     }
 
-    // Directly open Google Slides presentation in a new tab
-    window.open(googleSlidesUrl, '_blank');
+    // If no custom presentation URL is set, or if set to the generic dashboard,
+    // open the official Google Slides document creation URL to create a real file!
+    if (!targetUrl || targetUrl === 'https://docs.google.com/presentation/u/0/' || targetUrl === 'https://docs.google.com/presentation/u/0') {
+      targetUrl = 'https://docs.google.com/presentation/u/0/create';
+    }
+
+    // Open Google Slides presentation in a new tab
+    window.open(targetUrl, '_blank');
   }
 };
 

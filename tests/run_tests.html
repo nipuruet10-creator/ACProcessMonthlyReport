@@ -48,6 +48,7 @@
   <script src="../database/seed_data.js"></script>
   <script src="../database/imported_2026_dataset.js"></script>
   <script src="../database/db_adapter.js"></script>
+  <script src="../database/gas_sync_service.js"></script>
   <script src="../tasks/excel_sync_service.js"></script>
   <script src="../tasks/month_workbook_manager.js"></script>
   <script src="../tasks/task_manager.js"></script>
@@ -1057,6 +1058,24 @@
       assert("Multi-Row Bulk Deletion", "deleteMultipleTasks atomically deletes selected task rows in single operation",
         beforeCount === 3 && deleteResult.deletedCount === 2 && remainingTasks.length === 1 && remainingTasks[0].task_id === bt3.task_id,
         `Before: ${beforeCount}, Deleted: ${deleteResult.deletedCount}, Remaining: ${remainingTasks.length}`);
+
+      // Verify Tombstone Protection: Cloud sync MUST NEVER resurrect deleted tasks
+      const deletedTombstones = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      const tombstonesRecorded = deletedTombstones.includes(bt1.task_id) && deletedTombstones.includes(bt2.task_id);
+      
+      // Simulate incoming cloud push containing the deleted tasks
+      wbMgr.mergeFromCloud({ [bulkDelMonth]: [bt1, bt2, bt3] });
+      const tasksAfterCloudPush = wbMgr.getTasksForMonth(bulkDelMonth);
+      const noResurrection = tasksAfterCloudPush.length === 1 && tasksAfterCloudPush[0].task_id === bt3.task_id;
+
+      // Simulate authoritative cloud fetch with all tasks removed
+      wbMgr.mergeFromCloud({ [bulkDelMonth]: [] }, true);
+      const tasksAfterAuthoritativeEmpty = wbMgr.getTasksForMonth(bulkDelMonth);
+      const emptyAuthoritativePruned = tasksAfterAuthoritativeEmpty.length === 0;
+
+      assert("Tombstone & Cloud Deletion Protection", "Deleted tasks are recorded in tombstones, never resurrected by cloud sync, and authoritative empty cloud prunes across devices",
+        tombstonesRecorded && noResurrection && emptyAuthoritativePruned && typeof GoogleSheetsSync.deleteMultipleTasks === 'function',
+        `Tombstones: ${tombstonesRecorded}, Anti-Resurrection: ${noResurrection}, Authoritative Pruning: ${emptyAuthoritativePruned}`);
 
       // ----------------------------------------------------
       // TEST: Projects Section & Multi-Month Ongoing Carryover
