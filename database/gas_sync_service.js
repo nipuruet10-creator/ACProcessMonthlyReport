@@ -77,11 +77,16 @@ const GoogleSheetsSync = {
         }
       }, 400);
 
-      // Safe background polling every 15 seconds, only when tab is actively visible
+      // Safe background polling:
+      // Active visible tab: every 5 seconds (rapid multi-browser sync)
+      // Hidden/minimized tab: every 15 seconds (energy and quota saving)
+      let pollCycle = 0;
       setInterval(() => {
         if (!this.isSyncing && this.getWebAppUrl()) {
-          if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-            return; // Skip background polling when user is not viewing this tab
+          pollCycle++;
+          const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+          if (isHidden && (pollCycle % 3 !== 0)) {
+            return;
           }
           // If backed off due to temporary Google rate limiting, wait 35 seconds
           if (this._consecutiveFailures >= 2 && (Date.now() - this._lastFailureTime < 35000)) {
@@ -90,7 +95,7 @@ const GoogleSheetsSync = {
           this.flushPendingQueue();
           this.pullFromCloud(true);
         }
-      }, 15000);
+      }, 5000);
     } else {
       this.status = 'OFFLINE';
       this._updateNavbarBadge();
@@ -206,12 +211,19 @@ const GoogleSheetsSync = {
     const remaining = [];
     for (const item of sanitizedQueue) {
       try {
-        await this._fetchWithTimeout(url, {
+        const res = await this._fetchWithTimeout(url, {
           method: 'POST',
           mode: 'cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(item)
         }, 20000);
+        const data = await this._safeJson(res);
+        if (data && data.status === 'ERROR' && item.action === 'DELETE_MULTIPLE_TASKS' && item.payload && Array.isArray(item.payload.task_ids)) {
+          // If server reported unsupported action or error on batch, unpack into individual DELETE_TASK
+          for (const tid of item.payload.task_ids) {
+            remaining.push({ action: 'DELETE_TASK', payload: { task_id: tid, month: item.payload.month } });
+          }
+        }
       } catch (err) {
         remaining.push(item);
       }
@@ -406,7 +418,7 @@ const GoogleSheetsSync = {
     if (!url) return false;
 
     try {
-      await this._fetchWithTimeout(url, {
+      const res = await this._fetchWithTimeout(url, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -414,12 +426,18 @@ const GoogleSheetsSync = {
           action: 'DELETE_TASK',
           payload: { task_id: taskId, month: month }
         })
-      }, 10000);
-      this.lastSyncTime = new Date().toISOString();
-      localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-      this.status = 'CONNECTED';
-      this._broadcastUpdate('TASK_DELETED');
-      return true;
+      }, 15000);
+      const data = await this._safeJson(res);
+      if (data && data.status === 'OK') {
+        this.lastSyncTime = new Date().toISOString();
+        localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
+        this.status = 'CONNECTED';
+        this._broadcastUpdate('TASK_DELETED');
+        return true;
+      }
+      console.warn("Cloud delete notice - response not OK, enqueuing retry:", data);
+      this.queuePending({ action: 'DELETE_TASK', payload: { task_id: taskId, month: month } });
+      return false;
     } catch (e) {
       console.warn("Cloud delete notice - enqueuing retry:", e);
       this.queuePending({ action: 'DELETE_TASK', payload: { task_id: taskId, month: month } });
@@ -429,7 +447,7 @@ const GoogleSheetsSync = {
 
   /**
    * Atomically delete multiple tasks from Google Sheets in ONE single batch request
-   * Prevents concurrency rate-limiting and guarantees atomic deletion on cloud
+   * If remote script deployment lacks DELETE_MULTIPLE_TASKS, seamlessly falls back to sequential deleteTask
    */
   async deleteMultipleTasks(taskIds = [], month) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
@@ -456,7 +474,7 @@ const GoogleSheetsSync = {
     if (!url) return false;
 
     try {
-      await this._fetchWithTimeout(url, {
+      const res = await this._fetchWithTimeout(url, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -465,16 +483,39 @@ const GoogleSheetsSync = {
           payload: { task_ids: taskIds, month: month }
         })
       }, 25000);
-      this.lastSyncTime = new Date().toISOString();
-      localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-      this.status = 'CONNECTED';
-      this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
-      return true;
+      const data = await this._safeJson(res);
+      if (data && data.status === 'OK') {
+        this.lastSyncTime = new Date().toISOString();
+        localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
+        this.status = 'CONNECTED';
+        this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
+        return true;
+      }
+      // If the cloud deployment doesn't support DELETE_MULTIPLE_TASKS (e.g. older Apps Script deployment)
+      // or returned error, fall back to sequential single deletions which are universally supported!
+      console.warn("DELETE_MULTIPLE_TASKS unsupported or returned error, falling back to sequential deleteTask:", data);
+      return await this._sequentialDeleteFallback(taskIds, month);
     } catch (e) {
-      console.warn("Cloud multiple delete notice - enqueuing retry:", e);
-      this.queuePending({ action: 'DELETE_MULTIPLE_TASKS', payload: { task_ids: taskIds, month: month } });
-      return false;
+      console.warn("Cloud multiple delete notice - falling back to sequential delete:", e);
+      return await this._sequentialDeleteFallback(taskIds, month);
     }
+  },
+
+  /**
+   * Helper fallback: sequentially execute deleteTask for each id with small pacing
+   */
+  async _sequentialDeleteFallback(taskIds, month) {
+    let allOk = true;
+    for (const id of taskIds) {
+      try {
+        const ok = await this.deleteTask(id, month);
+        if (!ok) allOk = false;
+      } catch (err) {
+        allOk = false;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return allOk;
   },
 
   /**
@@ -616,7 +657,8 @@ const GoogleSheetsSync = {
             isAuthoritativeMonth: true,
             workbooks: {
               [activeMonth]: monthData.tasks
-            }
+            },
+            cost_savings: monthData.cost_savings || null
           };
         }
       } catch (monthErr) {

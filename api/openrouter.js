@@ -81,10 +81,9 @@ module.exports = async function handler(req, res) {
       const testPayload = {
         model: model,
         messages: [
-          { role: 'system', content: 'Respond with strictly: OK' },
-          { role: 'user', content: 'ping' }
+          { role: 'user', content: 'Say OK' }
         ],
-        max_tokens: 10,
+        max_tokens: 50,
         temperature: 0.1
       };
 
@@ -133,9 +132,10 @@ module.exports = async function handler(req, res) {
       }
 
       const data = await response.json();
-      const reply = data.choices && data.choices[0] && data.choices[0].message
-        ? data.choices[0].message.content
-        : 'OK';
+      const choice = data.choices && data.choices[0];
+      const msg = choice ? choice.message : null;
+      const rawReply = msg ? (msg.content || msg.reasoning || 'OK') : 'OK';
+      const reply = String(rawReply || 'OK').trim();
 
       return res.status(200).json({
         success: true,
@@ -143,7 +143,7 @@ module.exports = async function handler(req, res) {
         provider: 'OpenRouter',
         model: model,
         latency,
-        reply: reply.trim(),
+        reply: reply || 'OK',
         timestamp: new Date().toISOString()
       });
     }
@@ -197,9 +197,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    const choice = data.choices[0];
+    const msg = choice.message;
+    const content = msg ? (msg.content || msg.reasoning || '') : '';
+
     return res.status(200).json({
       success: true,
-      content: data.choices[0].message.content,
+      content: String(content || ''),
       model: data.model || model,
       latency
     });

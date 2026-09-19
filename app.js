@@ -134,6 +134,11 @@ const App = {
     }
 
     await this.refreshCurrentTab();
+
+    // Rapid sync whenever user navigates tabs to ensure fresh data across devices
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud && !GoogleSheetsSync.isSyncing) {
+      GoogleSheetsSync.pullFromCloud(true);
+    }
   },
 
   async refreshCurrentTab() {

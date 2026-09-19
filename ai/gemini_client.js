@@ -133,10 +133,9 @@ class GeminiClient {
         body: JSON.stringify({
           model: mdl,
           messages: [
-            { role: "system", content: "Respond with strictly the word: OK" },
-            { role: "user", content: "Ping" }
+            { role: "user", content: "Say OK" }
           ],
-          max_tokens: 10,
+          max_tokens: 50,
           temperature: 0.1
         })
       });
@@ -179,14 +178,18 @@ class GeminiClient {
       }
 
       const data = await response.json();
-      const reply = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : "OK";
+      const choice = data.choices && data.choices[0];
+      const msg = choice ? choice.message : null;
+      const rawReply = msg ? (msg.content || msg.reasoning || "OK") : "OK";
+      const reply = String(rawReply || "OK").trim();
+
       return {
         success: true,
         connected: true,
         status: "Connected",
         provider: "OpenRouter",
         latency,
-        reply: reply.trim(),
+        reply: reply || "OK",
         model: mdl,
         timestamp: new Date().toISOString()
       };
@@ -345,7 +348,9 @@ class GeminiClient {
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       throw new Error("Invalid response structure from OpenRouter.");
     }
-    return data.choices[0].message.content;
+    const msg = data.choices[0].message;
+    const content = msg ? (msg.content || msg.reasoning || "") : "";
+    return String(content || "");
   }
 
   /**
@@ -384,7 +389,7 @@ class GeminiClient {
         ], this.config.TEMPERATURE, this.config.MAX_OUTPUT_TOKENS, true);
 
         // Strip markdown fences if present
-        const cleanJson = rawReply.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const cleanJson = String(rawReply || "").replace(/```json/gi, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanJson);
 
         const result = {

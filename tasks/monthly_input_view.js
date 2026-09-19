@@ -34,6 +34,9 @@ const MonthlyInputView = {
       window.appState.workbookMgr.activeMonth = month;
     }
     await this.render();
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud) {
+      GoogleSheetsSync.pullFromCloud(true);
+    }
   },
 
   handleEngineerFilter(engName) {
