@@ -55,53 +55,25 @@ class MonthWorkbookManager {
         points: 50,
         include_in_report: "YES",
         status: "Completed",
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString()
+        created_at: "2026-09-01T00:00:00.000Z",
+        last_updated: "2026-09-01T00:00:00.000Z",
+        _syncedToCloud: true
       },
       {
-        task_id: "SEP-2026-002",
+        task_id: "SEP-2026-002-PXV",
         month: "SEP-2026",
         assignee: "Sazzad (50463)",
         engineer: "Sazzad (50463)",
         supervisor: "Kamrul (44819)",
-        task_name: "Task entry from new setup",
-        task_details: "1. Technical requirement analysis & workstation ergonomic layout for Task entry from new setup 2. Tooling fabrication, electrical control panel & air line setup 3. Sensor calibration, pneumatic cylinder testing & safety interlock 4. Production trial run & line cycle time audit 5. Operator training & official line handover with standard SOP",
+        task_name: "Compressor Jacket New Die Setup for 18M",
+        task_details: "1. Die mounting, clamping pressure audit & hydraulic cylinder stroke calibration 2. Pilot blanking trial, burr height inspection & sheet metal thickness verification 3. Stamping press die alignment, pilot test stamping & stroke speed timing check 4. Quality assurance inspection, dimensional tolerance sign-off & Cpk capability check 5. Standard operating procedure sign-off & official production line handover",
         category: "Process development",
         points: 100,
         include_in_report: "YES",
         status: "In Progress",
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString()
-      },
-      {
-        task_id: "SEP-2026-003",
-        month: "SEP-2026",
-        assignee: "Abdullah (58102)",
-        engineer: "Abdullah (58102)",
-        supervisor: "Kamrul (44819)",
-        task_name: "task 2",
-        task_details: "1. Process feasibility analysis & shop-floor requirement study for task 2 2. Mechanical fabrication, component assembly & electrical wiring 3. Sensor integration, pneumatic calibration & safety interlock testing 4. Production line pilot trial run & repeatability inspection 5. Final quality sign-off & production handover with standard SOP",
-        category: "Process development",
-        points: 150,
-        include_in_report: "NO",
-        status: "In Progress",
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString()
-      },
-      {
-        task_id: "SEP-2026-004",
-        month: "SEP-2026",
-        assignee: "Sazzad (50463)",
-        engineer: "Sazzad (50463)",
-        supervisor: "Kamrul (44819)",
-        task_name: "task 3",
-        task_details: "1. Process feasibility analysis & shop-floor requirement study for task 3 2. Mechanical fabrication, component assembly & electrical wiring 3. Sensor integration, pneumatic calibration & safety interlock testing 4. Production line pilot trial run & repeatability inspection 5. Final quality sign-off & production handover with standard SOP",
-        category: "Process development",
-        points: "",
-        include_in_report: "YES",
-        status: "In Progress",
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString()
+        created_at: "2026-09-01T00:00:00.000Z",
+        last_updated: "2026-09-01T00:00:00.000Z",
+        _syncedToCloud: true
       }
     ];
   }
@@ -111,8 +83,16 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
-    // Purge deleted legacy task tombstones permanently from all local workbooks
-    const tombstonePatterns = ['compact cassettes', 'brazing jig development', '-test'];
+    // Purge deleted legacy dummy task tombstones permanently from all local workbooks
+    const tombstonePatterns = [
+      'compact cassettes',
+      'brazing jig development',
+      '-test',
+      'task entry from new setup',
+      'task 2',
+      'task 3'
+    ];
+    const tombstoneExactIds = ['SEP-2026-002', 'SEP-2026-003', 'SEP-2026-004'];
     const deletedLegacyIds = [];
 
     keys.forEach(k => {
@@ -121,9 +101,13 @@ class MonthWorkbookManager {
         const initialLen = this.workbooks[k].length;
         this.workbooks[k] = this.workbooks[k].filter(t => {
           if (!t || !t.task_id || !String(t.task_id).trim()) return false;
-          const name = String(t.task_name || '').toLowerCase();
-          const id = String(t.task_id || '').toLowerCase();
-          const isTombstone = tombstonePatterns.some(p => name.includes(p) || id.includes(p));
+          const name = String(t.task_name || '').trim().toLowerCase();
+          const id = String(t.task_id || '').trim();
+          const idLower = id.toLowerCase();
+          
+          const isExactLegacyId = tombstoneExactIds.includes(id);
+          const isTombstone = isExactLegacyId || tombstonePatterns.some(p => name === p || name.includes(p) || idLower.includes(p));
+          
           if (isTombstone) {
             deletedLegacyIds.push(t.task_id);
             return false;
@@ -423,6 +407,7 @@ class MonthWorkbookManager {
       is_project: isProject,
       project_status: projectStatus,
       deadline: deadline,
+      _isLocalDraft: true,
       created_at: new Date().toISOString(),
       last_updated: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -431,7 +416,13 @@ class MonthWorkbookManager {
     this.workbooks[m].push(newTask);
     this.save();
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-      GoogleSheetsSync.pushTask(newTask);
+      GoogleSheetsSync.pushTask(newTask).then(ok => {
+        if (ok) {
+          delete newTask._isLocalDraft;
+          newTask._syncedToCloud = true;
+          this.save();
+        }
+      }).catch(() => {});
     }
     return newTask;
   }
@@ -857,6 +848,10 @@ class MonthWorkbookManager {
       const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
       if (shouldReconcile) {
         const newlyPrunedIds = [];
+        const pendingQ = (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue)
+          ? GoogleSheetsSync.getPendingQueue()
+          : [];
+
         const filtered = localTasks.filter(lt => {
           if (deletedIds.includes(lt.task_id)) {
             return false;
@@ -868,9 +863,9 @@ class MonthWorkbookManager {
               return true;
             }
             // Authoritative cloud sync: task is absent on Google Sheet!
-            // Only keep if it is a brand-new local draft created within 60s waiting for background push
-            const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
-            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 60000 && !lt._syncedToCloud);
+            // Strictly keep ONLY if this task is currently queued to push to Google Sheets
+            const isPendingPush = pendingQ.some(item => item.action === 'SYNC_TASK' && item.payload && item.payload.task_id === lt.task_id);
+            const isFreshLocalDraft = lt._isLocalDraft === true || isPendingPush;
             
             if (!isFreshLocalDraft) {
               newlyPrunedIds.push(lt.task_id);
@@ -880,6 +875,7 @@ class MonthWorkbookManager {
           }
           // Present in remote list: flag as synced to cloud
           lt._syncedToCloud = true;
+          delete lt._isLocalDraft;
           return true;
         });
 

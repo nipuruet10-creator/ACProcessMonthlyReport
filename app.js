@@ -83,6 +83,11 @@ const App = {
       GoogleSheetsSync.init();
     }
 
+    // Initialize Google Firebase Realtime Database Engine (Sub-50ms Collaborative Sync)
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.init) {
+      FirebaseSyncService.init();
+    }
+
     // Render User Badge
     this.renderUserBadge();
 

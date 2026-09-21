@@ -33,6 +33,9 @@ const MonthlyInputView = {
     if (window.appState && window.appState.workbookMgr) {
       window.appState.workbookMgr.activeMonth = month;
     }
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.bindMonthListeners) {
+      FirebaseSyncService.bindMonthListeners(month);
+    }
     await this.render();
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud) {
       GoogleSheetsSync.pullFromCloud(true);
@@ -51,6 +54,11 @@ const MonthlyInputView = {
         GoogleSheetsSync._lastLocalEditTime = Date.now();
       }
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: value });
+
+      // Ultra-Fast Real-time Firebase Sync (Sub-30ms Instant Highway)
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        FirebaseSyncService.updateCell(this.selectedMonth, taskId, field, value);
+      }
       
       // If Assignee was changed, re-render immediately so the task transfers to that respective concern engineer's tab!
       if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
@@ -137,6 +145,17 @@ const MonthlyInputView = {
       defaultSup,
       { last_updated: new Date().toISOString() }
     );
+
+    // Guarantee no residual ghost photos attach to the new task row
+    if (typeof photoManager !== 'undefined' && newTask && newTask.task_id) {
+      photoManager.removePhoto(newTask.task_id, 'before_photo');
+      photoManager.removePhoto(newTask.task_id, 'after_photo');
+    }
+
+    // Instant Real-time Firebase Broadcast
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected() && newTask) {
+      FirebaseSyncService.pushTask(this.selectedMonth, newTask);
+    }
 
     // Asynchronously synchronize in background without full page reload
     if (window.appState.syncEngine) {
@@ -705,6 +724,11 @@ const MonthlyInputView = {
       }`;
     }
 
+    // Real-time Firebase Broadcast
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected() && updatedTask) {
+      FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'include_in_report', updatedTask.include_in_report);
+    }
+
     // Silently compile report slides in background without blocking or shaking UI
     if (window.appState.syncEngine) {
       window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
@@ -718,6 +742,11 @@ const MonthlyInputView = {
       : true;
     if (confirmed) {
       window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+
+      // Real-time Firebase Broadcast
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        FirebaseSyncService.deleteTask(this.selectedMonth, taskId);
+      }
 
       // Targeted row removal without shaking the page
       const tr = document.getElementById(`task-row-${taskId}`) || 

@@ -87,6 +87,7 @@ function doGet(e) {
         status: 'OK',
         month: month,
         tasks: tasks,
+        deleted_ids: getDeletedTaskIds(),
         cost_savings: getAllCostSavings(),
         timestamp: new Date().toISOString()
       };
@@ -95,6 +96,7 @@ function doGet(e) {
       result = {
         status: 'OK',
         tasks: getRecentTasks(limit),
+        deleted_ids: getDeletedTaskIds(),
         timestamp: new Date().toISOString()
       };
     } else if (action === 'ARCHIVE_OLD_DATA') {
@@ -105,6 +107,7 @@ function doGet(e) {
       result = {
         status: 'OK',
         workbooks: getAllWorkbooksGrouped(),
+        deleted_ids: getDeletedTaskIds(),
         cost_savings: getAllCostSavings(),
         timestamp: new Date().toISOString()
       };
@@ -451,8 +454,10 @@ function syncSingleTask(task) {
 
   // PERMANENT TOMBSTONE PROTECTION:
   // Reject deleted legacy tasks permanently so stale browsers can NEVER resurrect them!
+  const cleanId = String(task.task_id).trim();
+  const deletedTombstones = getDeletedTaskIds();
   const taskNameStr = String(task.task_name || '').toLowerCase();
-  if (taskNameStr.includes('compact cassettes') || taskNameStr.includes('brazing jig development') || String(task.task_id).includes('-TEST')) {
+  if (deletedTombstones.includes(cleanId) || taskNameStr.includes('compact cassettes') || taskNameStr.includes('brazing jig development') || cleanId.includes('-TEST')) {
     deleteSingleTask(task.task_id, task.month);
     return { status: 'DELETED', action: 'BLOCKED_TOMBSTONE', task_id: task.task_id };
   }
@@ -537,6 +542,7 @@ function deleteSingleTask(taskId, month) {
   }
 
   if (deletedCount > 0) {
+    recordDeletedTaskId(targetId);
     return { status: 'OK', action: 'DELETED', task_id: taskId, count: deletedCount };
   }
 
@@ -557,7 +563,11 @@ function deleteMultipleTasks(taskIds, month) {
   const taskIdCol = 0;
   const idSet = {};
   taskIds.forEach(id => {
-    if (id) idSet[String(id).trim()] = true;
+    if (id) {
+      const clean = String(id).trim();
+      idSet[clean] = true;
+      recordDeletedTaskId(clean);
+    }
   });
 
   let deletedCount = 0;
@@ -577,6 +587,35 @@ function deleteMultipleTasks(taskIds, month) {
     month: month,
     timestamp: new Date().toISOString()
   };
+}
+
+/**
+ * Record a deleted Task ID in script properties tombstone list
+ */
+function recordDeletedTaskId(id) {
+  if (!id) return;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    let deleted = JSON.parse(props.getProperty('WALTON_DELETED_TASK_IDS') || '[]');
+    const cleanId = String(id).trim();
+    if (!deleted.includes(cleanId)) {
+      deleted.push(cleanId);
+      if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+      props.setProperty('WALTON_DELETED_TASK_IDS', JSON.stringify(deleted));
+    }
+  } catch (e) {}
+}
+
+/**
+ * Retrieve all registered deleted task IDs
+ */
+function getDeletedTaskIds() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    return JSON.parse(props.getProperty('WALTON_DELETED_TASK_IDS') || '[]');
+  } catch (e) {
+    return [];
+  }
 }
 
 /**

@@ -149,6 +149,17 @@ const GoogleSheetsSync = {
         }
       });
 
+      // Quick multi-PC wake-up on user interaction
+      let lastActivityPull = 0;
+      const onUserActivity = () => {
+        const now = Date.now();
+        if (now - lastActivityPull > 8000 && this.getWebAppUrl() && !this.isSyncing) {
+          lastActivityPull = now;
+          this.pullFromCloud(true);
+        }
+      };
+      window.addEventListener('pointerdown', onUserActivity, { passive: true });
+
       this._listenersAttached = true;
     }
 
@@ -644,6 +655,7 @@ const GoogleSheetsSync = {
             workbooks: {
               [activeMonth]: monthData.tasks
             },
+            deleted_ids: monthData.deleted_ids || [],
             cost_savings: monthData.cost_savings || null
           };
         }
@@ -668,7 +680,8 @@ const GoogleSheetsSync = {
             });
             data = {
               status: 'OK',
-              workbooks: grouped
+              workbooks: grouped,
+              deleted_ids: recentData.deleted_ids || []
             };
           }
         } catch (recentErr) {
@@ -681,15 +694,30 @@ const GoogleSheetsSync = {
         const fullEndpoint = url + (url.includes('?') ? '&' : '?') + 'action=GET_ALL&_t=' + Date.now();
         const resFull = await this._fetchWithTimeout(fullEndpoint, { method: 'GET', mode: 'cors' }, 30000);
         data = await this._safeJson(resFull);
+        if (data && data.status === 'OK') {
+          data.isAuthoritativeAll = true;
+        }
       }
 
       if (data && data.status === 'OK') {
         this._consecutiveFailures = 0;
         let changed = false;
 
-        // Merge workbooks into MonthWorkbookManager with authoritative month flag
+        // Ingest any cloud tombstones into local deleted list
+        if (Array.isArray(data.deleted_ids) && data.deleted_ids.length > 0) {
+          try {
+            const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+            data.deleted_ids.forEach(id => {
+              if (!deleted.includes(id)) deleted.push(id);
+            });
+            localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+          } catch (e) {}
+        }
+
+        // Merge workbooks into MonthWorkbookManager with authoritative flag
+        const isAuth = Boolean(data.isAuthoritativeMonth || data.isAuthoritativeAll);
         if (data.workbooks && window.appState && window.appState.workbookMgr) {
-          changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks, Boolean(data.isAuthoritativeMonth)) || changed;
+          changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks, isAuth) || changed;
         }
 
         // Merge cost savings into CostSavingTracker across devices

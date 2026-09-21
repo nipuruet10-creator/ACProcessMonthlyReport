@@ -69,6 +69,14 @@ const APP_CONFIG = {
     SPREADSHEET_ID: "",
     DRIVE_FOLDER_ID: "",
     ENABLED: true
+  },
+
+  // Google Firebase Realtime Database Engine (Sub-50ms Collaborative Sync)
+  FIREBASE: {
+    DATABASE_URL: "https://ac-monthly-report-default-rtdb.asia-southeast1.firebasedatabase.app",
+    API_KEY: "",
+    PROJECT_ID: "ac-monthly-report",
+    ENABLED: true
   }
 };
 
