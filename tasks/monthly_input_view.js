@@ -255,19 +255,16 @@ const MonthlyInputView = {
     if (isCopied) {
       return `
         <button onclick="MonthlyInputView.toggleManagementReportCopy('${taskId}')" 
-                title="This task is included in Executive Management Report (${this.selectedMonth}). Click to remove." 
-                class="group inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-rose-50 border border-indigo-200 hover:border-rose-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
-          <span class="text-indigo-700 group-hover:hidden flex items-center gap-1 font-black">
-            <span>👔</span> <span>Copied</span> <span class="text-[9px] text-emerald-600 font-black">✔</span>
-          </span>
-          <span class="hidden group-hover:inline text-rose-600 font-black">✕ Remove</span>
+                title="Included in Executive Management Report (${this.selectedMonth}). Click to remove." 
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-rose-50 text-indigo-700 hover:text-rose-600 border border-indigo-200 hover:border-rose-300 text-[10px] font-bold shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
+          <span>👔</span> <span>Copied</span> <span class="text-[9px] text-emerald-600 font-black">✔</span>
         </button>
       `;
     } else {
       return `
         <button onclick="MonthlyInputView.toggleManagementReportCopy('${taskId}')" 
                 title="Copy this task into Executive Management Report" 
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 transition text-[10px] font-bold shadow-xs cursor-pointer">
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-50 hover:bg-indigo-600 hover:text-white text-slate-600 border border-slate-200 text-[10px] font-bold shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
           <span>👔</span>
           <span>Copy</span>
         </button>
@@ -283,8 +280,8 @@ const MonthlyInputView = {
         ${this._renderMgmtCopyButtonHtml(taskId, isCopied)}
         <button onclick="MonthlyInputView.deleteTask('${taskId}')" 
                 onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
-                title="Delete Row (or press Tab on last row to auto-insert new row)" 
-                class="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
+                title="Delete Row" 
+                class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 text-xs">
           ✕
         </button>
       `;
@@ -1324,67 +1321,68 @@ const MonthlyInputView = {
     }
 
     return `
-      <tr id="task-row-${t.task_id}" class="hover:bg-slate-50/80 transition group">
+      <tr id="task-row-${t.task_id}" class="hover:bg-slate-50/70 group">
         <!-- Checkbox Selection -->
-        <td class="py-2.5 px-2 text-center border-r border-slate-200 align-middle">
+        <td class="py-1.5 px-2 text-center border-r border-slate-200 align-middle">
           <input type="checkbox" class="task-row-checkbox w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer"
                  data-task-id="${t.task_id}" onchange="MonthlyInputView.updateBulkDeleteButton()" />
         </td>
 
         <!-- SL -->
-        <td class="task-sl-cell py-2.5 px-3 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle">
+        <td class="task-sl-cell py-1.5 px-2 text-center font-mono text-slate-500 border-r border-slate-200 font-bold align-middle text-[11px]">
           ${idx + 1}
         </td>
 
-        <!-- Task Name (Full Visibility Auto-adjusting Textarea with docked Walton TMS Button) -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
-          <div class="relative flex items-center gap-1.5">
+        <!-- Task Name (Auto-adjusting Textarea with docked Walton TMS Button) -->
+        <td class="py-1.5 px-2 border-r border-slate-200 align-middle">
+          <div class="flex items-center gap-1.5 w-full">
             <textarea id="task-name-input-${t.task_id}" rows="1"
                       oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
                       onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                      class="flex-1 bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block transition"
+                      class="flex-1 bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded-lg px-2 py-1 text-xs text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block"
                       placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
             ${(typeof TmsSyncService !== 'undefined') ? TmsSyncService.renderTmsActionHtml(this.selectedMonth, t) : ''}
           </div>
         </td>
 
         <!-- Task Details / Steps (Editable Text with Docked AI Button) -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
-          <div class="relative flex items-center">
+        <td class="py-1.5 px-2 border-r border-slate-200 align-middle">
+          <div class="relative flex items-center w-full">
             <input type="text" id="task-details-input-${t.task_id}" value="${HELPERS.escapeHtml(t.task_details || '')}"
                    placeholder="1. Design 2. Handover 3. Fabrication..."
+                   title="${HELPERS.escapeHtml(t.task_details || '')}"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_details', this.value)"
-                   class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg pl-2.5 pr-14 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 transition" />
+                   class="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded-lg pl-2 pr-12 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-red-100" />
             <button id="ai-btn-${t.task_id}" type="button" onclick="MonthlyInputView.generateTaskDetails('${t.task_id}')"
                     title="Auto-generate engineering steps with AI"
-                    class="absolute right-1 px-2 py-1 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[10px] font-black text-white shadow-sm flex items-center gap-1 transition">
+                    class="absolute right-1 px-1.5 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[10px] font-black text-white shadow-xs flex items-center gap-0.5 flex-shrink-0">
               <span>✨</span><span>AI</span>
             </button>
           </div>
         </td>
 
         <!-- Category Dropdown -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+        <td class="py-1.5 px-1.5 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
-                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
+                  class="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded-lg px-1.5 py-1 text-[11px] text-slate-700 font-medium focus:outline-none">
             ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
         </td>
 
-        <!-- Task Point (Centered, Clean, No Fill Down Button per User Request) -->
-        <td class="py-2 px-2 text-center bg-[#D4EDDA]/60 border-r border-slate-200 align-middle">
+        <!-- Task Point (Centered, Clean, No Waste Space) -->
+        <td class="py-1.5 px-1 text-center bg-[#D4EDDA]/50 border-r border-slate-200 align-middle">
           <div class="flex items-center justify-center">
             <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
                    placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                   class="w-16 text-center bg-white/90 border border-emerald-300 hover:border-emerald-500 rounded-lg px-1.5 py-1.5 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-sm placeholder:text-slate-400" />
+                   class="w-14 text-center bg-white border border-emerald-300 hover:border-emerald-500 rounded-lg px-1 py-1 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-xs placeholder:text-slate-400" />
           </div>
         </td>
 
-        <!-- Supervisor Dropdown (Kamrul default, Kamrul and Sazzad only) -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+        <!-- Supervisor Dropdown -->
+        <td class="py-1.5 px-1.5 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
-                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500">
+                  class="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded-lg px-1.5 py-1 text-[11px] text-slate-700 font-medium focus:outline-none">
             ${supervisors.map(s => {
               const isSel = (currentSup === s.display || currentSup === s.name || (!t.supervisor && s.name === 'Kamrul'));
               return `<option value="${s.display}" ${isSel ? 'selected' : ''}>${s.display}</option>`;
@@ -1392,10 +1390,10 @@ const MonthlyInputView = {
           </select>
         </td>
 
-        <!-- Assignee Dropdown (7 removed engineers excluded) -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+        <!-- Assignee Dropdown (Full Visibility with Walton Employee ID) -->
+        <td class="py-1.5 px-1.5 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
-                  class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500">
+                  class="w-full bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded-lg px-1.5 py-1 text-[11px] text-slate-800 font-bold focus:outline-none">
             ${engineers.map(e => {
               const isSel = (currentAssignee === e.display || currentAssignee === e.name);
               return `<option value="${e.display}" ${isSel ? 'selected' : ''}>${e.display}</option>`;
@@ -1403,19 +1401,16 @@ const MonthlyInputView = {
           </select>
         </td>
 
-        <!-- Direct Drag & Drop Photo Attachment / Interactive Studio -->
-        <td class="py-2 px-2 border-r border-slate-200 align-middle">
+        <!-- Direct Drag & Drop Photo Attachment / Studio -->
+        <td class="py-1.5 px-1.5 border-r border-slate-200 align-middle">
           ${hasPhoto ? `
-            <div class="flex items-center justify-between gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1">
-              <div class="flex items-center gap-1.5 overflow-hidden cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="Click to view & edit in Photo Studio">
-                <img src="${thumb}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 flex-shrink-0">
-                <span class="text-[10px] text-emerald-600 font-bold font-mono">Attached</span>
+            <div class="flex items-center justify-between gap-1 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+              <div class="flex items-center gap-1 overflow-hidden cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="Click to view & edit in Photo Studio">
+                <img src="${thumb}" class="w-6 h-6 rounded object-cover border border-slate-200 flex-shrink-0">
+                <span class="text-[9px] text-emerald-600 font-bold font-mono">Attached</span>
               </div>
-              <div class="flex items-center gap-0.5">
-                <button onclick="photoViewModal.open('${t.task_id}')" title="Open Photo Studio (Replace / Manage)" class="text-xs text-slate-500 hover:text-slate-900 p-1 rounded hover:bg-slate-200 transition">
-                  📷
-                </button>
-                <button onclick="MonthlyInputView.deleteRowPhoto('${t.task_id}')" title="Delete Photo" class="text-xs text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition">
+              <div class="flex items-center">
+                <button onclick="MonthlyInputView.deleteRowPhoto('${t.task_id}')" title="Delete Photo" class="text-xs text-slate-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition">
                   🗑️
                 </button>
               </div>
@@ -1425,11 +1420,11 @@ const MonthlyInputView = {
                  ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50');"
                  ondragleave="this.classList.remove('border-red-500', 'bg-red-50');"
                  ondrop="MonthlyInputView.handlePhotoDrop(event, '${t.task_id}')"
-                 class="border border-dashed border-slate-300 hover:border-red-400 rounded-xl p-1 flex items-center justify-between gap-1 transition bg-slate-50/50">
-              <label for="row-file-${t.task_id}" class="cursor-pointer flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-red-600 font-medium py-0.5 px-1 flex-1">
+                 class="border border-dashed border-slate-300 hover:border-red-400 rounded-lg p-0.5 flex items-center justify-between gap-1 bg-slate-50/50">
+              <label for="row-file-${t.task_id}" class="cursor-pointer flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-red-600 font-medium py-0.5 px-1 flex-1 whitespace-nowrap">
                 <span>📸</span> <span>Upload</span>
               </label>
-              <button onclick="photoViewModal.open('${t.task_id}')" title="Open in Photo Studio" class="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded text-xs">
+              <button onclick="photoViewModal.open('${t.task_id}')" title="Open in Photo Studio" class="p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded text-xs flex-shrink-0">
                 🖼️
               </button>
               <input type="file" id="row-file-${t.task_id}" accept="image/*" class="hidden" onchange="MonthlyInputView.handleRowPhotoUpload(event, '${t.task_id}')">
@@ -1438,8 +1433,8 @@ const MonthlyInputView = {
         </td>
 
         <!-- Report Inclusion Toggle -->
-        <td class="py-2.5 px-3 text-center whitespace-nowrap border-r border-slate-200 align-middle">
-          <button id="report-toggle-btn-${t.task_id}" onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition ${
+        <td class="py-1.5 px-1 text-center whitespace-nowrap border-r border-slate-200 align-middle">
+          <button id="report-toggle-btn-${t.task_id}" onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
             t.include_in_report !== 'NO'
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-black'
               : 'bg-slate-50 text-slate-400 border border-slate-200'
@@ -1449,13 +1444,13 @@ const MonthlyInputView = {
         </td>
 
         <!-- Actions: Copy to Management Report & Delete Row -->
-        <td class="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-          <div id="mgmt-action-cell-${t.task_id}" class="flex items-center justify-center gap-1.5">
+        <td class="py-1.5 px-1 text-center whitespace-nowrap align-middle">
+          <div id="mgmt-action-cell-${t.task_id}" class="flex items-center justify-center gap-1">
             ${this._renderMgmtCopyButtonHtml(t.task_id, isCopied)}
             <button onclick="MonthlyInputView.deleteTask('${t.task_id}')" 
                     onkeydown="MonthlyInputView.handleLastRowKeyNav(event, ${isLastRow})"
-                    title="Delete Row (or press Tab on last row to auto-insert new row)" 
-                    class="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition text-xs">
+                    title="Delete Row" 
+                    class="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 text-xs">
               ✕
             </button>
           </div>
@@ -1846,33 +1841,46 @@ const MonthlyInputView = {
           </div>
 
           <div class="overflow-x-auto -webkit-overflow-scrolling-touch pb-2 w-full">
-            <table class="w-full min-w-[1100px] text-left text-xs border-collapse border border-slate-300">
+            <table class="w-full text-left text-xs border-collapse border border-slate-300" style="table-layout: fixed; min-width: 1240px;">
+              <colgroup>
+                <col style="width: 36px;">
+                <col style="width: 42px;">
+                <col style="width: 260px;">
+                <col style="width: 220px;">
+                <col style="width: 145px;">
+                <col style="width: 75px;">
+                <col style="width: 135px;">
+                <col style="width: 165px;">
+                <col style="width: 105px;">
+                <col style="width: 60px;">
+                <col style="width: 90px;">
+              </colgroup>
               <thead class="bg-[#D1E7DD] text-slate-900 font-bold border-b-2 border-slate-300">
                 <tr>
                   <!-- Multi-select checkbox column -->
-                  <th class="py-2.5 px-2 w-8 text-center border-r border-slate-300">
+                  <th class="py-2.5 px-2 w-[36px] text-center border-r border-slate-300">
                     <input type="checkbox" id="task-select-all" onchange="MonthlyInputView.toggleSelectAll(this.checked)" title="Select All Rows"
                            class="w-4 h-4 rounded text-red-600 focus:ring-red-500 cursor-pointer" />
                   </th>
-                  <th class="py-2.5 px-3 w-12 text-center border-r border-slate-300">SL</th>
-                  <th class="py-2.5 px-3 w-64 border-r border-slate-300">Task Name</th>
-                  <th class="py-2.5 px-3 w-72 border-r border-slate-300">
-                    <div class="flex items-center justify-between gap-1.5">
-                      <span>Task Details</span>
-                      <button id="ai-fill-all-btn" type="button" onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate steps for all empty tasks" class="px-2 py-0.5 rounded-md bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-[10px] font-bold text-white shadow-sm transition flex items-center gap-1 ai-pulse-hover">
-                        <span>✨</span><span>AI Fill All</span>
+                  <th class="py-2.5 px-1.5 w-[42px] text-center border-r border-slate-300">SL</th>
+                  <th class="py-2.5 px-2.5 w-[260px] border-r border-slate-300">Task Name</th>
+                  <th class="py-2.5 px-2.5 w-[220px] border-r border-slate-300">
+                    <div class="flex items-center justify-between gap-1">
+                      <span class="truncate">Task Details</span>
+                      <button id="ai-fill-all-btn" type="button" onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate steps for all empty tasks" class="px-1.5 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-[10px] font-bold text-white shadow-xs transition flex items-center gap-0.5 flex-shrink-0">
+                        <span>✨</span><span>AI All</span>
                       </button>
                     </div>
                   </th>
-                  <th class="py-2.5 px-3 w-40 border-r border-slate-300">Category</th>
-                  <th class="py-2.5 px-2 w-28 text-center border-r border-slate-300 bg-[#C8E6C9] font-black">
-                    <span>Task Point</span>
+                  <th class="py-2.5 px-2 w-[145px] border-r border-slate-300">Category</th>
+                  <th class="py-2.5 px-1.5 w-[75px] text-center border-r border-slate-300 bg-[#C8E6C9] font-black">
+                    <span>Point</span>
                   </th>
-                  <th class="py-2.5 px-3 w-40 border-r border-slate-300">Supervisor</th>
-                  <th class="py-2.5 px-3 w-40 border-r border-slate-300">Assignee</th>
-                  <th class="py-2.5 px-3 w-32 text-center border-r border-slate-300">Photo</th>
-                  <th class="py-2.5 px-3 w-20 text-center border-r border-slate-300">Report</th>
-                  <th class="py-2.5 px-2 w-28 text-center">Actions</th>
+                  <th class="py-2.5 px-2 w-[135px] border-r border-slate-300">Supervisor</th>
+                  <th class="py-2.5 px-2 w-[165px] border-r border-slate-300">Assignee</th>
+                  <th class="py-2.5 px-1.5 w-[105px] text-center border-r border-slate-300">Photo</th>
+                  <th class="py-2.5 px-1 w-[60px] text-center border-r border-slate-300">Report</th>
+                  <th class="py-2.5 px-1.5 w-[90px] text-center">Actions</th>
                 </tr>
               </thead>
               <tbody id="monthly-input-tbody" class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">

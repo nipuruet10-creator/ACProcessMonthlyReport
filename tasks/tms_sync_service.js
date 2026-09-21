@@ -122,6 +122,19 @@ const TmsSyncService = {
       category: task.category || "Process development"
     };
 
+    // User Confirmation Dialog before sending to Walton TMS
+    const confirmPrompt = 
+      `Are you sure you want to sync this task to Walton TMS?\n\n` +
+      `📌 Task: "${task.task_name || 'Untitled'}"\n` +
+      `👤 Assignee: ${creds.name || assigneeName} (ID: ${creds.id})\n` +
+      `👔 Supervisor: ${task.supervisor || 'Kamrul (44819)'}\n` +
+      `🎯 Point: ${payload.points}\n\n` +
+      `Click OK to login as ${creds.name} (${creds.id}), create this task in Walton TMS, and mark 100% Completed.`;
+
+    if (!confirm(confirmPrompt)) {
+      return;
+    }
+
     // 4. Check bridge status
     const statusBtn = document.getElementById(`tms-btn-${taskId}`);
     const originalBtnHtml = statusBtn ? statusBtn.innerHTML : '';
@@ -249,27 +262,23 @@ const TmsSyncService = {
       };
     }
 
-    // 4. Check persistent LocalStorage cache by taskId or task_name
+    // 4. Check persistent LocalStorage cache by EXACT taskId only
     try {
       const cache = JSON.parse(localStorage.getItem('walton_tms_synced_records') || '{}');
       if (task.task_id && cache[task.task_id]) {
         return cache[task.task_id];
       }
-      const normName = (task.task_name || '').trim().toLowerCase();
-      if (normName && cache[normName]) {
-        return cache[normName];
-      }
     } catch (e) {}
 
-    // 5. Pre-configured known tasks from previous syncs
-    if (task.task_id === 'SEP-2026-002-PXV' || (task.task_name && task.task_name.toLowerCase().includes('compressor jacket new die setup'))) {
+    // 5. Pre-configured known tasks from previous syncs (BY EXACT TASK_ID ONLY)
+    if (task.task_id === 'SEP-2026-002-PXV') {
       return {
         tms_task_id: '104813',
         tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104813',
         tms_synced_at: task.last_updated || new Date().toISOString()
       };
     }
-    if (task.task_id === 'SEP-2026-001' || (task.task_name && task.task_name.toLowerCase().includes('assembly line relocation'))) {
+    if (task.task_id === 'SEP-2026-001') {
       return {
         tms_task_id: '104812',
         tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104812',
@@ -303,7 +312,7 @@ const TmsSyncService = {
     const isSynced = Boolean(tmsInfo && tmsInfo.tms_task_id);
     const resolvedTask = isSynced ? { ...task, ...tmsInfo } : task;
     return `
-      <div id="tms-action-slot-${task.task_id}" class="inline-flex items-center">
+      <div id="tms-action-slot-${task.task_id}" class="inline-flex items-center flex-shrink-0">
         ${isSynced ? this.renderTmsBadgeHtml(resolvedTask) : this.renderTmsButtonHtml(month, task)}
       </div>
     `;
@@ -315,11 +324,11 @@ const TmsSyncService = {
     return `
       <a href="${url}" target="_blank" rel="noopener noreferrer"
          title="Walton TMS Task #${tmsId} (100% Complete) - Click to view in TMS"
-         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-black transition shadow-xs cursor-pointer group">
+         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-bold shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
         <span>🏢</span>
         <span>#${tmsId}</span>
         <span class="text-emerald-600 font-black">✔ 100%</span>
-        <span class="hidden group-hover:inline text-[9px] text-emerald-500">↗</span>
+        <span class="text-[9px] text-emerald-500 font-bold">↗</span>
       </a>
     `;
   },
@@ -328,7 +337,7 @@ const TmsSyncService = {
     return `
       <button id="tms-btn-${task.task_id}" onclick="TmsSyncService.syncSingleTask('${month}', '${task.task_id}')"
               title="Sync &amp; 100% Complete on Walton TMS (192.168.118.138)"
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-[10px] shadow-sm transition hover:shadow-md cursor-pointer">
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold text-[10px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
         <span>⚡</span>
         <span>TMS Sync</span>
       </button>
