@@ -35,10 +35,75 @@ class MonthWorkbookManager {
     this.hydrateFromImported2026Dataset();
 
     // Ensure September 2026 is initialized if not present (preserve user entries)
-    if (!this.workbooks["SEP-2026"]) {
-      this.workbooks["SEP-2026"] = [];
+    if (!this.workbooks["SEP-2026"] || this.workbooks["SEP-2026"].length === 0) {
+      this.workbooks["SEP-2026"] = this.getDefaultSep2026Tasks();
       this.save();
     }
+  }
+
+  getDefaultSep2026Tasks() {
+    return [
+      {
+        task_id: "SEP-2026-001",
+        month: "SEP-2026",
+        assignee: "Rafi (45127)",
+        engineer: "Rafi (45127)",
+        supervisor: "Kamrul (44819)",
+        task_name: "Assembly Line Relocation",
+        task_details: "1. Assembly line layout planning & electrical/pneumatic routing design for Assembly Line Relocation 2. Equipment dismantling, structural relocation & precision leveling 3. Power wiring, pneumatic manifold & sensor interlock reconnection 4. Pilot trial production run & line balancing cycle time verification 5. Quality inspection sign-off & official handover to production with SOP",
+        category: "Process extension",
+        points: 50,
+        include_in_report: "YES",
+        status: "Completed",
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      },
+      {
+        task_id: "SEP-2026-002",
+        month: "SEP-2026",
+        assignee: "Sazzad (50463)",
+        engineer: "Sazzad (50463)",
+        supervisor: "Kamrul (44819)",
+        task_name: "Task entry from new setup",
+        task_details: "1. Technical requirement analysis & workstation ergonomic layout for Task entry from new setup 2. Tooling fabrication, electrical control panel & air line setup 3. Sensor calibration, pneumatic cylinder testing & safety interlock 4. Production trial run & line cycle time audit 5. Operator training & official line handover with standard SOP",
+        category: "Process development",
+        points: 100,
+        include_in_report: "YES",
+        status: "In Progress",
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      },
+      {
+        task_id: "SEP-2026-003",
+        month: "SEP-2026",
+        assignee: "Abdullah (58102)",
+        engineer: "Abdullah (58102)",
+        supervisor: "Kamrul (44819)",
+        task_name: "task 2",
+        task_details: "1. Process feasibility analysis & shop-floor requirement study for task 2 2. Mechanical fabrication, component assembly & electrical wiring 3. Sensor integration, pneumatic calibration & safety interlock testing 4. Production line pilot trial run & repeatability inspection 5. Final quality sign-off & production handover with standard SOP",
+        category: "Process development",
+        points: 150,
+        include_in_report: "NO",
+        status: "In Progress",
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      },
+      {
+        task_id: "SEP-2026-004",
+        month: "SEP-2026",
+        assignee: "Sazzad (50463)",
+        engineer: "Sazzad (50463)",
+        supervisor: "Kamrul (44819)",
+        task_name: "task 3",
+        task_details: "1. Process feasibility analysis & shop-floor requirement study for task 3 2. Mechanical fabrication, component assembly & electrical wiring 3. Sensor integration, pneumatic calibration & safety interlock testing 4. Production line pilot trial run & repeatability inspection 5. Final quality sign-off & production handover with standard SOP",
+        category: "Process development",
+        points: "",
+        include_in_report: "YES",
+        status: "In Progress",
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      }
+    ];
   }
 
   sanitizeWorkbooks() {
@@ -46,8 +111,30 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
+    // Purge deleted legacy task tombstones permanently from all local workbooks
+    const tombstonePatterns = ['compact cassettes', 'brazing jig development', '-test'];
+    const deletedLegacyIds = [];
+
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
+      if (Array.isArray(this.workbooks[k])) {
+        const initialLen = this.workbooks[k].length;
+        this.workbooks[k] = this.workbooks[k].filter(t => {
+          if (!t || !t.task_id || !String(t.task_id).trim()) return false;
+          const name = String(t.task_name || '').toLowerCase();
+          const id = String(t.task_id || '').toLowerCase();
+          const isTombstone = tombstonePatterns.some(p => name.includes(p) || id.includes(p));
+          if (isTombstone) {
+            deletedLegacyIds.push(t.task_id);
+            return false;
+          }
+          return true;
+        });
+        if (this.workbooks[k].length !== initialLen) {
+          modified = true;
+        }
+      }
+
       if (norm !== k) {
         if (!this.workbooks[norm]) {
           this.workbooks[norm] = [];
@@ -65,6 +152,27 @@ class MonthWorkbookManager {
         modified = true;
       }
     });
+
+    if (deletedLegacyIds.length > 0) {
+      try {
+        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+        deletedLegacyIds.forEach(id => {
+          if (!deleted.includes(id)) deleted.push(id);
+        });
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+      } catch (e) {}
+
+      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
+        try {
+          const q = GoogleSheetsSync.getPendingQueue();
+          const delSet = new Set(deletedLegacyIds);
+          const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && delSet.has(item.payload.task_id)));
+          if (cleanQ.length !== q.length) {
+            GoogleSheetsSync.savePendingQueue(cleanQ);
+          }
+        } catch (e) {}
+      }
+    }
 
     if (modified) {
       this.save();
@@ -500,6 +608,18 @@ class MonthWorkbookManager {
           localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
         }
       } catch (e) {}
+
+      // Immediately purge any pending sync of this deleted task from queue
+      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
+        try {
+          const q = GoogleSheetsSync.getPendingQueue();
+          const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && item.payload.task_id === taskId));
+          if (cleanQ.length !== q.length) {
+            GoogleSheetsSync.savePendingQueue(cleanQ);
+          }
+        } catch (e) {}
+      }
+
       this.save();
       if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
         GoogleSheetsSync.deleteTask(taskId, m);
@@ -526,6 +646,18 @@ class MonthWorkbookManager {
         if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
         localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
       } catch (e) {}
+
+      // Immediately purge any pending sync for all deleted tasks
+      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
+        try {
+          const q = GoogleSheetsSync.getPendingQueue();
+          const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && toDeleteSet.has(item.payload.task_id)));
+          if (cleanQ.length !== q.length) {
+            GoogleSheetsSync.savePendingQueue(cleanQ);
+          }
+        } catch (e) {}
+      }
+
       this.save();
       if (typeof GoogleSheetsSync !== 'undefined') {
         if (GoogleSheetsSync.deleteMultipleTasks) {
@@ -645,6 +777,10 @@ class MonthWorkbookManager {
               anyChanges = true;
             }
           }
+          // Ensure cloud deletes any residual copies too
+          if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
+            GoogleSheetsSync.deleteTask(rt.task_id, norm).catch(() => {});
+          }
           return;
         }
 
@@ -720,6 +856,7 @@ class MonthWorkbookManager {
       // Handle un-synced local tasks and remote deletions safely across multiple devices
       const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
       if (shouldReconcile) {
+        const newlyPrunedIds = [];
         const filtered = localTasks.filter(lt => {
           if (deletedIds.includes(lt.task_id)) {
             return false;
@@ -731,11 +868,12 @@ class MonthWorkbookManager {
               return true;
             }
             // Authoritative cloud sync: task is absent on Google Sheet!
-            // Only keep if it is a brand-new local draft created within 10s waiting for background push
+            // Only keep if it is a brand-new local draft created within 60s waiting for background push
             const createdAt = lt.created_at ? new Date(lt.created_at).getTime() : 0;
-            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 10000 && !lt._syncedToCloud);
+            const isFreshLocalDraft = lt._isLocalDraft || (createdAt > 0 && Date.now() - createdAt < 60000 && !lt._syncedToCloud);
             
             if (!isFreshLocalDraft) {
+              newlyPrunedIds.push(lt.task_id);
               return false; // Absent on authoritative cloud -> permanently remove locally
             }
             return true;
@@ -748,6 +886,29 @@ class MonthWorkbookManager {
         if (filtered.length !== localTasks.length) {
           this.workbooks[norm] = filtered;
           anyChanges = true;
+        }
+
+        // Add newly pruned IDs to deletedIds tombstones so they can NEVER resurrect!
+        if (newlyPrunedIds.length > 0) {
+          newlyPrunedIds.forEach(id => {
+            if (!deletedIds.includes(id)) deletedIds.push(id);
+          });
+          try {
+            if (deletedIds.length > 500) deletedIds.splice(0, deletedIds.length - 500);
+            localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedIds));
+          } catch (e) {}
+
+          // Purge any pending SYNC_TASK for newly pruned IDs from the pending queue
+          if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
+            try {
+              const q = GoogleSheetsSync.getPendingQueue();
+              const pruneSet = new Set(newlyPrunedIds);
+              const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && pruneSet.has(item.payload.task_id)));
+              if (cleanQ.length !== q.length) {
+                GoogleSheetsSync.savePendingQueue(cleanQ);
+              }
+            } catch (e) {}
+          }
         }
       }
 

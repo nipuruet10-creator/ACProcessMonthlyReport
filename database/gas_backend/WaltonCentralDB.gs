@@ -99,6 +99,8 @@ function doGet(e) {
       };
     } else if (action === 'ARCHIVE_OLD_DATA') {
       result = archiveOldData();
+    } else if (action === 'CLEANUP_EMPTY_AND_DUPLICATE_ROWS') {
+      result = cleanupEmptyAndDuplicateRows();
     } else if (action === 'GET_ALL') {
       result = {
         status: 'OK',
@@ -161,6 +163,8 @@ function doPost(e) {
       result = requestAuthOtp(payload);
     } else if (action === 'VERIFY_OTP_CHANGE_PASSWORD') {
       result = verifyOtpAndChangePassword(payload);
+    } else if (action === 'CLEANUP_EMPTY_AND_DUPLICATE_ROWS') {
+      result = cleanupEmptyAndDuplicateRows();
     } else {
       result = { status: 'ERROR', message: 'Unsupported POST action: ' + action };
     }
@@ -271,46 +275,37 @@ function getTasksForMonth(month) {
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const monthColIdx = headers.indexOf('month');
+  const taskIdColIdx = headers.indexOf('task_id');
   if (monthColIdx === -1) return [];
 
-  // OPTIMIZATION: Check bottom 120 rows first (< 50ms)
-  const scanRows = Math.min(120, lastRow - 1);
-  const startRow = lastRow - scanRows + 1;
-  const recentValues = sheet.getRange(startRow, 1, scanRows, headers.length).getValues();
+  // Read all rows for the month accurately
+  const allValues = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
   const tasks = [];
+  const seenTaskIds = {};
 
-  for (let i = 0; i < recentValues.length; i++) {
-    const row = recentValues[i];
+  for (let i = 0; i < allValues.length; i++) {
+    const row = allValues[i];
+    const taskId = taskIdColIdx !== -1 ? String(row[taskIdColIdx] || '').trim() : String(row[0] || '').trim();
+    // Skip empty or ghost rows
+    if (!taskId) continue;
+
     const m = parseMonthKey(row[monthColIdx]);
     if (m === target) {
+      const taskName = headers.indexOf('task_name') !== -1 ? String(row[headers.indexOf('task_name')] || '').toLowerCase() : '';
+      if (taskName.includes('compact cassettes') || taskName.includes('brazing jig development') || taskId.includes('-TEST')) {
+        continue; // Never return legacy deleted task
+      }
+
+      // Deduplicate if identical task ID occurs multiple times
+      if (seenTaskIds[taskId]) continue;
+      seenTaskIds[taskId] = true;
+
       const task = {};
       headers.forEach((h, col) => {
         task[h] = row[col];
       });
       task.month = target;
       tasks.push(task);
-    }
-  }
-
-  // If found in bottom rows, return immediately! (< 100ms total)
-  if (tasks.length > 0) {
-    return tasks;
-  }
-
-  // Fallback: If requesting historical month (e.g. JAN-2026), read earlier rows
-  if (startRow > 2) {
-    const olderValues = sheet.getRange(2, 1, startRow - 2, headers.length).getValues();
-    for (let i = 0; i < olderValues.length; i++) {
-      const row = olderValues[i];
-      const m = parseMonthKey(row[monthColIdx]);
-      if (m === target) {
-        const task = {};
-        headers.forEach((h, col) => {
-          task[h] = row[col];
-        });
-        task.month = target;
-        tasks.push(task);
-      }
     }
   }
 
@@ -410,16 +405,30 @@ function getAllWorkbooksGrouped() {
 
   const headers = data[0];
   const monthColIdx = headers.indexOf('month');
+  const taskIdColIdx = headers.indexOf('task_id');
   const workbooks = {};
+  const seenIdsByMonth = {};
 
   for (let r = 1; r < data.length; r++) {
     const row = data[r];
+    const taskId = taskIdColIdx !== -1 ? String(row[taskIdColIdx] || '').trim() : String(row[0] || '').trim();
+    // Skip empty ghost rows
+    if (!taskId) continue;
+
+    const m = parseMonthKey(row[monthColIdx !== -1 ? monthColIdx : 1]) || 'SEP-2026';
+    const taskName = headers.indexOf('task_name') !== -1 ? String(row[headers.indexOf('task_name')] || '').toLowerCase() : '';
+    if (taskName.includes('compact cassettes') || taskName.includes('brazing jig development') || taskId.includes('-TEST')) {
+      continue; // Skip legacy deleted task
+    }
+
+    if (!seenIdsByMonth[m]) seenIdsByMonth[m] = {};
+    if (seenIdsByMonth[m][taskId]) continue; // Deduplicate
+    seenIdsByMonth[m][taskId] = true;
+
     const task = {};
     headers.forEach((h, col) => {
       task[h] = row[col];
     });
-
-    const m = parseMonthKey(row[monthColIdx !== -1 ? monthColIdx : 1]) || 'SEP-2026';
     task.month = m;
 
     if (!workbooks[m]) {
@@ -436,43 +445,45 @@ function getAllWorkbooksGrouped() {
  * Non-destructive protection: Prevents edits from one laptop from wiping out AI details or photos from another.
  */
 function syncSingleTask(task) {
-  if (!task || !task.task_id) {
-    return { status: 'ERROR', message: 'Task ID is required' };
+  if (!task || !task.task_id || !String(task.task_id).trim()) {
+    return { status: 'ERROR', message: 'Valid Task ID is required' };
+  }
+
+  // PERMANENT TOMBSTONE PROTECTION:
+  // Reject deleted legacy tasks permanently so stale browsers can NEVER resurrect them!
+  const taskNameStr = String(task.task_name || '').toLowerCase();
+  if (taskNameStr.includes('compact cassettes') || taskNameStr.includes('brazing jig development') || String(task.task_id).includes('-TEST')) {
+    deleteSingleTask(task.task_id, task.month);
+    return { status: 'DELETED', action: 'BLOCKED_TOMBSTONE', task_id: task.task_id };
   }
 
   const sheet = getTasksSheet();
   const lastRow = sheet.getLastRow();
   const headers = DB_CONFIG.TASK_HEADERS;
   const taskIdCol = 0; // task_id is column 0
+  const cleanId = String(task.task_id).trim();
 
   let foundRowIndex = -1;
   let existingRow = null;
+  const duplicateRowIndices = [];
 
-  // Search bottom 120 rows first (< 50ms) where active tasks live
   if (lastRow > 1) {
-    const checkCount = Math.min(120, lastRow - 1);
-    const startScan = lastRow - checkCount + 1;
-    const recentData = sheet.getRange(startScan, 1, checkCount, headers.length).getValues();
-    for (let r = recentData.length - 1; r >= 0; r--) {
-      if (String(recentData[r][taskIdCol]).trim() === String(task.task_id).trim()) {
-        foundRowIndex = startScan + r;
-        existingRow = recentData[r];
-        break;
-      }
-    }
-
-    // Fallback: search remaining earlier rows if not found in bottom 120
-    if (foundRowIndex === -1 && startScan > 2) {
-      const earlierCount = startScan - 2;
-      const earlierData = sheet.getRange(2, 1, earlierCount, headers.length).getValues();
-      for (let r = earlierData.length - 1; r >= 0; r--) {
-        if (String(earlierData[r][taskIdCol]).trim() === String(task.task_id).trim()) {
+    const allData = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    for (let r = 0; r < allData.length; r++) {
+      if (String(allData[r][taskIdCol]).trim() === cleanId) {
+        if (foundRowIndex === -1) {
           foundRowIndex = 2 + r;
-          existingRow = earlierData[r];
-          break;
+          existingRow = allData[r];
+        } else {
+          duplicateRowIndices.push(2 + r);
         }
       }
     }
+  }
+
+  // If duplicate rows existed in the sheet, remove them in reverse order
+  for (let d = duplicateRowIndices.length - 1; d >= 0; d--) {
+    sheet.deleteRow(duplicateRowIndices[d]);
   }
 
   task.last_updated = new Date().toISOString();
@@ -514,12 +525,19 @@ function deleteSingleTask(taskId, month) {
   const sheet = getTasksSheet();
   const data = sheet.getDataRange().getValues();
   const taskIdCol = 0;
+  const targetId = String(taskId).trim();
 
-  for (let r = 1; r < data.length; r++) {
-    if (String(data[r][taskIdCol]).trim() === String(taskId).trim()) {
+  let deletedCount = 0;
+  // Iterate in reverse from bottom to top so row deletions never shift indices
+  for (let r = data.length - 1; r >= 1; r--) {
+    if (String(data[r][taskIdCol]).trim() === targetId) {
       sheet.deleteRow(r + 1);
-      return { status: 'OK', action: 'DELETED', task_id: taskId };
+      deletedCount++;
     }
+  }
+
+  if (deletedCount > 0) {
+    return { status: 'OK', action: 'DELETED', task_id: taskId, count: deletedCount };
   }
 
   return { status: 'NOT_FOUND', task_id: taskId };
@@ -557,6 +575,45 @@ function deleteMultipleTasks(taskIds, month) {
     action: 'DELETED_MULTIPLE',
     deletedCount: deletedCount,
     month: month,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Clean up empty ghost rows and duplicate rows across the TASKS sheet
+ */
+function cleanupEmptyAndDuplicateRows() {
+  const sheet = getTasksSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { status: 'OK', deletedEmpty: 0, deletedDuplicates: 0, message: 'No rows' };
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const taskIdCol = 0;
+  const seenIds = {};
+  let deletedEmpty = 0;
+  let deletedDuplicates = 0;
+
+  // Process in reverse from bottom to top
+  for (let r = data.length - 1; r >= 1; r--) {
+    const tid = String(data[r][taskIdCol] || '').trim();
+    if (!tid) {
+      sheet.deleteRow(r + 1);
+      deletedEmpty++;
+    } else if (seenIds[tid]) {
+      sheet.deleteRow(r + 1);
+      deletedDuplicates++;
+    } else {
+      seenIds[tid] = true;
+    }
+  }
+
+  return {
+    status: 'OK',
+    deletedEmpty: deletedEmpty,
+    deletedDuplicates: deletedDuplicates,
+    totalCleaned: deletedEmpty + deletedDuplicates,
     timestamp: new Date().toISOString()
   };
 }
@@ -615,6 +672,10 @@ function bulkPushAllData(payload) {
   months.forEach(m => {
     const list = workbooks[m] || [];
     list.forEach(t => {
+      if (!t || !t.task_id || !String(t.task_id).trim()) return;
+      const tName = String(t.task_name || '').toLowerCase();
+      if (tName.includes('compact cassettes') || tName.includes('brazing jig development') || String(t.task_id).includes('-TEST')) return;
+
       const row = headers.map(h => {
         const val = t[h];
         return val !== undefined && val !== null ? val : '';

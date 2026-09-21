@@ -208,6 +208,10 @@ const GoogleSheetsSync = {
       return true;
     });
 
+    if (sanitizedQueue.length !== q.length) {
+      this.savePendingQueue(sanitizedQueue);
+    }
+
     const remaining = [];
     for (const item of sanitizedQueue) {
       try {

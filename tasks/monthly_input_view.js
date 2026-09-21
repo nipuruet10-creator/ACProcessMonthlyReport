@@ -1307,13 +1307,16 @@ const MonthlyInputView = {
           ${idx + 1}
         </td>
 
-        <!-- Task Name (Full Visibility Auto-adjusting Textarea) -->
+        <!-- Task Name (Full Visibility Auto-adjusting Textarea with docked Walton TMS Button) -->
         <td class="py-2 px-2 border-r border-slate-200 align-middle">
-          <textarea id="task-name-input-${t.task_id}" rows="1"
-                    oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
-                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                    class="w-full bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block transition"
-                    placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
+          <div class="relative flex items-center gap-1.5">
+            <textarea id="task-name-input-${t.task_id}" rows="1"
+                      oninput="this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
+                      onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
+                      class="flex-1 bg-white border border-transparent group-hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-100 resize-none overflow-hidden leading-snug block transition"
+                      placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
+            ${(typeof TmsSyncService !== 'undefined') ? TmsSyncService.renderTmsActionHtml(this.selectedMonth, t) : ''}
+          </div>
         </td>
 
         <!-- Task Details / Steps (Editable Text with Docked AI Button) -->
@@ -1716,6 +1719,10 @@ const MonthlyInputView = {
 
               <button id="sync-btn-input" onclick="MonthlyInputView.triggerSync()" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm transition flex items-center gap-1.5">
                 <span class="text-amber-500">⚡</span> <span>Sync</span>
+              </button>
+
+              <button onclick="TmsSyncService.syncMonthTasks(MonthlyInputView.selectedMonth, MonthlyInputView.filterEngineer)" title="Sync all tasks in active month/filter to Walton TMS (192.168.118.138)" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md shadow-blue-200/50 flex items-center gap-1.5 transition cursor-pointer">
+                <span>🚀</span> <span>Walton TMS Sync</span>
               </button>
 
               <button onclick="MonthlyInputView.openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 transition shadow-sm">

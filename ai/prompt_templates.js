@@ -233,73 +233,83 @@ Return ONLY a JSON object matching this exact schema:
     const cleanSubject = raw.replace(/[^\w\s-]/g, '').trim() || "process component";
     const lower = `${raw} ${category}`.toLowerCase();
 
-    // 1. Wire Cover / Electrical Harness / Safety Guard
+    // 1. Assembly Line Relocation / Line Transfer / Layout Re-arrangement
+    if (lower.includes("assembly line") || lower.includes("relocation") || lower.includes("line transfer") || lower.includes("machine shifting") || lower.includes("layout")) {
+      return `1. Assembly line layout planning & electrical/pneumatic routing design for ${cleanSubject} 2. Equipment dismantling, structural relocation & precision leveling 3. Power wiring, pneumatic manifold & sensor interlock reconnection 4. Pilot trial production run & line balancing cycle time verification 5. Quality inspection sign-off & official handover to production with SOP`;
+    }
+
+    // 2. New Setup / Line Setup / Workstation Setup
+    if (lower.includes("new setup") || lower.includes("line setup") || lower.includes("workstation") || lower.includes("bench setup") || lower.includes("setup")) {
+      return `1. Technical requirement analysis & workstation ergonomic layout for ${cleanSubject} 2. Tooling fabrication, electrical control panel & air line setup 3. Sensor calibration, pneumatic cylinder testing & safety interlock 4. Production trial run & line cycle time audit 5. Operator training & official line handover with standard SOP`;
+    }
+
+    // 3. Wire Cover / Electrical Harness / Safety Guard
     if (lower.includes("wire cover") || lower.includes("cover development") || lower.includes("harness") || lower.includes("cable") || lower.includes("guard") || lower.includes("enclosure")) {
       return `1. 3D CAD modeling of protective cover & wire routing check for ${cleanSubject} 2. Sheet metal pressing, edge deburring & anti-vibration rubber fitment 3. Machine frame mounting & fastener torque verification 4. Operating vibration trial & safety interlock check 5. Final installation & production safety sign-off`;
     }
 
-    // 2. Condenser / Evaporator / Heat Exchanger / Cutting Frame
+    // 4. Condenser / Evaporator / Heat Exchanger / Cutting Frame
     if (lower.includes("condenser") || lower.includes("evaporator") || lower.includes("cutting frame") || lower.includes("copper tube") || lower.includes("fin")) {
       return `1. Condenser/evaporator frame dimensional tolerance study for ${cleanSubject} 2. Cutting fixture tooling fabrication & locator pin alignment 3. Pneumatic clamp fitment & electrical sensor interlock 4. Sample cutting trial & burr-free edge verification 5. Production commissioning & line handover with SOP`;
     }
 
-    // 3. Cassettes / Brazing Jig / Joint Fixtures
+    // 5. Cassettes / Brazing Jig / Joint Fixtures
     if (lower.includes("cassette") || lower.includes("brazing jig") || lower.includes("brazing fixture") || lower.includes("brazing")) {
       return `1. Cassette U-bend joint geometry & thermal expansion analysis for ${cleanSubject} 2. Brazing jig fixture CNC machining & locator pin alignment 3. Pneumatic clamping & gas flow manifold assembly 4. Pilot flame brazing trial & helium leak inspection 5. Production handover to brazing line with temperature calibration sheet`;
     }
 
-    // 4. Foil / Cutting / Jacket / Slitter
+    // 6. Foil / Cutting / Jacket / Slitter
     if (lower.includes("foil") || lower.includes("cutting") || lower.includes("jacket") || lower.includes("blade") || lower.includes("slitter")) {
       return `1. CAD modeling & dimension calculation for ${cleanSubject} 2. Cutter blade fixture fabrication & pneumatic mounting 3. Sensor calibration & trial cutting run 4. Cycle time & burr inspection under line speed 5. Production handover & line efficiency verification with SOP`;
     }
 
-    // 5. QR / Vision / Camera / Barcode
+    // 7. QR / Vision / Camera / Barcode
     if (lower.includes("qr") || lower.includes("scan") || lower.includes("barcode") || lower.includes("vision") || lower.includes("camera")) {
       return `1. High-resolution camera mounting bracket & optical lighting setup for ${cleanSubject} 2. QR/barcode decoding trigger script integration 3. Conveyor sensor interlock & rejection gate testing 4. Real-time scanning accuracy & cycle time verification 5. Production operator training & standard SOP documentation`;
     }
 
-    // 6. Tooling Fixtures & Jigs
+    // 8. Tooling Fixtures & Jigs
     if (lower.includes("fixture") || lower.includes("jig") || lower.includes("clamp") || lower.includes("nesting") || lower.includes("mold") || lower.includes("die")) {
       return `1. Part tolerance analysis & 3D fixture CAD modeling for ${cleanSubject} 2. CNC tooling fabrication & locator pin assembly 3. Pneumatic clamping cylinder fitment & pressure testing 4. Repeatability dimensional audit & line pilot run 5. Handover to line assembly with calibration sheet and SOP`;
     }
 
-    // 7. CNC / Punch / Turret / Sheet Metal
+    // 9. CNC / Punch / Turret / Sheet Metal
     if (lower.includes("cnc") || lower.includes("punch") || lower.includes("turret") || lower.includes("stamping") || lower.includes("press") || lower.includes("sheet metal")) {
       return `1. Tooling punch matrix specification & CAD layout for ${cleanSubject} 2. CNC nesting G-code programming & sheet clamp setup 3. Sample batch stamping trial & dimensional verification 4. Tonnage calibration & safety curtain sensor check 5. Production commissioning & operator safety handover`;
     }
 
-    // 8. Robotics / EOAT / Automation
+    // 10. Robotics / EOAT / Automation
     if (lower.includes("eoat") || lower.includes("robot") || lower.includes("topstar") || lower.includes("arm") || lower.includes("gripper") || lower.includes("injection")) {
       return `1. End-of-arm tooling (EOAT) gripper 3D CAD design for ${cleanSubject} 2. Aluminum profile machining & pneumatic cylinder assembly 3. Robot trajectory teaching & pick-and-place trial run 4. Injection machine cycle synchronization & interlock test 5. Production line commissioning with maintenance guide`;
     }
 
-    // 9. Vacuum / Piping / Booster Pump
+    // 11. Vacuum / Piping / Booster Pump
     if (lower.includes("vacuum") || lower.includes("piping") || lower.includes("pump") || lower.includes("station") || lower.includes("booster") || lower.includes("pipe")) {
       return `1. Vacuum station P&ID layout & pipe routing design for ${cleanSubject} 2. High-grade piping fabrication & pressure leak testing 3. Vacuum gauge calibration & booster sequencing 4. Production line trial & vacuum drawdown verification 5. Line handover with vacuum integrity inspection SOP`;
     }
 
-    // 10. Chemical / Coating / Corrosion
+    // 12. Chemical / Coating / Corrosion
     if (lower.includes("chemical") || lower.includes("corrosion") || lower.includes("coating") || lower.includes("paint") || lower.includes("swaat") || lower.includes("acid")) {
       return `1. Chemical bath concentration calculation & material compatibility test for ${cleanSubject} 2. Test coupon surface coating & exposure trial 3. Corrosion resistance evaluation against Walton AC standards 4. Bath temperature & titration process control check 5. Standardized SOP preparation & bath maintenance guide`;
     }
 
-    // 11. Cost Savings / Scrap / Yield
+    // 13. Cost Savings / Scrap / Yield
     if (lower.includes("cost") || lower.includes("saving") || lower.includes("scrap") || lower.includes("wastage") || lower.includes("yield")) {
       return `1. Baseline material waste & scrap generation audit for ${cleanSubject} 2. Component nesting redesign & cutting layout optimization 3. Production trial run & scrap reduction measurement 4. Quality verification against structural specifications 5. Standardized yield implementation & cost tracking sign-off`;
     }
 
-    // 12. Strategic Projects & Major Developments
+    // 14. Strategic Projects & Major Developments
     if (lower.includes("project") || lower.includes("development") || lower.includes("automation") || lower.includes("upgrade")) {
       return `1. Concept design & layout analysis for ${cleanSubject} 2. Structural fabrication, component assembly & electrical wiring 3. Control logic programming, safety interlock & calibration 4. Pilot trial run & cycle time optimization 5. Final production commissioning with operational SOP`;
     }
 
-    // 13. BOM / Part Verification
+    // 15. BOM / Part Verification
     if (lower.includes("bom") || lower.includes("parts") || lower.includes("verification")) {
       return `1. Bill of Materials physical audit against engineering drawings for ${cleanSubject} 2. Alternate vendor component dimensional tolerance verification 3. Assembly fitment trial & electrical functional testing 4. Quality assurance verification & reliability check 5. BOM sign-off & ERP master data update`;
     }
 
-    // 14. Dynamic clean fallback tailored to raw title (Guaranteed 5 numbered steps)
-    return `1. Process requirement study & 3D CAD modeling for ${cleanSubject} 2. Tooling fabrication & assembly trial 3. Sensor calibration & pneumatic/electrical testing 4. Production line pilot run & repeatability audit 5. Production line handover with standard SOP`;
+    // 16. Dynamic clean fallback tailored to raw title (Guaranteed 5 numbered shop-floor steps)
+    return `1. Process feasibility analysis & 3D CAD modeling for ${cleanSubject} 2. Tooling fabrication & mechanical component assembly 3. Sensor calibration & pneumatic/electrical testing 4. Production line pilot trial run & cycle time audit 5. Final production line handover with standard SOP`;
   }
 };
 

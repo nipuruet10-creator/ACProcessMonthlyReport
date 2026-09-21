@@ -39,6 +39,9 @@ const MasterDataView = {
             <p class="text-xs text-slate-500 mt-0.5">Manage and customize Concern Engineers, IDs, and Department Categories.</p>
           </div>
           <div class="flex items-center gap-2">
+            <button onclick="MasterDataView.openBatchPasswordModal()" class="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition shadow-sm flex items-center gap-1.5" title="Update Walton TMS password for all engineers at once (e.g. monthly renewal)">
+              <span>🔑</span> <span>Monthly TMS Passwords</span>
+            </button>
             <button onclick="MasterDataView.resetDefaults()" class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold transition shadow-sm">
               ↺ Reset to Defaults
             </button>
@@ -55,7 +58,7 @@ const MasterDataView = {
             <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
               <div>
                 <h3 class="text-sm font-bold text-slate-800">Concern Engineers (${engineers.length})</h3>
-                <p class="text-[11px] text-slate-400">Available in task entry dropdowns and slide concern badges</p>
+                <p class="text-[11px] text-slate-400">Available in task entry dropdowns and Walton TMS automated login</p>
               </div>
               <button onclick="MasterDataView.openAddEngineerModal()" class="text-xs font-bold text-red-600 hover:text-red-700 transition">
                 + Add Engineer
@@ -70,10 +73,15 @@ const MasterDataView = {
                       ${(e.name || "?").charAt(0)}
                     </div>
                     <div>
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-bold text-slate-800 text-xs">${e.name}</span>
                         <span class="font-mono text-[10px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                           ID: ${e.id}
+                        </span>
+                        <span class="font-mono text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1" title="Walton eService TMS Password">
+                          <span>🔒</span>
+                          <span id="tms-pass-display-${e.id}">••••••••</span>
+                          <button onclick="const el=document.getElementById('tms-pass-display-${e.id}'); el.textContent = el.textContent==='••••••••' ? '${e.tms_password || 'Sep@2026'}' : '••••••••';" class="hover:text-amber-900 ml-1">👁️</button>
                         </span>
                       </div>
                       <div class="text-[11px] text-slate-400 mt-0.5">
@@ -83,7 +91,7 @@ const MasterDataView = {
                   </div>
 
                   <div class="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
-                    <button onclick="MasterDataView.openEditEngineerModal('${e.id}')" title="Edit Engineer" class="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition">
+                    <button onclick="MasterDataView.openEditEngineerModal('${e.id}')" title="Edit Engineer &amp; TMS Credentials" class="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition">
                       ✏️
                     </button>
                     <button onclick="MasterDataView.deleteEngineer('${e.id}', '${e.name}')" title="Delete Engineer" class="p-1.5 rounded-lg bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 border border-slate-200 transition">
@@ -219,6 +227,17 @@ const MasterDataView = {
               <input type="email" id="modal-eng-email" value="${data.email || ''}" placeholder="e.g. sazzad50463@waltonbd.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100">
             </div>
 
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-semibold text-slate-600">Walton TMS Login Password *</label>
+                <button type="button" onclick="const p=document.getElementById('modal-eng-tms-pass'); p.type = p.type === 'password' ? 'text' : 'password';" class="text-[10px] text-slate-500 hover:text-slate-800 font-bold">
+                  👁️ Show/Hide
+                </button>
+              </div>
+              <input type="password" id="modal-eng-tms-pass" value="${data.tms_password || 'Sep@2026'}" placeholder="e.g. Sep@2026" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100">
+              <span class="text-[10px] text-slate-400">Used for automated login to Walton eService TMS (192.168.118.138)</span>
+            </div>
+
             <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <button type="button" onclick="MasterDataView.closeModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition">
                 Cancel
@@ -246,6 +265,7 @@ const MasterDataView = {
     const id = document.getElementById('modal-eng-id').value.trim();
     const fullName = document.getElementById('modal-eng-fullname').value.trim();
     const email = document.getElementById('modal-eng-email').value.trim();
+    const tms_password = (document.getElementById('modal-eng-tms-pass') ? document.getElementById('modal-eng-tms-pass').value.trim() : "Sep@2026") || "Sep@2026";
 
     if (!name || !id) {
       alert("Name and ID are required.");
@@ -254,16 +274,77 @@ const MasterDataView = {
 
     try {
       if (this.editingEngineerId) {
-        MasterDataManager.updateEngineer(this.editingEngineerId, { name, id, fullName, email });
+        MasterDataManager.updateEngineer(this.editingEngineerId, { name, id, fullName, email, tms_password });
         if (typeof window.showToast === 'function') window.showToast(`Updated engineer ${name} (${id})`, "success");
       } else {
-        MasterDataManager.addEngineer({ name, id, fullName, email });
+        MasterDataManager.addEngineer({ name, id, fullName, email, tms_password });
         if (typeof window.showToast === 'function') window.showToast(`Added engineer ${name} (${id})`, "success");
       }
       this.closeModal();
       this.render();
     } catch (err) {
       alert("Error saving engineer: " + err.message);
+    }
+  },
+
+  openBatchPasswordModal() {
+    const modalContainer = document.getElementById('master-data-modal-container');
+    if (!modalContainer) return;
+
+    modalContainer.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🔑</span>
+              <h3 class="text-base font-bold text-slate-800">Batch Update Monthly TMS Passwords</h3>
+            </div>
+            <button onclick="MasterDataView.closeModal()" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition">
+              ✕
+            </button>
+          </div>
+
+          <form onsubmit="MasterDataView.handleBatchPasswordSubmit(event)" class="mt-4 space-y-3.5">
+            <p class="text-xs text-slate-500">
+              When Walton requires monthly password updates (e.g., <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">Sep@2026</code>, <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">Oct@2026</code>), you can update the TMS password for all Concern Engineers at once.
+            </p>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">New Monthly TMS Password *</label>
+              <input type="text" id="modal-batch-tms-pass" required placeholder="e.g. Sep@2026" value="Sep@2026" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button type="button" onclick="MasterDataView.closeModal()" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-xs font-black text-white shadow-md transition">
+                Update All Engineers
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  handleBatchPasswordSubmit(e) {
+    e.preventDefault();
+    const passInput = document.getElementById('modal-batch-tms-pass');
+    const newPass = passInput ? passInput.value.trim() : '';
+    if (!newPass) {
+      alert("Please enter a valid password.");
+      return;
+    }
+    try {
+      MasterDataManager.setGlobalTmsPassword(newPass);
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Updated TMS password to "${newPass}" for all engineers!`, "success");
+      }
+      this.closeModal();
+      this.render();
+    } catch (err) {
+      alert("Error updating passwords: " + err.message);
     }
   },
 
