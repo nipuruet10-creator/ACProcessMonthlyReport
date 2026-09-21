@@ -82,6 +82,23 @@ const GoogleSheetsSync = {
       // Hidden/minimized tab: every 15 seconds (energy and quota saving)
       let pollCycle = 0;
       setInterval(() => {
+        // Watchdog: If isSyncing stuck for > 20s, force reset
+        if (this.isSyncing && (Date.now() - (this._syncStartTime || 0) > 20000)) {
+          console.warn("Watchdog: Resetting stuck sync flag.");
+          this.isSyncing = false;
+          this._updateNavbarBadge();
+        }
+
+        // Flush deferred refresh if user is idle
+        if (this._pendingViewRefresh) {
+          const active = (typeof document !== 'undefined') ? document.activeElement : null;
+          const isInteracting = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
+          if (!isInteracting && (Date.now() - (this._lastLocalEditTime || 0) > 3000)) {
+            this._pendingViewRefresh = false;
+            this._refreshActiveViews();
+          }
+        }
+
         if (!this.isSyncing && this.getWebAppUrl()) {
           pollCycle++;
           const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
@@ -159,6 +176,18 @@ const GoogleSheetsSync = {
         }
       };
       window.addEventListener('pointerdown', onUserActivity, { passive: true });
+
+      // Immediate refresh as soon as user clicks away from an input or finishes editing
+      document.addEventListener('focusout', () => {
+        setTimeout(() => {
+          const active = (typeof document !== 'undefined') ? document.activeElement : null;
+          const stillInteracting = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
+          if (!stillInteracting && this._pendingViewRefresh) {
+            this._pendingViewRefresh = false;
+            this._refreshActiveViews();
+          }
+        }, 250);
+      });
 
       this._listenersAttached = true;
     }
@@ -330,9 +359,34 @@ const GoogleSheetsSync = {
   },
 
   /**
-   * Push a single task to Google Sheets in background
+   * Push a single task to Google Sheets in background with 350ms debouncing per task ID
    */
-  async pushTask(task) {
+  _pushDebounceTimers: {},
+  async pushTask(task, immediate = false) {
+    if (!task || !task.task_id) return false;
+    const taskId = task.task_id;
+
+    if (!immediate) {
+      if (!this._pushDebounceTimers) this._pushDebounceTimers = {};
+      if (this._pushDebounceTimers[taskId]) {
+        clearTimeout(this._pushDebounceTimers[taskId]);
+      }
+      return new Promise((resolve) => {
+        this._pushDebounceTimers[taskId] = setTimeout(async () => {
+          delete this._pushDebounceTimers[taskId];
+          const ok = await this._executePushTask(task);
+          resolve(ok);
+        }, 350);
+      });
+    }
+
+    return this._executePushTask(task);
+  },
+
+  /**
+   * Internal execution of task push to Google Apps Script
+   */
+  async _executePushTask(task) {
     const url = this.getWebAppUrl();
     if (!url || !task || !task.task_id) return false;
 
@@ -346,9 +400,17 @@ const GoogleSheetsSync = {
 
     task.last_updated = task.last_updated || new Date().toISOString();
 
+    // If task has TMS metadata, automatically format status and remarks for fail-safe storage
+    if (task.tms_task_id && (!task.status || !task.status.includes('TMS'))) {
+      task.status = `TMS#${task.tms_task_id} (100% Completed)`;
+    }
+    if (task.tms_task_id && (!task.remarks || !task.remarks.includes('TMS'))) {
+      task.remarks = `TMS_ID:${task.tms_task_id}`;
+    }
+
     try {
       // Using text/plain prevents CORS OPTIONS preflight
-      await this._fetchWithTimeout(url, {
+      const res = await this._fetchWithTimeout(url, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -357,6 +419,14 @@ const GoogleSheetsSync = {
           payload: task
         })
       }, 25000);
+
+      const data = await this._safeJson(res);
+      if (!data || data.status !== 'OK') {
+        console.warn("Background cloud task sync notice - response not OK, enqueuing retry:", data);
+        this.queuePending({ action: 'SYNC_TASK', payload: task });
+        return false;
+      }
+
       this.lastSyncTime = new Date().toISOString();
       localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
       this.status = 'CONNECTED';
@@ -635,6 +705,7 @@ const GoogleSheetsSync = {
 
     try {
       this.isSyncing = true;
+      this._syncStartTime = Date.now();
       this._updateNavbarBadge();
 
       const activeMonth = (window.appState && window.appState.workbookMgr && window.appState.workbookMgr.activeMonth)
@@ -846,20 +917,31 @@ const GoogleSheetsSync = {
     this._notifySubscribers();
   },
 
+  _pendingViewRefresh: false,
   _refreshActiveViews() {
     try {
-      const activeEl = document.activeElement;
-      const isUserInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
-      
-      // If user is actively typing or focused on a control, NEVER wipe out the table!
-      if (isUserInteracting) {
+      // If Firebase Realtime Engine is active and connected, skip disruptive full table re-renders
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        this._pendingViewRefresh = false;
         return;
       }
 
-      // If user made a local edit within the last 8 seconds, do not disrupt their work!
-      if (Date.now() - (this._lastLocalEditTime || 0) < 8000) {
+      const activeEl = document.activeElement;
+      const isUserInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+      
+      // If user is actively typing or focused on a control, defer refresh
+      if (isUserInteracting) {
+        this._pendingViewRefresh = true;
         return;
       }
+
+      // If user made a local edit within the last 3.5 seconds, defer refresh
+      if (Date.now() - (this._lastLocalEditTime || 0) < 3500) {
+        this._pendingViewRefresh = true;
+        return;
+      }
+
+      this._pendingViewRefresh = false;
 
       // Smooth scroll preservation to prevent screen shaking/vibration
       const savedScrollY = (typeof window !== 'undefined') ? window.scrollY : 0;

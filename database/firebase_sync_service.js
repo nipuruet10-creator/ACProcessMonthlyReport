@@ -135,6 +135,23 @@ const FirebaseSyncService = {
     this.currentListeningMonth = normMonth;
     this._monthRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks`);
 
+    // 0. Initial Hydration: Load all current tasks from Firebase on startup/connect
+    this._monthRef.once('value').then((snapshot) => {
+      const fbData = snapshot.val();
+      if (fbData && typeof fbData === 'object' && window.appState && window.appState.workbookMgr) {
+        const remoteTasks = Object.values(fbData).filter(t => t && t.task_id);
+        if (remoteTasks.length > 0) {
+          const wbMgr = window.appState.workbookMgr;
+          wbMgr.workbooks[normMonth] = remoteTasks;
+          wbMgr.save();
+          console.log(`🔥 Firebase Hydrated: Loaded ${remoteTasks.length} tasks for ${normMonth} into active memory.`);
+          if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+            MonthlyInputView.render();
+          }
+        }
+      }
+    }).catch(e => console.warn("Firebase initial hydration notice:", e));
+
     // 1. child_added: Another user created a new task row
     this._monthRef.on('child_added', (snapshot) => {
       const task = snapshot.val();
@@ -180,7 +197,12 @@ const FirebaseSyncService = {
     if (!window.appState || !window.appState.workbookMgr) return;
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);
-    if (existing) return; // Already present
+    if (existing) {
+      // If already present, merge any remote updates smoothly
+      Object.assign(existing, task);
+      wbMgr.save();
+      return;
+    }
 
     // Add to in-memory workbook without pushing back
     if (!wbMgr.workbooks[month]) wbMgr.workbooks[month] = [];

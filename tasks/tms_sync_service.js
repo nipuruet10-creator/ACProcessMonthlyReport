@@ -324,11 +324,10 @@ const TmsSyncService = {
     return `
       <a href="${url}" target="_blank" rel="noopener noreferrer"
          title="Walton TMS Task #${tmsId} (100% Complete) - Click to view in TMS"
-         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-bold shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
+         class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[9px] font-bold shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
         <span>🏢</span>
         <span>#${tmsId}</span>
-        <span class="text-emerald-600 font-black">✔ 100%</span>
-        <span class="text-[9px] text-emerald-500 font-bold">↗</span>
+        <span class="text-emerald-600 font-black">✔</span>
       </a>
     `;
   },
@@ -337,9 +336,9 @@ const TmsSyncService = {
     return `
       <button id="tms-btn-${task.task_id}" onclick="TmsSyncService.syncSingleTask('${month}', '${task.task_id}')"
               title="Sync &amp; 100% Complete on Walton TMS (192.168.118.138)"
-              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold text-[10px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
+              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
         <span>⚡</span>
-        <span>TMS Sync</span>
+        <span>TMS</span>
       </button>
     `;
   },
