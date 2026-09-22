@@ -113,7 +113,37 @@ const ExportController = {
 
     // Ensure sync has run
     await syncEngine.syncMonth(selectedMonth);
-    const activeSlides = syncEngine.getActiveSlides(selectedMonth);
+    let activeSlides = syncEngine.getActiveSlides(selectedMonth) || [];
+
+    // Ensure all valid tasks for the month from workbook are included so total slide count is exact
+    const wMgr = syncEngine.workbookMgr || (window.appState ? window.appState.workbookMgr : null);
+    const monthRawTasks = wMgr ? wMgr.getTasksForMonth(selectedMonth) : [];
+    const validMonthTasks = monthRawTasks.filter(t => 
+      (t.task_name && t.task_name.trim().length > 0) || 
+      (t.raw_task_name && t.raw_task_name.trim().length > 0)
+    );
+
+    const existingSlideTaskIds = new Set(activeSlides.map(s => s.task_id));
+    validMonthTasks.forEach(t => {
+      if (!existingSlideTaskIds.has(t.task_id)) {
+        activeSlides.push({
+          task_id: t.task_id,
+          month: selectedMonth,
+          engineer: t.assignee || t.engineer || "Process Engineering",
+          raw_task_name: t.task_name,
+          slide_title: t.task_name,
+          description: t.task_details || "Implemented engineering process improvement for regular production.",
+          category: t.category || "Process development",
+          status: t.status || "Completed",
+          investment: t.investment || (t.savings ? `BDT ${t.savings}` : "In-house / Direct Implementation"),
+          include_in_report: "YES",
+          photo: t.photo_1 || t.photo || null,
+          photo_before: t.before_photo || t.photo_1 || null,
+          photo_after: t.after_photo || t.photo_2 || null
+        });
+        existingSlideTaskIds.add(t.task_id);
+      }
+    });
 
     // 1. Resolve Top Works Data from TopWorksManager
     let topWorksData = null;

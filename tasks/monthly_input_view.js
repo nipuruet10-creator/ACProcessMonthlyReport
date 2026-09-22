@@ -606,6 +606,11 @@ const MonthlyInputView = {
 
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { task_details: steps });
       
+      // Real-time broadcast to Firebase RTDB & other connected PCs
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'task_details', steps);
+      }
+      
       // Update input field in DOM with visual pulse feedback
       const inputElem = document.getElementById(`task-details-input-${taskId}`);
       if (inputElem) {
@@ -683,7 +688,18 @@ const MonthlyInputView = {
       }
       if (steps) {
         window.appState.workbookMgr.updateTask(this.selectedMonth, t.task_id, { task_details: steps });
+        if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+          FirebaseSyncService.updateCell(this.selectedMonth, t.task_id, 'task_details', steps);
+        }
         count++;
+      }
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      try {
+        await FirebaseSyncService.pushEntireMonth(this.selectedMonth);
+      } catch (fbErr) {
+        console.warn("Firebase bulk push warning:", fbErr);
       }
     }
 

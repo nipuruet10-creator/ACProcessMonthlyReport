@@ -166,7 +166,7 @@ class SyncEngine {
           impact: overrides.impact || (breakdownRecord ? breakdownRecord.ai_impact : []),
           metrics: overrides.metrics || (breakdownRecord ? breakdownRecord.metrics : []),
           quote: overrides.quote || (breakdownRecord ? breakdownRecord.quote : "Automation for a Smarter Tomorrow"),
-          category: overrides.category || (breakdownRecord ? breakdownRecord.ai_category : (task.category || "Process Development")),
+          category: overrides.category || task.category || (breakdownRecord ? breakdownRecord.ai_category : "Process development"),
           project_type: overrides.project_type || (breakdownRecord ? breakdownRecord.ai_project_type : "Process Improvement"),
           photo: photoGeneral,
           photo_before: photoBefore,

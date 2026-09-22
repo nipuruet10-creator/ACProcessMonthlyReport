@@ -290,7 +290,7 @@ const SlideLayoutEngine = {
             <!-- Pill Badge (Project Type / Category) -->
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-white font-bold text-xs uppercase tracking-wider mb-1" 
                  style="background: ${isProj ? (isCompletedProj ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)') : 'linear-gradient(135deg, #C5161D 0%, #B91C1C 100%)'}; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-              <span>${isProj ? (isCompletedProj ? '🏆 STRATEGIC PROJECT • COMPLETED' : '🚀 STRATEGIC PROJECT • ONGOING') : (slideData.project_type ? HELPERS.escapeHtml(slideData.project_type.toUpperCase()) : 'PROCESS IMPROVEMENT PROJECT')}</span>
+              <span>${isProj ? (isCompletedProj ? '🏆 STRATEGIC PROJECT • COMPLETED' : '🚀 STRATEGIC PROJECT • ONGOING') : (slideData.category ? HELPERS.escapeHtml(slideData.category.toUpperCase()) : (slideData.project_type ? HELPERS.escapeHtml(slideData.project_type.toUpperCase()) : 'PROCESS IMPROVEMENT PROJECT'))}</span>
             </div>
 
             <!-- Split Title with Red Left Accent Bar -->
@@ -368,31 +368,13 @@ const SlideLayoutEngine = {
               <span style="font-size: 13.5px; font-weight: 800; color: #0F172A;">Key Impact</span>
             </div>
 
-            <div class="grid grid-cols-12 gap-3 items-center flex-1 min-h-0 overflow-hidden">
-              <!-- Left: 4 Red Checkmark Bullets (7 cols) -->
-              <div class="col-span-7 flex flex-col justify-around h-full gap-1 overflow-hidden">
-                ${impacts.slice(0, 4).map(imp => `
-                  <div class="flex items-start gap-2 overflow-hidden">
-                    <span class="w-4 h-4 rounded bg-red-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style="line-height: 1;">✔</span>
-                    <span style="font-size: 12px; font-weight: 600; color: #1E293B; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis;">${imp.trim()}</span>
-                  </div>
-                `).join("")}
-              </div>
-
-              <!-- Right: 3 Trend Metric Cards (5 cols) -->
-              <div class="col-span-5 flex flex-col justify-around h-full gap-1.5 border-l border-slate-100 pl-2.5 overflow-hidden">
-                ${metrics.map(m => {
-                  const isUp = m.trend === "up";
-                  const isGreen = m.color === "green" || (isUp && !m.color);
-                  const arrowColor = isGreen ? "#10B981" : "#EF4444";
-                  const arrowIcon = isUp ? "▲" : "▼";
-                  return `
-                  <div class="flex items-center justify-between py-1 px-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <div style="font-size: 10px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.name}</div>
-                    <div style="font-size: 10.5px; font-weight: 800; color: ${arrowColor}; white-space: nowrap;">${arrowIcon} ${m.change}</div>
-                  </div>`;
-                }).join("")}
-              </div>
+            <div class="flex flex-col justify-around h-full gap-2 flex-1 min-h-0 overflow-hidden py-1">
+              ${impacts.slice(0, 4).map(imp => `
+                <div class="flex items-start gap-2.5 overflow-hidden">
+                  <span class="w-4.5 h-4.5 rounded-md bg-red-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5 shadow-sm" style="line-height: 1;">✔</span>
+                  <span style="font-size: 13px; font-weight: 600; color: #1E293B; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis;">${imp.trim()}</span>
+                </div>
+              `).join("")}
             </div>
           </div>
 
@@ -1147,34 +1129,13 @@ const SlideLayoutEngine = {
               <span style="font-size: 14px; font-weight: 800; color: #0284C7;">Key Impact</span>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px;">
-              
-              <!-- Left: 4 Bullet Checks -->
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                ${impacts.slice(0, 4).map(imp => `
-                  <div style="display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #1E293B;">
-                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; background: #0284C7; color: #FFFFFF; font-size: 10px; font-weight: 900; flex-shrink: 0;">✓</span>
-                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${HELPERS.escapeHtml(imp)}</span>
-                  </div>
-                `).join('')}
-              </div>
-
-              <!-- Right: 3 Metric Trend Badges -->
-              <div style="display: flex; flex-direction: column; gap: 4px; justify-content: center; border-left: 1px solid #E2E8F0; padding-left: 10px;">
-                <div style="display: flex; items-center; justify-content: space-between; font-size: 11px; color: #334155; font-weight: 600;">
-                  <span>📈 Efficiency</span>
-                  <span style="color: #10B981; font-weight: 800;">▲ Increased</span>
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 2px 0;">
+              ${impacts.slice(0, 4).map(imp => `
+                <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; font-weight: 600; color: #1E293B; line-height: 1.35;">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: #0284C7; color: #FFFFFF; font-size: 11px; font-weight: 900; flex-shrink: 0; margin-top: 1px;">✓</span>
+                  <span style="overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${HELPERS.escapeHtml(imp)}</span>
                 </div>
-                <div style="display: flex; items-center; justify-content: space-between; font-size: 11px; color: #334155; font-weight: 600;">
-                  <span>🛡️ Quality</span>
-                  <span style="color: #10B981; font-weight: 800;">▲ Improved</span>
-                </div>
-                <div style="display: flex; items-center; justify-content: space-between; font-size: 11px; color: #334155; font-weight: 600;">
-                  <span>🔧 Maintenance</span>
-                  <span style="color: #EF4444; font-weight: 800;">▼ Reduced</span>
-                </div>
-              </div>
-
+              `).join('')}
             </div>
           </div>
 
