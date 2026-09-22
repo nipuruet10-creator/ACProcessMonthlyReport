@@ -115,12 +115,17 @@ const ExportController = {
     await syncEngine.syncMonth(selectedMonth);
     let activeSlides = syncEngine.getActiveSlides(selectedMonth) || [];
 
-    // Ensure all valid tasks for the month from workbook are included so total slide count is exact
+    // Filter out any slide where include_in_report is NO (Requirement 2)
+    activeSlides = activeSlides.filter(s => s.include_in_report !== "NO" && s.monthly_report !== "NO");
+
+    // Ensure all valid tasks for the month from workbook marked for inclusion are present
     const wMgr = syncEngine.workbookMgr || (window.appState ? window.appState.workbookMgr : null);
     const monthRawTasks = wMgr ? wMgr.getTasksForMonth(selectedMonth) : [];
     const validMonthTasks = monthRawTasks.filter(t => 
-      (t.task_name && t.task_name.trim().length > 0) || 
-      (t.raw_task_name && t.raw_task_name.trim().length > 0)
+      t.include_in_report !== "NO" && 
+      t.monthly_report !== "NO" && 
+      ((t.task_name && t.task_name.trim().length > 0) || 
+       (t.raw_task_name && t.raw_task_name.trim().length > 0))
     );
 
     const existingSlideTaskIds = new Set(activeSlides.map(s => s.task_id));
