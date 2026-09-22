@@ -62,50 +62,96 @@ const TopWorksManager = {
     const m = month.toUpperCase();
     const store = this._loadStore();
 
+    // Check if MonthWorkbookManager has live ongoing/completed projects
+    const liveOngoing = [];
+    const liveCompleted = [];
+    try {
+      const wbMgr = (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr)
+        ? window.appState.workbookMgr
+        : (typeof MonthWorkbookManager !== 'undefined' ? new MonthWorkbookManager() : null);
+      if (wbMgr) {
+        const allTasks = wbMgr.getTasksForMonth(m);
+        const projectTasks = allTasks.filter(t => {
+          const cat = (t.category || '').toLowerCase();
+          const name = (t.task_name || '').toLowerCase();
+          return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
+        });
+
+        projectTasks.forEach(t => {
+          const status = (t.status || t.project_status || '').toLowerCase();
+          const cat = (t.category || '').toLowerCase();
+          const isComp = status.includes('complete') || cat.includes('completed');
+          if (isComp) {
+            liveCompleted.push(t.task_name);
+          } else {
+            liveOngoing.push({
+              name: t.task_name,
+              progress: t.progress || "Trial production run & line balancing verification ongoing",
+              deadline: t.deadline || t.timeline || "4-5 Months"
+            });
+          }
+        });
+      }
+    } catch (e) {}
+
     if (store[m]) {
+      let ongoing = store[m].ongoingTop5;
+      if (liveOngoing.length > 0 && (!ongoing || ongoing.length === 0 || ongoing.every(p => !p.name || p.name === '—'))) {
+        ongoing = [];
+        for (let i = 0; i < 5; i++) {
+          if (liveOngoing[i]) {
+            ongoing.push({ sl: i + 1, name: liveOngoing[i].name, progress: liveOngoing[i].progress, deadline: liveOngoing[i].deadline });
+          } else {
+            ongoing.push({ sl: i + 1, name: "—", progress: "—", deadline: "—" });
+          }
+        }
+      }
       return {
-        completedTop5: Array.isArray(store[m].completedTop5) ? store[m].completedTop5 : ["", "", "", "", ""],
-        ongoingTop5: Array.isArray(store[m].ongoingTop5) ? store[m].ongoingTop5 : this._cloneOngoing(this.DEFAULT_ONGOING),
+        completedTop5: Array.isArray(store[m].completedTop5) ? store[m].completedTop5 : (liveCompleted.length > 0 ? liveCompleted.slice(0, 5) : ["", "", "", "", ""]),
+        ongoingTop5: Array.isArray(ongoing) ? ongoing : this._cloneOngoing(this.DEFAULT_ONGOING),
         isCarriedOver: false,
         sourceMonth: m
       };
     }
 
-    // New month: Completed is blank
-    const completedTop5 = ["", "", "", "", ""];
-
-    // Auto-carryover ongoing works from previous month
+    // New month: If live ongoing projects exist, populate from live projects!
     let ongoingTop5 = null;
-    let sourceMonth = null;
-    const prev = this.getPreviousMonth(m);
-    if (prev && store[prev] && Array.isArray(store[prev].ongoingTop5)) {
-      ongoingTop5 = this._cloneOngoing(store[prev].ongoingTop5);
-      sourceMonth = prev;
-    } else {
-      // Check any earlier months in descending order
-      const mIdx = this.MONTH_ORDER.indexOf(m);
-      if (mIdx !== -1) {
-        for (let i = mIdx - 1; i >= 0; i--) {
-          const earlier = this.MONTH_ORDER[i];
-          if (store[earlier] && Array.isArray(store[earlier].ongoingTop5)) {
-            ongoingTop5 = this._cloneOngoing(store[earlier].ongoingTop5);
-            sourceMonth = earlier;
-            break;
-          }
+    if (liveOngoing.length > 0) {
+      ongoingTop5 = [];
+      for (let i = 0; i < 5; i++) {
+        if (liveOngoing[i]) {
+          ongoingTop5.push({ sl: i + 1, name: liveOngoing[i].name, progress: liveOngoing[i].progress, deadline: liveOngoing[i].deadline });
+        } else {
+          ongoingTop5.push({ sl: i + 1, name: "—", progress: "—", deadline: "—" });
         }
       }
     }
 
+    // Otherwise check carryover from previous months
     if (!ongoingTop5) {
-      ongoingTop5 = this._cloneOngoing(this.DEFAULT_ONGOING);
-      sourceMonth = "Baseline";
+      const prev = this.getPreviousMonth(m);
+      if (prev && store[prev] && Array.isArray(store[prev].ongoingTop5)) {
+        ongoingTop5 = this._cloneOngoing(store[prev].ongoingTop5);
+      }
     }
+
+    if (!ongoingTop5) {
+      ongoingTop5 = [
+        { sl: 1, name: "RAC Assembly line relocation", progress: "Trial production run & line balancing verification ongoing", deadline: "4-5 Months" },
+        { sl: 2, name: "—", progress: "—", deadline: "—" },
+        { sl: 3, name: "—", progress: "—", deadline: "—" },
+        { sl: 4, name: "—", progress: "—", deadline: "—" },
+        { sl: 5, name: "—", progress: "—", deadline: "—" }
+      ];
+    }
+
+    const completedTop5 = liveCompleted.length > 0 ? liveCompleted.slice(0, 5) : ["", "", "", "", ""];
 
     return {
       completedTop5,
       ongoingTop5,
       isCarriedOver: true,
-      sourceMonth: sourceMonth
+      sourceMonth: m
     };
   },
 

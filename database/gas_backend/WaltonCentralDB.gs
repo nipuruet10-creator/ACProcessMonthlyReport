@@ -34,7 +34,7 @@ const DB_CONFIG = {
     'points', 'supervisor', 'assignee', 'engineer', 'start_date',
     'end_date', 'status', 'include_in_report', 'photo_1', 'photo_2',
     'ai_report_title', 'ai_report_description', 'ai_report_impact',
-    'remarks', 'last_updated'
+    'remarks', 'last_updated', 'tms_task_id', 'tms_url', 'tms_synced_at'
   ],
   COST_HEADERS: [
     'year', 'month_code', 'target_bdt', 'achieved_bdt', 'project_count', 'remarks', 'last_updated'
@@ -493,21 +493,33 @@ function syncSingleTask(task) {
 
   task.last_updated = new Date().toISOString();
 
+  // Ensure TMS status is automatically saved into status & remarks columns for backwards compatibility
+  if (task.tms_task_id && (!task.status || !task.status.includes('TMS'))) {
+    task.status = 'TMS#' + task.tms_task_id + ' (100% Completed)';
+  }
+  if (task.tms_task_id && (!task.remarks || !task.remarks.includes('TMS'))) {
+    task.remarks = 'TMS_ID:' + task.tms_task_id;
+  }
+
   // NON-DESTRUCTIVE MULTI-DEVICE PROTECTION:
-  // If updating existing row, never let incoming empty fields clobber existing valuable content
+  // If updating existing row, never let incoming undefined fields clobber existing valuable content
   const rowData = headers.map((h, col) => {
     let val = task[h];
     if (foundRowIndex > 0 && existingRow) {
       const existVal = existingRow[col];
       const hasExist = (existVal !== undefined && existVal !== null && String(existVal).trim() !== '');
-      const incomingEmpty = (val === undefined || val === null || String(val).trim() === '');
       
-      // Protected fields: task_details, photo_1, photo_2, ai_report_*
-      if (incomingEmpty && hasExist) {
-        if (h === 'task_details' || h === 'photo_1' || h === 'photo_2' || h === 'ai_report_title' || h === 'ai_report_description' || h === 'ai_report_impact') {
-          val = existVal; // Preserve existing data!
-        }
+      // If field was omitted from payload completely (val === undefined), keep existing
+      if (val === undefined && hasExist) {
+        val = existVal;
+      } else if (task.clear_photos && (h === 'photo_1' || h === 'photo_2')) {
+        val = ''; // Explicitly cleared photo
       }
+    }
+    
+    // Safety guard against Google Sheets 50,000 characters per cell limit
+    if (typeof val === 'string' && val.length > 49000) {
+      val = val.substring(0, 49000);
     }
     return val !== undefined && val !== null ? val : '';
   });

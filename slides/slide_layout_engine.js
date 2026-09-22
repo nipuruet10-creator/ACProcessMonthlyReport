@@ -1466,28 +1466,23 @@ const SlideLayoutEngine = {
     <div class="walton-executive-cover bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 36px 52px; display: flex; flex-direction: column; justify-content: space-between; position: relative; background: #FFFFFF;">
       
-      <!-- TOP-LEFT GEOMETRIC CHEVRONS (ORANGE & BLUE ACCENTS) -->
-      <div style="position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none;">
-        <svg width="220" height="130" viewBox="0 0 220 130" fill="none">
-          <polygon points="0,0 150,0 60,85 0,85" fill="#FF6B00" />
-          <polygon points="0,20 190,0 220,0 100,120 0,120" fill="#0052CC" />
-        </svg>
-      </div>
+      <!-- TOP CRIMSON ACCENT BORDER -->
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 5px; background: #C5161D; z-index: 20;"></div>
 
       <!-- TOP RIGHT SUBTLE LOGO ACCENT -->
       <div class="text-right z-10">
         <span class="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">WALTON AC PROCESS DEVELOPMENT</span>
       </div>
 
-      <!-- CENTER STAGE (IMAGE 3 REPLICA) -->
+      <!-- CENTER STAGE (EXECUTIVE RED COVER) -->
       <div class="flex-1 flex flex-col items-center justify-center text-center z-10 py-2">
-        <!-- Walton Logo & Slogan -->
+        <!-- Walton Logo & Slogan (Accurate 1:1 Aspect Ratio) -->
         <div class="flex flex-col items-center justify-center mb-1">
-          <img src="assets/img/walton_logo.png" alt="WALTON" class="h-16 w-auto object-contain drop-shadow-sm mb-1"
+          <img src="assets/img/walton_logo.png" alt="WALTON" style="width: 76px; height: 76px; object-fit: contain;" class="drop-shadow-sm mb-1"
                onerror="this.style.display='none'; document.getElementById('walton-logo-cover-fallback').style.display='flex';" />
           <div id="walton-logo-cover-fallback" style="display:none;" class="items-center gap-2 mb-1">
             <span class="text-3xl font-black text-red-600">W</span>
-            <span class="text-3xl font-black text-[#0052CC]">ALTON</span>
+            <span class="text-3xl font-black text-[#0B2038]">ALTON</span>
           </div>
 
           <div class="flex items-center justify-center gap-3 my-1">
@@ -1502,9 +1497,9 @@ const SlideLayoutEngine = {
           MONTHLY REPORT
         </h1>
 
-        <!-- Department Badge (Photo 2 / User requirement 3) -->
+        <!-- Department Badge (Executive Crimson) -->
         <div class="inline-flex items-center justify-center px-7 py-2 rounded-full font-black text-sm tracking-wider uppercase text-white shadow-md my-2"
-             style="background: linear-gradient(135deg, #C5161D 0%, #B91C1C 100%); border: 1px solid rgba(255, 255, 255, 0.4);">
+             style="background: linear-gradient(135deg, #C5161D 0%, #991B1B 100%); border: 1px solid rgba(255, 255, 255, 0.4);">
           <span>Process Development Department (AC)</span>
           <span class="ml-2.5 w-1.5 h-3.5 bg-white/80 inline-block transform skew-x-[-20deg]"></span>
         </div>
@@ -1518,15 +1513,15 @@ const SlideLayoutEngine = {
           <span>Chandra, Kaliakoir, Gazipur, Bangladesh</span>
         </div>
 
-        <!-- Month Pill - Focused & Prominent (Photo 2 / User requirement 3) -->
+        <!-- Month Pill - Prominent Executive Red Focus -->
         <div class="mt-3">
-          <span class="px-5 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono font-extrabold text-white shadow-md tracking-wider">
+          <span class="px-5 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-mono font-extrabold text-[#C5161D] shadow-sm tracking-wider">
             📅 ${monthUpper}
           </span>
         </div>
       </div>
 
-      <!-- BOTTOM FACTORY SKYLINE & DUAL FLOWING WAVES (ORANGE & WALTON BLUE) -->
+      <!-- BOTTOM FACTORY SKYLINE & DUAL FLOWING WAVES (EXECUTIVE CRIMSON & NAVY) -->
       <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 160px; pointer-events: none; overflow: hidden; z-index: 1;">
         <svg viewBox="0 0 1200 240" preserveAspectRatio="none" style="width: 100%; height: 100%;">
           <!-- Industrial Plant & City Silhouette -->
@@ -1552,9 +1547,9 @@ const SlideLayoutEngine = {
             <circle cx="1070" cy="160" r="18" />
             <circle cx="1100" cy="155" r="15" />
           </g>
-          <!-- Dual Waves: Orange Upper Wave & Walton Blue Lower Wave -->
-          <path d="M0,170 C300,150 650,195 950,165 C1080,152 1150,160 1200,165 L1200,240 L0,240 Z" fill="#FF6B00" />
-          <path d="M0,185 C250,170 600,210 900,180 C1050,168 1140,176 1200,180 L1200,240 L0,240 Z" fill="#0052CC" />
+          <!-- Dual Waves: Walton Crimson Upper Wave & Deep Navy Lower Wave -->
+          <path d="M0,170 C300,150 650,195 950,165 C1080,152 1150,160 1200,165 L1200,240 L0,240 Z" fill="#C5161D" />
+          <path d="M0,185 C250,170 600,210 900,180 C1050,168 1140,176 1200,180 L1200,240 L0,240 Z" fill="#0B2038" />
         </svg>
       </div>
 
@@ -1956,7 +1951,7 @@ const SlideLayoutEngine = {
         <h2 style="font-size: 24px; font-weight: 900; color: #0B2038; font-style: italic; letter-spacing: 0.05em; text-transform: uppercase; margin: 0;">
           TABLE OF CONTENTS
         </h2>
-        <div style="width: 100%; height: 3px; background: #0284C7; margin-top: 4px; border-radius: 2px;"></div>
+        <div style="width: 100%; height: 3px; background: ${primaryAccent}; margin-top: 4px; border-radius: 2px;"></div>
       </div>
 
       <!-- 8 CATEGORY-WISE SECTIONS (PHOTO 3 REPLICA: 2 COLS X 4 ROWS) -->
@@ -1965,13 +1960,13 @@ const SlideLayoutEngine = {
           <div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03); position: relative; overflow: hidden;">
             <div style="position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: ${primaryAccent}; border-radius: 4px 0 0 4px;"></div>
             <div style="display: flex; align-items: center; gap: 14px; padding-left: 6px;">
-              <span style="font-size: 24px; font-weight: 900; color: #0284C7; font-family: 'JetBrains Mono', monospace; line-height: 1; min-width: 36px; text-align: center;">${item.num}</span>
+              <span style="font-size: 24px; font-weight: 900; color: ${primaryAccent}; font-family: 'JetBrains Mono', monospace; line-height: 1; min-width: 36px; text-align: center;">${item.num}</span>
               <div>
                 <div style="font-size: 13px; font-weight: 800; color: #0F172A; line-height: 1.2;">${item.title}</div>
                 <div style="font-size: 10.5px; font-weight: 600; color: #64748B; line-height: 1.2; margin-top: 2px;">${item.sub}</div>
               </div>
             </div>
-            <span style="background: #F1F5F9; border: 1px solid #CBD5E1; color: #334155; font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 3.5px 10px; border-radius: 9999px; white-space: nowrap;">
+            <span style="background: #FEF2F2; border: 1px solid #FECACA; color: #C5161D; font-size: 11px; font-weight: 800; font-family: 'JetBrains Mono', monospace; padding: 3.5px 10px; border-radius: 9999px; white-space: nowrap;">
               ${item.page}
             </span>
           </div>
@@ -2203,22 +2198,30 @@ const SlideLayoutEngine = {
     let currentImpact = "336,995 TK";
     let yearlyImpact = "3,251,940 TK";
 
+    let currentImpact = (data && data.currentImpact) || "0 TK";
+    let yearlyImpact = (data && data.yearlyImpact) || "0 TK";
+
     if (rolling && Array.isArray(rolling.months)) {
-      if (rolling.displayCurrentMonth) currentImpact = `${rolling.displayCurrentMonth} TK`;
-      if (rolling.displayCumulativeYTD) yearlyImpact = `${rolling.displayCumulativeYTD} TK`;
+      if (rolling.displayCurrentMonth) currentImpact = rolling.displayCurrentMonth;
+      if (rolling.displayCumulativeYTD) yearlyImpact = rolling.displayCumulativeYTD;
     }
 
     if (typeof CostSavingTracker !== 'undefined') {
       const ct = CostSavingTracker.calculate([], month);
-      if (ct.displayCumulativeYTD) yearlyImpact = `${ct.displayCumulativeYTD} TK`;
-      if (ct.displayMonthlySaving) currentImpact = `${ct.displayMonthlySaving} TK`;
+      if (ct.displayCumulativeYTD) yearlyImpact = ct.displayCumulativeYTD;
+      if (ct.displayMonthlySaving) currentImpact = ct.displayMonthlySaving;
     }
+
+    currentImpact = String(currentImpact).replace(/\s*TK(\s*TK)+/gi, " TK");
+    yearlyImpact = String(yearlyImpact).replace(/\s*TK(\s*TK)+/gi, " TK");
+    if (!currentImpact.toUpperCase().includes("TK")) currentImpact += " TK";
+    if (!yearlyImpact.toUpperCase().includes("TK")) yearlyImpact += " TK";
 
     // 5-Month Table data from Photo 4
     let tableMonths = [
       { m: "January", val: "BDT 117,600" },
       { m: "February", val: "BDT 329,620" },
-      { m: "March", val: "BDT 1208,308" },
+      { m: "March", val: "BDT 1,208,308" },
       { m: "April", val: "BDT 133,830" },
       { m: "May", val: "BDT 336,995" }
     ];
@@ -2230,19 +2233,19 @@ const SlideLayoutEngine = {
     // 8 Development KPI Cards (Photo 4 Exact)
     const kpiCards = [
       {
-        icon: "⚙️",
+        icon: "⚙",
         val: (data && data.kpis && data.kpis[0] ? data.kpis[0].val : "51"),
         label: "Process Developed",
-        note: "Cost Saved: BDT 3,251,940/Year"
+        note: (yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null)
       },
       {
-        icon: "🛠️",
+        icon: "🔧",
         val: (data && data.kpis && data.kpis[1] ? data.kpis[1].val : "3"),
         label: "Tools Developed",
         note: null
       },
       {
-        icon: "🔲",
+        icon: "■",
         val: (data && data.kpis && data.kpis[2] ? data.kpis[2].val : "6"),
         label: "Parts Developed",
         note: null
@@ -2251,7 +2254,7 @@ const SlideLayoutEngine = {
         icon: "💰",
         val: (data && data.kpis && data.kpis[3] ? data.kpis[3].val : "1"),
         label: "Cost Optimisation",
-        note: "Cost Saved: BDT 3000000/Year"
+        note: (yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null)
       },
       {
         icon: "👥",
@@ -2266,16 +2269,16 @@ const SlideLayoutEngine = {
         note: null
       },
       {
-        icon: "✅",
+        icon: "✔",
         val: (data && data.kpis && data.kpis[6] ? data.kpis[6].val : "0"),
         label: "Completed Projects",
         note: null
       },
       {
         icon: "🚀",
-        val: (data && data.kpis && data.kpis[7] ? data.kpis[7].val : "11"),
+        val: (data && data.kpis && data.kpis[7] ? data.kpis[7].val : "1"),
         label: "New Projects/ Ongoing",
-        note: "Cost Save Scope: BDT 3200000/Year"
+        note: "Cost Save Scope: Target FY 26-27"
       }
     ];
 
@@ -2307,10 +2310,10 @@ const SlideLayoutEngine = {
         </div>
       </div>
 
-      <!-- SUBHEADER TITLE BAR (PHOTO 4 REPLICA) -->
+      <!-- SUBHEADER TITLE BAR (EXECUTIVE RED FOCUS) -->
       <div class="flex items-center justify-between my-1 flex-shrink-0">
         <div class="flex items-center gap-2">
-          <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD; font-size: 10.5px; font-weight: 800; padding: 2.5px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
+          <span class="ac-product-dashboard" data-title="AC Product Dashboard" style="background: #FEF2F2; color: #C5161D; border: 1px solid #FECACA; font-size: 10.5px; font-weight: 800; padding: 2.5px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;">
             AC Product
           </span>
           <h2 style="font-size: 17px; font-weight: 800; color: #0B2038; margin: 0; line-height: 1.2;">
@@ -2322,12 +2325,12 @@ const SlideLayoutEngine = {
         </span>
       </div>
 
-      <!-- UPPER SECTION: 5-MONTH SAVINGS TABLE + 2 FINANCIAL IMPACT CARDS (PHOTO 4 REPLICA) -->
+      <!-- UPPER SECTION: 5-MONTH SAVINGS TABLE + 2 FINANCIAL IMPACT CARDS -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 2px 0 6px 0; min-height: 140px; align-items: stretch; flex-shrink: 0; background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
         
-        <!-- Left: 5-Month Savings Table (Photo 4 Exact) -->
+        <!-- Left: 5-Month Savings Table (Walton Red Header) -->
         <div style="border: 1px solid #CBD5E1; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
-          <div style="background: #1E40AF; color: #FFFFFF; padding: 5px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px;">
+          <div style="background: #C5161D; color: #FFFFFF; padding: 5px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px;">
             <span>Month</span>
             <span>Impact (BDT)</span>
           </div>
@@ -2335,7 +2338,7 @@ const SlideLayoutEngine = {
             ${tableMonths.map((row, idx) => {
               const isCurrent = (idx === tableMonths.length - 1);
               return `
-              <div style="padding: 3.5px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: ${isCurrent ? '800' : '600'}; color: ${isCurrent ? '#1D4ED8' : '#334155'}; border-bottom: ${idx < tableMonths.length - 1 ? '1px solid #E2E8F0' : 'none'}; background: ${isCurrent ? '#EFF6FF' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')};">
+              <div style="padding: 3.5px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: ${isCurrent ? '800' : '600'}; color: ${isCurrent ? '#C5161D' : '#334155'}; border-bottom: ${idx < tableMonths.length - 1 ? '1px solid #E2E8F0' : 'none'}; background: ${isCurrent ? '#FEF2F2' : (idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC')};">
                 <span>${row.m}</span>
                 <span style="font-family: 'JetBrains Mono', monospace; font-weight: 800;">${row.val}</span>
               </div>
@@ -2344,7 +2347,7 @@ const SlideLayoutEngine = {
           </div>
         </div>
 
-        <!-- Right: 2 Highlight Cards (Photo 4 Exact) -->
+        <!-- Right: 2 Highlight Cards -->
         <div style="display: flex; flex-direction: column; justify-content: space-between; gap: 8px;">
           <!-- Card 1: Current Month -->
           <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex: 1;">
@@ -2378,10 +2381,10 @@ const SlideLayoutEngine = {
 
       </div>
 
-      <!-- LOWER SECTION: 8 DEVELOPMENT KPI CARDS (PHOTO 4 REPLICA) -->
+      <!-- LOWER SECTION: 8 DEVELOPMENT KPI CARDS (Executive Red Pattern) -->
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px 12px; flex: 1; min-height: 155px; align-items: stretch; margin-top: 2px;">
         ${kpiCards.map(k => `
-          <div style="background: #FFFFFF; border: 2.2px solid #0284C7; border-radius: 14px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 2px 3px 0px rgba(245, 158, 11, 0.4); position: relative;">
+          <div style="background: #FFFFFF; border: 1.5px solid #E2E8F0; border-top: 3.5px solid #C5161D; border-radius: 12px; padding: 6px 10px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <span style="font-size: 24px; line-height: 1;">${k.icon}</span>
               <span style="font-size: 28px; font-weight: 900; color: #0F172A; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</span>
@@ -2626,20 +2629,14 @@ const SlideLayoutEngine = {
       ongoingTop5 = ongoingTop5 || tw.ongoingTop5;
     }
 
-    completedTop5 = completedTop5 || [
-      "Compressor Jacket Foil Cutting System Development",
-      "Die Development for new design Compressor Jacket",
-      "Double Coating trial, process and BOM confirmation",
-      "Reduce Tolerance of Hollow Plug Pin",
-      "MPE Tube Acid Treatment process development"
-    ];
+    completedTop5 = completedTop5 || ["", "", "", "", ""];
 
     ongoingTop5 = ongoingTop5 || [
-      { sl: 1, name: "CNC Tube Bending & End Shaping M/C Automation Development", progress: "Trail run and modification ongoing", deadline: "Oct, 2026" },
-      { sl: 2, name: "CNC Turret Punch Machine Project", progress: "Machine manufacturing almost done; PSI preparation ongoing", deadline: "Oct, 2026" },
-      { sl: 3, name: "Evaporator Brazing Fixture for without water brazing", progress: "One model running under observation and working for rest model", deadline: "Sep, 2026" },
-      { sl: 4, name: "MPE Tube rust repair process development", progress: "Mass production trial ongoing", deadline: "Oct, 2026" },
-      { sl: 5, name: "New fin material (Aluzinc Sheet) supplier (MAX) development for Evaporator and condenser", progress: "All test completed, Trial production lot order is ongoing", deadline: "Dec, 2026" }
+      { sl: 1, name: "RAC Assembly line relocation", progress: "Trial production run & line balancing verification ongoing", deadline: "4-5 Months" },
+      { sl: 2, name: "—", progress: "—", deadline: "—" },
+      { sl: 3, name: "—", progress: "—", deadline: "—" },
+      { sl: 4, name: "—", progress: "—", deadline: "—" },
+      { sl: 5, name: "—", progress: "—", deadline: "—" }
     ];
 
     return `
@@ -2659,13 +2656,13 @@ const SlideLayoutEngine = {
             </svg>
           </div>
           <div>
-            <div style="font-size: 13px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT</div>
+            <div style="font-size: 13px; font-weight: 900; color: #0F172A;">PROCESS DEVELOPMENT DEPARTMENT (AC)</div>
             <div style="font-size: 8.5px; font-weight: 700; color: #64748B; letter-spacing: 0.18em;">INNOVATE &bull; IMPROVE &bull; DELIVER</div>
           </div>
         </div>
 
         <div class="px-4 py-1.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider shadow-sm">
-          Top 5 WORKS & PROJECTS
+          Top 5 WORKS &amp; PROJECTS
         </div>
 
         <div class="text-right">
@@ -2674,7 +2671,7 @@ const SlideLayoutEngine = {
         </div>
       </div>
 
-      <!-- MAIN CONTENT: 2 SECTIONS (Fills vertical height cleanly without empty voids) -->
+      <!-- MAIN CONTENT: 2 SECTIONS (Top 5 Completed & Top 5 Ongoing ONLY) -->
       <div class="flex-1 min-h-0 flex flex-col justify-between my-2 gap-3.5">
         
         <!-- SECTION 1: COMPLETED WORKS (TOP FIVE) -->
@@ -2693,7 +2690,7 @@ const SlideLayoutEngine = {
                 { bg: 'linear-gradient(135deg, #581C87 0%, #7C3AED 100%)', border: '#A78BFA', shadow: 'rgba(124, 58, 237, 0.35)' }
               ];
               const pal = palettes[idx % palettes.length];
-              const hasItem = item && item.trim();
+              const hasItem = item && item.trim() && item.trim() !== "—";
               return `
               <div class="rounded-xl p-3.5 flex flex-col justify-between shadow-md transition h-full min-h-[118px] text-white relative overflow-hidden group hover:scale-[1.02] duration-200"
                    style="background: ${pal.bg}; border: 1.5px solid ${pal.border}; box-shadow: 0 6px 16px ${pal.shadow};">
@@ -2719,7 +2716,7 @@ const SlideLayoutEngine = {
           </div>
           <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 min-h-0 flex flex-col justify-between">
             <table class="w-full text-xs border-collapse h-full">
-              <thead class="bg-[#0F172A] text-white font-bold text-[12px] uppercase tracking-wider">
+              <thead class="bg-[#C5161D] text-white font-bold text-[12px] uppercase tracking-wider">
                 <tr>
                   <th class="py-2.5 px-1.5 w-9 text-center">Sl</th>
                   <th class="py-2.5 px-3.5 text-left w-[42%]">Project Name</th>
@@ -2729,15 +2726,15 @@ const SlideLayoutEngine = {
               </thead>
               <tbody class="divide-y divide-slate-100">
                 ${ongoingTop5.map((p, idx) => {
-                  const hasName = p.name && p.name.trim();
+                  const hasName = p.name && p.name.trim() && p.name.trim() !== "—";
                   return `
                   <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-red-50/20 transition">
                     <td class="py-2.5 px-2 text-center font-bold text-red-600 font-mono align-middle text-[13px]">${p.sl || idx + 1}</td>
                     <td class="py-2.5 px-3.5 text-[13.5px] ${hasName ? 'font-bold text-[#0F172A]' : 'font-medium text-slate-400 italic'} align-middle">${hasName ? p.name : '—'}</td>
-                    <td class="py-2.5 px-3.5 text-[13px] ${p.progress && p.progress.trim() ? 'text-slate-700 font-semibold' : 'text-slate-400 italic'} align-middle">${p.progress && p.progress.trim() ? p.progress : '—'}</td>
+                    <td class="py-2.5 px-3.5 text-[13px] ${p.progress && p.progress.trim() && p.progress.trim() !== "—" ? 'text-slate-700 font-semibold' : 'text-slate-400 italic'} align-middle">${p.progress && p.progress.trim() ? p.progress : '—'}</td>
                     <td class="py-2.5 px-2.5 text-center font-mono font-bold text-slate-700 align-middle">
                       <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200 text-[11.5px] font-bold">
-                        ${p.deadline && p.deadline.trim() ? p.deadline : '—'}
+                        ${p.deadline && p.deadline.trim() && p.deadline.trim() !== "—" ? p.deadline : '—'}
                       </span>
                     </td>
                   </tr>`;
@@ -2774,24 +2771,19 @@ const SlideLayoutEngine = {
     <div class="walton-executive-cover walton-blue-cover bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200"
          style="width: 100%; aspect-ratio: 16/9; font-family: 'Lexend', sans-serif; box-sizing: border-box; padding: 36px 52px; display: flex; flex-direction: column; justify-content: space-between; position: relative; background: #FFFFFF;">
       
-      <!-- TOP-LEFT GEOMETRIC CHEVRONS (ORANGE & COBALT BLUE - IMAGE 2) -->
-      <div style="position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none;">
-        <svg width="240" height="140" viewBox="0 0 240 140" fill="none">
-          <polygon points="0,0 160,0 65,95 0,95" fill="#FF6B00" />
-          <polygon points="0,22 205,0 240,0 110,130 0,130" fill="#0052CC" />
-        </svg>
-      </div>
+      <!-- TOP BLUE ACCENT BORDER -->
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 5px; background: #0284C7; z-index: 20;"></div>
 
       <!-- Top Right Identifier -->
       <div class="text-right z-10">
         <span class="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">WALTON AC PROCESS DEVELOPMENT</span>
       </div>
 
-      <!-- CENTER STAGE (IMAGE 2 REPLICA) -->
+      <!-- CENTER STAGE (INDUSTRIAL BLUE COVER) -->
       <div class="flex-1 flex flex-col items-center justify-center text-center z-10 py-2">
-        <!-- Walton Logo & Slogan -->
+        <!-- Walton Logo & Slogan (Accurate 1:1 Aspect Ratio) -->
         <div class="flex flex-col items-center justify-center mb-1">
-          <img src="assets/img/walton_logo.png" alt="WALTON" class="h-16 w-auto object-contain drop-shadow-sm mb-1"
+          <img src="assets/img/walton_logo.png" alt="WALTON" style="width: 76px; height: 76px; object-fit: contain;" class="drop-shadow-sm mb-1"
                onerror="this.style.display='none'; document.getElementById('walton-logo-blue-cover-fallback').style.display='flex';" />
           <div id="walton-logo-blue-cover-fallback" style="display:none;" class="items-center gap-2 mb-1">
             <svg class="h-10 w-10" viewBox="0 0 40 40" fill="none">
@@ -3104,19 +3096,24 @@ const SlideLayoutEngine = {
       rolling = CostSavingTracker.getRolling6Months(month);
     }
 
-    let currentImpact = "336,995 TK";
-    let yearlyImpact = "3,251,940 TK";
+    let currentImpact = (data && data.currentImpact) || "0 TK";
+    let yearlyImpact = (data && data.yearlyImpact) || "0 TK";
 
     if (rolling && Array.isArray(rolling.months)) {
-      if (rolling.displayCurrentMonth) currentImpact = `${rolling.displayCurrentMonth} TK`;
-      if (rolling.displayCumulativeYTD) yearlyImpact = `${rolling.displayCumulativeYTD} TK`;
+      if (rolling.displayCurrentMonth) currentImpact = rolling.displayCurrentMonth;
+      if (rolling.displayCumulativeYTD) yearlyImpact = rolling.displayCumulativeYTD;
     }
 
     if (typeof CostSavingTracker !== 'undefined') {
       const ct = CostSavingTracker.calculate([], month);
-      if (ct.displayCumulativeYTD) yearlyImpact = `${ct.displayCumulativeYTD} TK`;
-      if (ct.displayMonthlySaving) currentImpact = `${ct.displayMonthlySaving} TK`;
+      if (ct.displayCumulativeYTD) yearlyImpact = ct.displayCumulativeYTD;
+      if (ct.displayMonthlySaving) currentImpact = ct.displayMonthlySaving;
     }
+
+    currentImpact = String(currentImpact).replace(/\s*TK(\s*TK)+/gi, " TK");
+    yearlyImpact = String(yearlyImpact).replace(/\s*TK(\s*TK)+/gi, " TK");
+    if (!currentImpact.toUpperCase().includes("TK")) currentImpact += " TK";
+    if (!yearlyImpact.toUpperCase().includes("TK")) yearlyImpact += " TK";
 
     // 5-Month Table data from Photo 4
     let tableMonths = [
@@ -3134,19 +3131,19 @@ const SlideLayoutEngine = {
     // 8 Development KPI Cards (Photo 4 Exact)
     const kpiCards = [
       {
-        icon: "⚙️",
+        icon: "⚙",
         val: (data && data.kpis && data.kpis[0] ? data.kpis[0].val : "51"),
         label: "Process Developed",
-        note: "Cost Saved: BDT 3,251,940/Year"
+        note: (yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null)
       },
       {
-        icon: "🛠️",
+        icon: "🔧",
         val: (data && data.kpis && data.kpis[1] ? data.kpis[1].val : "3"),
         label: "Tools Developed",
         note: null
       },
       {
-        icon: "🔲",
+        icon: "■",
         val: (data && data.kpis && data.kpis[2] ? data.kpis[2].val : "6"),
         label: "Parts Developed",
         note: null
@@ -3155,7 +3152,7 @@ const SlideLayoutEngine = {
         icon: "💰",
         val: (data && data.kpis && data.kpis[3] ? data.kpis[3].val : "1"),
         label: "Cost Optimisation",
-        note: "Cost Saved: BDT 3000000/Year"
+        note: (yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${yearlyImpact}/Year` : null)
       },
       {
         icon: "👥",
@@ -3170,16 +3167,16 @@ const SlideLayoutEngine = {
         note: null
       },
       {
-        icon: "✅",
+        icon: "✔",
         val: (data && data.kpis && data.kpis[6] ? data.kpis[6].val : "0"),
         label: "Completed Projects",
         note: null
       },
       {
         icon: "🚀",
-        val: (data && data.kpis && data.kpis[7] ? data.kpis[7].val : "11"),
+        val: (data && data.kpis && data.kpis[7] ? data.kpis[7].val : "1"),
         label: "New Projects/ Ongoing",
-        note: "Cost Save Scope: BDT 3200000/Year"
+        note: "Cost Save Scope: Target FY 26-27"
       }
     ];
 

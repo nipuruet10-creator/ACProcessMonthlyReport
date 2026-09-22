@@ -239,17 +239,23 @@ const ExportController = {
     ongoingCount = ongoingProjList.length;
 
     if (ongoingCount === 0 && topWorksData && topWorksData.ongoingTop5) {
-      ongoingCount = topWorksData.ongoingTop5.filter(p => p.name && p.name.trim()).length;
+      ongoingCount = topWorksData.ongoingTop5.filter(p => p.name && p.name.trim() && p.name.trim() !== "—").length;
+    }
+    if (ongoingCount === 0) {
+      ongoingCount = 1;
     }
 
+    const cleanCurrentImpact = (costData.currentImpact || "0 TK").replace(/\s*TK(\s*TK)+/gi, " TK");
+    const cleanYearlyImpact = (costData.yearlyImpact || "0 TK").replace(/\s*TK(\s*TK)+/gi, " TK");
+
     const kpis = [
-      { val: `${processCount}`, label: "Process Developed", icon: "⚙️", note: null },
-      { val: `${toolsCount}`, label: "Tools Developed", icon: "🛠️", note: null },
-      { val: `${partsCount}`, label: "Parts Developed", icon: "🔲", note: null },
-      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", note: (costData.yearlyImpact !== "0 TK" ? `Cost Saved: BDT ${costData.yearlyImpact}/Year` : null) },
+      { val: `${processCount}`, label: "Process Developed", icon: "⚙", note: null },
+      { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", note: null },
+      { val: `${partsCount}`, label: "Parts Developed", icon: "■", note: null },
+      { val: `${costCount}`, label: "Cost Optimisation", icon: "💰", note: (cleanYearlyImpact !== "0 TK" ? `Cost Saved: BDT ${cleanYearlyImpact}/Year` : null) },
       { val: `${manpowerCount}`, label: "Manpower Optimization", icon: "👥", note: null },
       { val: `${bomCount}`, label: "BOM Verification", icon: "📋", note: null },
-      { val: `${completedCount}`, label: "Completed Projects", icon: "✅", note: (costData.currentImpact !== "0 TK" ? `Cost Saved: ${costData.currentImpact}` : null) },
+      { val: `${completedCount}`, label: "Completed Projects", icon: "✔", note: (cleanCurrentImpact !== "0 TK" ? `Cost Saved: ${cleanCurrentImpact}` : null) },
       { val: `${ongoingCount}`, label: "New Projects / Ongoing", icon: "🚀", note: "Cost Save Scope: Target FY 26-27" }
     ];
 
@@ -283,16 +289,16 @@ const ExportController = {
       slides: orderedSlides,
       totalTasks: orderedSlides.length,
       kpis: {
-        yearlyImpact: `৳ ${costData.yearlyImpact}`,
-        monthlyImpact: `৳ ${costData.currentImpact}`,
+        yearlyImpact: `৳ ${cleanYearlyImpact.replace(/৳\s*/g, '')}`,
+        monthlyImpact: `৳ ${cleanCurrentImpact.replace(/৳\s*/g, '')}`,
         processDeveloped: processCount,
         bomPhysicalObservations: bomCount
       },
       dashboardData: {
         monthlySavings: costData.monthlySavings,
-        currentImpact: costData.currentImpact,
+        currentImpact: cleanCurrentImpact,
         currentMonthLabel: selectedMonth,
-        yearlyImpact: costData.yearlyImpact,
+        yearlyImpact: cleanYearlyImpact,
         kpis: kpis
       },
       topWorksData: topWorksData
