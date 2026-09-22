@@ -353,23 +353,84 @@ const MonthlyInputView = {
     this.render();
   },
 
+  updateRowIndices() {
+    const tbody = document.getElementById('monthly-input-tbody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr[id^="task-row-"]');
+    rows.forEach((row, i) => {
+      const slCell = row.querySelector('.task-sl-cell');
+      if (slCell) slCell.textContent = i + 1;
+    });
+    const counter = document.getElementById('total-rows-counter');
+    if (counter) {
+      counter.innerHTML = `Total ${rows.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides`;
+    }
+    if (rows.length === 0) {
+      this.render();
+    }
+  },
+
   async deleteSelectedTasks() {
     const checked = Array.from(document.querySelectorAll('.task-row-checkbox:checked'));
     if (checked.length === 0) return;
 
-    const taskIds = checked.map(cb => cb.dataset.taskId);
-    if (confirm(`Are you sure you want to delete ${taskIds.length} selected task(s) from ${this.selectedMonth}?`)) {
-      if (!window.appState || !window.appState.workbookMgr) return;
-      window.appState.workbookMgr.deleteMultipleTasks(this.selectedMonth, taskIds);
+    const taskIds = checked.map(cb => cb.dataset.taskId).filter(Boolean);
+    if (taskIds.length === 0) return;
 
-      if (window.appState.syncEngine) {
-        await window.appState.syncEngine.syncMonth(this.selectedMonth);
-      }
+    if (!confirm(`Are you sure you want to delete ${taskIds.length} selected task(s) from ${this.selectedMonth}?`)) {
+      return;
+    }
 
-      await this.render();
-      if (typeof window.showToast === 'function') {
-        window.showToast(`🗑️ Deleted ${taskIds.length} task(s)`, "info");
+    if (!window.appState || !window.appState.workbookMgr) return;
+
+    // 1. Smooth UI visual exit (fade-out + slide-right with no page shaking)
+    taskIds.forEach(id => {
+      const tr = document.getElementById(`task-row-${id}`);
+      if (tr) {
+        tr.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
+        tr.style.opacity = '0';
+        tr.style.transform = 'translateX(24px) scale(0.98)';
       }
+    });
+
+    // 2. Persist deletion in MonthWorkbookManager (updates local memory & records tombstones)
+    window.appState.workbookMgr.deleteMultipleTasks(this.selectedMonth, taskIds);
+
+    // 3. Real-time Firebase Broadcast & Cloud deletion
+    if (typeof FirebaseSyncService !== 'undefined') {
+      try {
+        if (FirebaseSyncService.deleteMultipleTasks) {
+          FirebaseSyncService.deleteMultipleTasks(this.selectedMonth, taskIds);
+        } else if (FirebaseSyncService.deleteTask) {
+          taskIds.forEach(id => FirebaseSyncService.deleteTask(this.selectedMonth, id));
+        }
+      } catch (e) {
+        console.warn("Firebase deleteSelectedTasks notice:", e);
+      }
+    }
+
+    // 4. Clean up DOM elements smoothly after transition completes
+    setTimeout(() => {
+      taskIds.forEach(id => {
+        const tr = document.getElementById(`task-row-${id}`);
+        if (tr) tr.remove();
+      });
+
+      this.updateRowIndices();
+      this.updateBulkDeleteButton();
+      this.updateEngineerSummary();
+
+      const selectAllCb = document.getElementById('task-select-all');
+      if (selectAllCb) selectAllCb.checked = false;
+    }, 250);
+
+    // 5. Silent background slide compilation (never blocks or shakes UI)
+    if (window.appState.syncEngine) {
+      window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
+    }
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`🗑️ Deleted ${taskIds.length} task(s)`, "info");
     }
   },
 
@@ -377,18 +438,49 @@ const MonthlyInputView = {
     if (!taskId) return;
     if (!window.appState || !window.appState.workbookMgr) return;
     const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
-    const taskName = task ? task.task_name : taskId;
-    if (confirm(`Are you sure you want to delete "${taskName}" from ${this.selectedMonth}?`)) {
-      window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+    const taskName = (task && task.task_name) ? task.task_name : taskId;
 
-      if (window.appState.syncEngine) {
-        await window.appState.syncEngine.syncMonth(this.selectedMonth);
-      }
+    const confirmed = (typeof window !== 'undefined' && typeof window.confirm === 'function')
+      ? window.confirm(`Are you sure you want to delete "${taskName}" from ${this.selectedMonth}?`)
+      : true;
+    if (!confirmed) return;
 
-      await this.render();
-      if (typeof window.showToast === 'function') {
-        window.showToast(`🗑️ Deleted "${taskName}"`, "info");
+    // 1. Smooth UI visual exit
+    const tr = document.getElementById(`task-row-${taskId}`) ||
+               document.querySelector(`tr:has(button[onclick*="deleteTask('${taskId}')"])`);
+    if (tr) {
+      tr.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
+      tr.style.opacity = '0';
+      tr.style.transform = 'translateX(24px) scale(0.98)';
+    }
+
+    // 2. Persist deletion in MonthWorkbookManager (updates local memory & records tombstones)
+    window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+
+    // 3. Real-time Firebase Broadcast & Cloud deletion
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
+      try {
+        FirebaseSyncService.deleteTask(this.selectedMonth, taskId);
+      } catch (e) {
+        console.warn("Firebase deleteTask notice:", e);
       }
+    }
+
+    // 4. Clean up DOM smoothly after transition completes
+    setTimeout(() => {
+      if (tr) tr.remove();
+      this.updateRowIndices();
+      this.updateBulkDeleteButton();
+      this.updateEngineerSummary();
+    }, 250);
+
+    // 5. Silent background slide compilation
+    if (window.appState.syncEngine) {
+      window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
+    }
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`🗑️ Deleted "${taskName}"`, "info");
     }
   },
 
@@ -745,54 +837,6 @@ const MonthlyInputView = {
     // Silently compile report slides in background without blocking or shaking UI
     if (window.appState.syncEngine) {
       window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
-    }
-  },
-
-  async deleteTask(taskId) {
-    if (!window.appState || !window.appState.workbookMgr) return;
-    const confirmed = (typeof window !== 'undefined' && typeof window.confirm === 'function')
-      ? window.confirm(`Are you sure you want to delete task ${taskId}?`)
-      : true;
-    if (confirmed) {
-      window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
-
-      // Real-time Firebase Broadcast
-      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-        FirebaseSyncService.deleteTask(this.selectedMonth, taskId);
-      }
-
-      // Targeted row removal without shaking the page
-      const tr = document.getElementById(`task-row-${taskId}`) || 
-                 document.querySelector(`tr:has(button[onclick*="deleteTask('${taskId}')"])`);
-      if (tr) {
-        tr.remove();
-        // Renumber remaining SL cells
-        const tbody = document.getElementById('monthly-input-tbody');
-        if (tbody) {
-          const rows = tbody.querySelectorAll('tr[id^="task-row-"]');
-          rows.forEach((row, i) => {
-            const slCell = row.querySelector('.task-sl-cell');
-            if (slCell) slCell.textContent = i + 1;
-          });
-          const counter = document.getElementById('total-rows-counter');
-          if (counter) {
-            counter.innerHTML = `Total ${rows.length} rows &bull; Press "⚡ SYNC INPUT DATA" to compile slides`;
-          }
-          if (rows.length === 0) {
-            await this.render();
-          }
-        }
-        this.updateEngineerSummary();
-      } else {
-        await this.render();
-      }
-
-      if (window.appState.syncEngine) {
-        window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
-      }
-      if (typeof window.showToast === 'function') {
-        window.showToast(`Deleted ${taskId}`, "info");
-      }
     }
   },
 

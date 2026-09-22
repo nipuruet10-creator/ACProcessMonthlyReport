@@ -404,6 +404,10 @@ class MonthWorkbookManager {
       category: (category || "Process development").trim(),
       points: parsedPts, // Task Point (Actual Point)
       include_in_report: includeInReport === "NO" ? "NO" : "YES",
+      status: "",
+      remarks: "",
+      photo_1: "",
+      photo_2: "",
       is_project: isProject,
       project_status: projectStatus,
       deadline: deadline,
@@ -444,6 +448,7 @@ class MonthWorkbookManager {
       ...updates,
       task_id: tasks[idx].task_id,
       month: m,
+      _lastFieldEditTime: Date.now(),
       updated_at: new Date().toISOString(),
       last_updated: new Date().toISOString()
     };
@@ -615,6 +620,13 @@ class MonthWorkbookManager {
       if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
         GoogleSheetsSync.deleteTask(taskId, m);
       }
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
+        try {
+          FirebaseSyncService.deleteTask(m, taskId);
+        } catch (e) {
+          console.warn("Firebase deleteTask notice:", e);
+        }
+      }
       return true;
     }
     return false;
@@ -657,6 +669,21 @@ class MonthWorkbookManager {
           taskIds.forEach(id => {
             GoogleSheetsSync.deleteTask(id, m);
           });
+        }
+      }
+
+      // Propagate to Firebase Realtime Database
+      if (typeof FirebaseSyncService !== 'undefined') {
+        try {
+          if (FirebaseSyncService.deleteMultipleTasks) {
+            FirebaseSyncService.deleteMultipleTasks(m, taskIds);
+          } else if (FirebaseSyncService.deleteTask) {
+            taskIds.forEach(id => {
+              FirebaseSyncService.deleteTask(m, id);
+            });
+          }
+        } catch (e) {
+          console.warn("Firebase deleteMultipleTasks notice:", e);
         }
       }
     }
@@ -770,7 +797,16 @@ class MonthWorkbookManager {
           }
           // Ensure cloud deletes any residual copies too
           if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
-            GoogleSheetsSync.deleteTask(rt.task_id, norm).catch(() => {});
+            try {
+              const res = GoogleSheetsSync.deleteTask(rt.task_id, norm);
+              if (res && typeof res.catch === 'function') res.catch(() => {});
+            } catch (e) {}
+          }
+          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
+            try {
+              const res = FirebaseSyncService.deleteTask(norm, rt.task_id);
+              if (res && typeof res.catch === 'function') res.catch(() => {});
+            } catch (e) {}
           }
           return;
         }
@@ -811,10 +847,22 @@ class MonthWorkbookManager {
               lt.photo_2 = rt.photo_2;
               anyChanges = true;
             }
+            // If remote task has NO photos, and local user didn't attach a photo recently (last 15s), clear ghost photo!
+            const isRecentLocalPhoto = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 15000);
+            if (!rt.photo_1 && lt.photo_1 && !isRecentLocalPhoto) {
+              lt.photo_1 = "";
+              photoManager.removePhoto(rt.task_id, 'before_photo');
+              anyChanges = true;
+            }
+            if (!rt.photo_2 && lt.photo_2 && !isRecentLocalPhoto) {
+              lt.photo_2 = "";
+              photoManager.removePhoto(rt.task_id, 'after_photo');
+              anyChanges = true;
+            }
           }
 
           // Check for actual data differences on meaningful user-facing fields
-          const checkFields = ['task_name', 'task_details', 'category', 'points', 'assignee', 'supervisor', 'status', 'include_in_report', 'photo_1', 'photo_2'];
+          const checkFields = ['task_name', 'task_details', 'category', 'points', 'assignee', 'supervisor', 'status', 'remarks', 'tms_task_id', 'include_in_report', 'photo_1', 'photo_2'];
           let isDifferent = false;
           for (const k of checkFields) {
             const rVal = String(rt[k] !== undefined && rt[k] !== null ? rt[k] : '').trim();
@@ -827,14 +875,14 @@ class MonthWorkbookManager {
 
           if (isDifferent) {
             // NON-DESTRUCTIVE MULTI-DEVICE PROTECTION:
-            // Do NOT let remote empty fields wipe out existing local content!
             for (const k of Object.keys(rt)) {
               const rVal = rt[k];
               const lVal = lt[k];
+              const isRecentLocalEdit = lt._lastFieldEditTime && (Date.now() - lt._lastFieldEditTime < 6000);
               const isProtectedField = (k === 'task_details' || k === 'photo_1' || k === 'photo_2' || k === 'ai_report_title' || k === 'ai_report_description');
               
-              if (isProtectedField && (rVal === "" || rVal === null || rVal === undefined) && (lVal !== "" && lVal !== null && lVal !== undefined)) {
-                // Local has valuable content, remote is empty. Keep local content!
+              if (isRecentLocalEdit && isProtectedField && (rVal === "" || rVal === null || rVal === undefined) && (lVal !== "" && lVal !== null && lVal !== undefined)) {
+                // User locally typed/edited in last 6 seconds, keep local
                 continue;
               }
               lt[k] = rVal;

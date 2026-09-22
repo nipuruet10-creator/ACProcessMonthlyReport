@@ -139,12 +139,28 @@ const FirebaseSyncService = {
     this._monthRef.once('value').then((snapshot) => {
       const fbData = snapshot.val();
       if (fbData && typeof fbData === 'object' && window.appState && window.appState.workbookMgr) {
-        const remoteTasks = Object.values(fbData).filter(t => t && t.task_id);
-        if (remoteTasks.length > 0) {
-          const wbMgr = window.appState.workbookMgr;
+        let deletedSet = new Set();
+        try {
+          const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+          deletedSet = new Set(deletedList);
+        } catch (e) {}
+
+        // Filter out any tombstoned / locally deleted tasks
+        const remoteTasks = Object.values(fbData).filter(t => t && t.task_id && !deletedSet.has(t.task_id));
+
+        // Actively purge any zombie tasks found in Firebase that were previously deleted locally
+        Object.values(fbData).forEach(t => {
+          if (t && t.task_id && deletedSet.has(t.task_id)) {
+            console.log(`🔥 [Firebase Hydration] Purging zombie task from cloud: ${t.task_id}`);
+            this.deleteTask(normMonth, t.task_id);
+          }
+        });
+
+        const wbMgr = window.appState.workbookMgr;
+        if (remoteTasks.length > 0 || (wbMgr.workbooks[normMonth] && wbMgr.workbooks[normMonth].length === 0)) {
           wbMgr.workbooks[normMonth] = remoteTasks;
           wbMgr.save();
-          console.log(`🔥 Firebase Hydrated: Loaded ${remoteTasks.length} tasks for ${normMonth} into active memory.`);
+          console.log(`🔥 Firebase Hydrated: Loaded ${remoteTasks.length} active tasks for ${normMonth} into active memory.`);
           if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
             MonthlyInputView.render();
           }
@@ -156,6 +172,17 @@ const FirebaseSyncService = {
     this._monthRef.on('child_added', (snapshot) => {
       const task = snapshot.val();
       if (!task || !task.task_id) return;
+
+      // Check tombstone: if this task was deleted, ignore and purge from Firebase
+      try {
+        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+        if (deleted.includes(task.task_id)) {
+          console.log(`🔥 [Firebase child_added] Blocked zombie resurrection of deleted task: ${task.task_id}`);
+          this.deleteTask(normMonth, task.task_id);
+          return;
+        }
+      } catch (e) {}
+
       this._handleRemoteTaskAdded(normMonth, task);
     });
 
@@ -163,6 +190,17 @@ const FirebaseSyncService = {
     this._monthRef.on('child_changed', (snapshot) => {
       const task = snapshot.val();
       if (!task || !task.task_id) return;
+
+      // Check tombstone: if deleted, do not update or revive
+      try {
+        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+        if (deleted.includes(task.task_id)) {
+          console.log(`🔥 [Firebase child_changed] Blocked zombie task: ${task.task_id}`);
+          this.deleteTask(normMonth, task.task_id);
+          return;
+        }
+      } catch (e) {}
+
       this._handleRemoteTaskChanged(normMonth, task);
     });
 
@@ -195,6 +233,18 @@ const FirebaseSyncService = {
    */
   _handleRemoteTaskAdded(month, task) {
     if (!window.appState || !window.appState.workbookMgr) return;
+    if (!task || !task.task_id) return;
+
+    // Check tombstone - never add back deleted task
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (deleted.includes(task.task_id)) {
+        console.log(`🔥 [Firebase _handleRemoteTaskAdded] Suppressed deleted task: ${task.task_id}`);
+        this.deleteTask(month, task.task_id);
+        return;
+      }
+    } catch (e) {}
+
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);
     if (existing) {
@@ -225,7 +275,12 @@ const FirebaseSyncService = {
           newTr.classList.add('animate-fade-in');
           tbody.appendChild(newTr);
         }
-        MonthlyInputView.updateEngineerSummary();
+        if (typeof MonthlyInputView.updateRowIndices === 'function') {
+          MonthlyInputView.updateRowIndices();
+        }
+        if (typeof MonthlyInputView.updateEngineerSummary === 'function') {
+          MonthlyInputView.updateEngineerSummary();
+        }
         const counter = document.getElementById('total-rows-counter');
         if (counter) counter.innerHTML = `Total ${allTasks.length} rows &bull; ⚡ Real-Time Instant Sync Active`;
       } else {
@@ -384,20 +439,31 @@ const FirebaseSyncService = {
     wbMgr.workbooks[month] = tasks.filter(t => t.task_id !== taskId);
     wbMgr.save();
 
+    // Record tombstone locally
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (!deleted.includes(taskId)) {
+        deleted.push(taskId);
+        if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+      }
+    } catch (e) {}
+
     // Remove row from DOM with smooth fade-out
     const tr = document.getElementById(`task-row-${taskId}`);
     if (tr) {
-      tr.style.transition = 'all 0.3s ease-out';
+      tr.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
       tr.style.opacity = '0';
-      tr.style.transform = 'translateX(20px)';
+      tr.style.transform = 'translateX(24px) scale(0.98)';
       setTimeout(() => {
         tr.remove();
         if (typeof MonthlyInputView !== 'undefined') {
-          MonthlyInputView.updateRowIndices();
-          MonthlyInputView.updateEngineerSummary();
-          MonthlyInputView.updateRankingTable();
+          if (typeof MonthlyInputView.updateRowIndices === 'function') MonthlyInputView.updateRowIndices();
+          if (typeof MonthlyInputView.updateBulkDeleteButton === 'function') MonthlyInputView.updateBulkDeleteButton();
+          if (typeof MonthlyInputView.updateEngineerSummary === 'function') MonthlyInputView.updateEngineerSummary();
+          if (typeof MonthlyInputView.updateRankingTable === 'function') MonthlyInputView.updateRankingTable();
         }
-      }, 300);
+      }, 250);
     }
   },
 
@@ -457,10 +523,22 @@ const FirebaseSyncService = {
   },
 
   /**
-   * Delete task from Firebase
+   * Delete task from Firebase (atomically with tombstone recording)
    */
   async deleteTask(month, taskId) {
-    if (!this.isConnected() || !taskId) return false;
+    if (!taskId) return false;
+
+    // Record tombstone locally first
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (!deleted.includes(taskId)) {
+        deleted.push(taskId);
+        if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+      }
+    } catch (e) {}
+
+    if (!this.isConnected()) return false;
     const normMonth = (window.appState && window.appState.workbookMgr)
       ? window.appState.workbookMgr.normalizeMonth(month)
       : month;
@@ -472,6 +550,45 @@ const FirebaseSyncService = {
     } catch (e) {
       console.warn("Firebase deleteTask notice:", e);
       return false;
+    }
+  },
+
+  /**
+   * Atomically delete multiple tasks from Firebase
+   */
+  async deleteMultipleTasks(month, taskIds = []) {
+    if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
+
+    // 1. Record tombstones locally first
+    try {
+      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      taskIds.forEach(id => {
+        if (!deleted.includes(id)) deleted.push(id);
+      });
+      if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
+      localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+    } catch (e) {}
+
+    if (!this.isConnected()) return false;
+    const normMonth = (window.appState && window.appState.workbookMgr)
+      ? window.appState.workbookMgr.normalizeMonth(month)
+      : month;
+
+    try {
+      const updates = {};
+      taskIds.forEach(id => {
+        updates[`walton_monthly_report/workbooks/${normMonth}/tasks/${id}`] = null;
+      });
+      await this.db.ref().update(updates);
+      return true;
+    } catch (e) {
+      console.warn("Firebase deleteMultipleTasks multi-path notice, trying sequential fallback:", e);
+      let allOk = true;
+      for (const id of taskIds) {
+        const ok = await this.deleteTask(normMonth, id);
+        if (!ok) allOk = false;
+      }
+      return allOk;
     }
   },
 
