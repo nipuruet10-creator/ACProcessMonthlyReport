@@ -117,6 +117,105 @@ const FirebaseSyncService = {
   },
 
   /**
+   * Hydrate tasks for a month from Firebase into local memory and reconcile
+   */
+  async hydrateMonth(month) {
+    if (!this.db || !month) return false;
+    const normMonth = (window.appState && window.appState.workbookMgr)
+      ? window.appState.workbookMgr.normalizeMonth(month)
+      : month;
+
+    try {
+      const snapshot = await this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks`).once('value');
+      const fbData = snapshot.val();
+      const wbMgr = window.appState && window.appState.workbookMgr;
+      if (!wbMgr) return false;
+
+      let deletedSet = new Set();
+      try {
+        const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+        deletedSet = new Set(deletedList);
+      } catch (e) {}
+
+      if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
+        // Auto-heal and filter out any tombstoned / locally deleted tasks
+        const remoteTasks = [];
+        for (const [key, t] of Object.entries(fbData)) {
+          if (!t || typeof t !== 'object') continue;
+          if (!t.task_id) t.task_id = key; // Auto-heal missing task_id from Firebase key
+          if (deletedSet.has(t.task_id)) continue;
+
+          // Auto-repair supervisor to Kamrul (44819)
+          if (!t.supervisor || String(t.supervisor).toLowerCase().includes('sazzad') || String(t.supervisor).includes('50463')) {
+            t.supervisor = 'Kamrul (44819)';
+          }
+
+          // If task_name is missing from Firebase node, attempt to heal from local task
+          if (!t.task_name) {
+            const localMatch = wbMgr.getTask(normMonth, t.task_id);
+            if (localMatch && localMatch.task_name) {
+              t.task_name = localMatch.task_name;
+              t.assignee = t.assignee || localMatch.assignee;
+              t.category = t.category || localMatch.category;
+            }
+          }
+
+          if (t.task_name) {
+            remoteTasks.push(t);
+          }
+        }
+
+        remoteTasks.sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+
+        // Actively purge any zombie tasks found in Firebase that were previously deleted locally
+        Object.entries(fbData).forEach(([key, t]) => {
+          const taskId = (t && t.task_id) ? t.task_id : key;
+          if (taskId && deletedSet.has(taskId)) {
+            console.log(`🔥 [Firebase Hydration] Purging zombie task from cloud: ${taskId}`);
+            this.deleteTask(normMonth, taskId);
+          }
+        });
+
+        const changed = wbMgr.mergeFromCloud({ [normMonth]: remoteTasks }, false);
+
+        // Check if local has active tasks that Firebase is missing or incomplete
+        const localTasks = wbMgr.getTasksForMonth(normMonth);
+        const missingOrIncomplete = localTasks.filter(lt => {
+          if (deletedSet.has(lt.task_id)) return false;
+          const fbItem = fbData[lt.task_id];
+          return !fbItem || !fbItem.task_name;
+        });
+        if (missingOrIncomplete.length > 0) {
+          console.log(`🔥 Pushing ${missingOrIncomplete.length} local tasks to Firebase to repair/sync cloud...`);
+          for (const mt of missingOrIncomplete) {
+            await this.pushTask(normMonth, mt);
+          }
+        }
+
+        if (changed || missingOrIncomplete.length > 0) {
+          wbMgr.save();
+          console.log(`🔥 Firebase Hydrated: Loaded ${remoteTasks.length} active tasks for ${normMonth} into active memory.`);
+          if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+            MonthlyInputView.render();
+          }
+        }
+        return true;
+      } else {
+        // Firebase has no tasks for this month yet. If local has tasks, seed Firebase!
+        const localTasks = wbMgr.getTasksForMonth(normMonth);
+        if (localTasks.length > 0) {
+          console.log(`🔥 Seeding Firebase for ${normMonth} with ${localTasks.length} local tasks...`);
+          await this.pushEntireMonth(normMonth);
+        }
+        return true;
+      }
+    } catch (e) {
+      console.warn("Firebase hydrateMonth notice:", e);
+      return false;
+    }
+  },
+
+  /**
    * Bind real-time listeners to active month
    */
   bindMonthListeners(month) {
@@ -136,42 +235,18 @@ const FirebaseSyncService = {
     this._monthRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks`);
 
     // 0. Initial Hydration: Load all current tasks from Firebase on startup/connect
-    this._monthRef.once('value').then((snapshot) => {
-      const fbData = snapshot.val();
-      if (fbData && typeof fbData === 'object' && window.appState && window.appState.workbookMgr) {
-        let deletedSet = new Set();
-        try {
-          const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-          deletedSet = new Set(deletedList);
-        } catch (e) {}
-
-        // Filter out any tombstoned / locally deleted tasks
-        const remoteTasks = Object.values(fbData).filter(t => t && t.task_id && !deletedSet.has(t.task_id));
-
-        // Actively purge any zombie tasks found in Firebase that were previously deleted locally
-        Object.values(fbData).forEach(t => {
-          if (t && t.task_id && deletedSet.has(t.task_id)) {
-            console.log(`🔥 [Firebase Hydration] Purging zombie task from cloud: ${t.task_id}`);
-            this.deleteTask(normMonth, t.task_id);
-          }
-        });
-
-        const wbMgr = window.appState.workbookMgr;
-        if (remoteTasks.length > 0 || (wbMgr.workbooks[normMonth] && wbMgr.workbooks[normMonth].length === 0)) {
-          wbMgr.workbooks[normMonth] = remoteTasks;
-          wbMgr.save();
-          console.log(`🔥 Firebase Hydrated: Loaded ${remoteTasks.length} active tasks for ${normMonth} into active memory.`);
-          if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
-            MonthlyInputView.render();
-          }
-        }
-      }
-    }).catch(e => console.warn("Firebase initial hydration notice:", e));
+    this.hydrateMonth(normMonth);
 
     // 1. child_added: Another user created a new task row
     this._monthRef.on('child_added', (snapshot) => {
       const task = snapshot.val();
-      if (!task || !task.task_id) return;
+      if (!task || typeof task !== 'object') return;
+      if (!task.task_id) task.task_id = snapshot.key;
+
+      // Auto-repair supervisor
+      if (!task.supervisor || String(task.supervisor).toLowerCase().includes('sazzad') || String(task.supervisor).includes('50463')) {
+        task.supervisor = 'Kamrul (44819)';
+      }
 
       // Check tombstone: if this task was deleted, ignore and purge from Firebase
       try {
@@ -189,7 +264,13 @@ const FirebaseSyncService = {
     // 2. child_changed: Another user modified a cell, category, points, supervisor, photo, TMS, etc.
     this._monthRef.on('child_changed', (snapshot) => {
       const task = snapshot.val();
-      if (!task || !task.task_id) return;
+      if (!task || typeof task !== 'object') return;
+      if (!task.task_id) task.task_id = snapshot.key;
+
+      // Auto-repair supervisor
+      if (!task.supervisor || String(task.supervisor).toLowerCase().includes('sazzad') || String(task.supervisor).includes('50463')) {
+        task.supervisor = 'Kamrul (44819)';
+      }
 
       // Check tombstone: if deleted, do not update or revive
       try {
@@ -492,10 +573,26 @@ const FirebaseSyncService = {
 
     try {
       const taskRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${taskId}`);
-      await taskRef.update({
+      const patch = {
+        task_id: taskId,
         [field]: value,
         last_updated: new Date().toISOString()
-      });
+      };
+
+      // Guarantee core fields are included if local task is known
+      if (window.appState && window.appState.workbookMgr) {
+        const lt = window.appState.workbookMgr.getTask(normMonth, taskId);
+        if (lt) {
+          if (lt.task_name && field !== 'task_name') patch.task_name = lt.task_name;
+          if (lt.assignee && field !== 'assignee') patch.assignee = lt.assignee;
+          if (lt.engineer && field !== 'engineer') patch.engineer = lt.engineer;
+          if (lt.supervisor && field !== 'supervisor') patch.supervisor = lt.supervisor;
+          if (lt.category && field !== 'category') patch.category = lt.category;
+          if (lt.include_in_report && field !== 'include_in_report') patch.include_in_report = lt.include_in_report;
+        }
+      }
+
+      await taskRef.update(patch);
       return true;
     } catch (e) {
       console.warn("Firebase updateCell notice:", e);
@@ -596,6 +693,18 @@ const FirebaseSyncService = {
    * Migrate / Push entire workbook month to Firebase
    */
   async pushEntireMonth(month) {
+    if (this.status === 'CONNECTING' && this.db) {
+      await new Promise(resolve => {
+        const check = setInterval(() => {
+          if (this.isConnected() || this.status === 'OFFLINE') {
+            clearInterval(check);
+            resolve();
+          }
+        }, 100);
+        setTimeout(() => { clearInterval(check); resolve(); }, 3000);
+      });
+    }
+
     if (!this.isConnected()) throw new Error("Firebase is not connected.");
     if (!window.appState || !window.appState.workbookMgr) throw new Error("Workbook not ready.");
 

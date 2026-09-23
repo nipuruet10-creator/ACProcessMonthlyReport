@@ -920,8 +920,14 @@ const GoogleSheetsSync = {
   _pendingViewRefresh: false,
   _refreshActiveViews() {
     try {
-      // If Firebase Realtime Engine is active and connected, skip disruptive full table re-renders
-      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      // Check if task count changed compared to DOM rendered rows
+      const tbody = (typeof document !== 'undefined') ? document.getElementById('monthly-input-tbody') : null;
+      const activeMonth = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.activeMonth : 'SEP-2026';
+      const localCount = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.getTasksForMonth(activeMonth).length : 0;
+      const domRowCount = tbody ? tbody.querySelectorAll('tr[id^="task-row-"]').length : 0;
+
+      // If Firebase Realtime Engine is connected AND DOM row count already matches local tasks, skip full table re-render
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected() && domRowCount === localCount) {
         this._pendingViewRefresh = false;
         return;
       }

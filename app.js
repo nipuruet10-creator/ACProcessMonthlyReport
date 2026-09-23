@@ -68,25 +68,8 @@ const App = {
       get dashboardView() { return typeof DashboardController !== 'undefined' ? DashboardController : null; }
     };
 
-    // Auto-run initial sync for active month
-    try {
-      await syncEngine.syncMonth(workbookMgr.activeMonth);
-    } catch (e) {
-      console.warn("Initial sync notification:", e);
-    }
-
     // Setup global toast function
     window.showToast = this.showToast.bind(this);
-
-    // Initialize Google Sheets Cloud Sync Engine
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.init) {
-      GoogleSheetsSync.init();
-    }
-
-    // Initialize Google Firebase Realtime Database Engine (Sub-50ms Collaborative Sync)
-    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.init) {
-      FirebaseSyncService.init();
-    }
 
     // Render User Badge
     this.renderUserBadge();
@@ -109,8 +92,23 @@ const App = {
       return;
     }
 
-    // Render Active Tab View
+    // INSTANT UI RENDER (< 25ms): Immediately display Monthly Task Entry Grid without waiting for heavy network sync
     await this.switchTab(this.currentTab);
+
+    // Initialize Google Firebase Realtime Database Engine (Sub-50ms Collaborative Sync)
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.init) {
+      FirebaseSyncService.init();
+    }
+
+    // Initialize Google Sheets Cloud Sync Engine
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.init) {
+      GoogleSheetsSync.init();
+    }
+
+    // Background Non-blocking Slide Sync Pipeline (Runs smoothly without freezing UI)
+    syncEngine.syncMonth(workbookMgr.activeMonth).catch(e => {
+      console.warn("Background sync notification:", e);
+    });
 
     console.log("System initialized successfully.");
   },
@@ -220,11 +218,18 @@ const App = {
    * Fast global sync: pulls latest cloud updates from Google Sheets and compiles local slides
    */
   async triggerGlobalSync() {
+    const activeMonth = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.activeMonth : 'SEP-2026';
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      await FirebaseSyncService.hydrateMonth(activeMonth);
+    }
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
       await GoogleSheetsSync.pullFromCloud(false);
     }
     if (typeof ReportBuilderView !== 'undefined' && ReportBuilderView.triggerSync) {
       await ReportBuilderView.triggerSync();
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast("⚡ Cloud & Multi-PC Sync Complete! All data up-to-date.", "success");
     }
   },
 

@@ -845,6 +845,9 @@ const MonthlyInputView = {
     if (btn) btn.innerHTML = `<span>⏳</span><span>Syncing...</span>`;
 
     try {
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        await FirebaseSyncService.hydrateMonth(this.selectedMonth);
+      }
       if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
         await GoogleSheetsSync.pullFromCloud(true);
       }
@@ -906,12 +909,12 @@ const MonthlyInputView = {
     if (lines.length === 0) return [];
 
     const parsedTasks = [];
-    const engineers = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers())
+    const engineers = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers)
       ? MasterDataManager.getEngineers()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
     const engNames = engineers.map(e => e.name.toLowerCase());
     const fallbackEng = defaultEngineer || (engineers[0] ? engineers[0].name : "Sazzad");
-    const fallbackSup = "Sazzad(50463)";
+    const fallbackSup = "Kamrul (44819)";
 
     let colMap = { sl: -1, eng: -1, name: -1, details: -1, cat: -1, pts: -1, sup: -1, assignee: -1 };
     let hasHeader = false;
@@ -987,8 +990,8 @@ const MonthlyInputView = {
           cat = workingCells[2] || "Process development";
           const parsedNum = parseFloat(workingCells[3]);
           pts = isNaN(parsedNum) ? "" : parsedNum;
-          sup = workingCells[4] || fallbackSup;
-          eng = workingCells[5] || fallbackEng;
+          sup = (workingCells[4] && workingCells[4].trim()) ? workingCells[4].trim() : fallbackSup;
+          eng = (workingCells[5] && workingCells[5].trim()) ? workingCells[5].trim() : fallbackEng;
         } else if (workingCells.length > 1 && engNames.some(en => workingCells[0].toLowerCase().includes(en))) {
           eng = workingCells[0];
           name = workingCells[1] || "";
@@ -1036,18 +1039,30 @@ const MonthlyInputView = {
             engineerName = matchedEng.name;
           }
 
+          // Ensure supervisor never erroneously defaults to Sazzad, auto-defaults to Kamrul (44819)
+          if (sup && (sup.toLowerCase().includes('sazzad') || sup.toLowerCase().includes('50463'))) {
+            sup = fallbackSup;
+          }
+
           const matchedSup = personnelList.find(p => 
             p.display.toLowerCase() === sup.toLowerCase() || 
             p.name.toLowerCase() === sup.toLowerCase() || 
             sup.toLowerCase().includes(p.name.toLowerCase())
           );
-          if (matchedSup) sup = matchedSup.display;
+          if (matchedSup && !matchedSup.name.toLowerCase().includes('sazzad')) {
+            sup = matchedSup.display;
+          } else {
+            sup = fallbackSup;
+          }
         } else {
           // Fallback if MasterDataManager is not available
           const matchedEng = engineers.find(e => e.name.toLowerCase() === eng.toLowerCase() || eng.toLowerCase().includes(e.name.toLowerCase()));
           if (matchedEng) {
             assigneeDisplay = matchedEng.display || matchedEng.name;
             engineerName = matchedEng.name;
+          }
+          if (sup && (sup.toLowerCase().includes('sazzad') || sup.toLowerCase().includes('50463'))) {
+            sup = fallbackSup;
           }
         }
 
@@ -1075,7 +1090,7 @@ const MonthlyInputView = {
       document.body.appendChild(modal);
     }
 
-    const engineers = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers())
+    const engineers = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers)
       ? MasterDataManager.getEngineers()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
 
@@ -1240,10 +1255,11 @@ const MonthlyInputView = {
           <tr>
             <th class="py-2 px-3 w-10 text-center">#</th>
             <th class="py-2 px-3 w-28">Engineer</th>
+            <th class="py-2 px-3 w-28">Supervisor</th>
             <th class="py-2 px-3 w-48">Task Name</th>
             <th class="py-2 px-3">Details / Steps</th>
-            <th class="py-2 px-3 w-32">Category</th>
-            <th class="py-2 px-3 w-16 text-center">Pts</th>
+            <th class="py-2 px-3 w-28">Category</th>
+            <th class="py-2 px-3 w-14 text-center">Pts</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 bg-white">
@@ -1251,6 +1267,7 @@ const MonthlyInputView = {
             <tr class="hover:bg-red-50/30">
               <td class="py-2 px-3 text-center font-mono text-slate-400">${idx + 1}</td>
               <td class="py-2 px-3 font-semibold text-slate-700">${HELPERS.escapeHtml(t.engineer)}</td>
+              <td class="py-2 px-3 font-medium text-slate-600">${HELPERS.escapeHtml(t.supervisor || 'Kamrul (44819)')}</td>
               <td class="py-2 px-3 font-bold text-slate-800">${HELPERS.escapeHtml(t.task_name)}</td>
               <td class="py-2 px-3 text-slate-600 truncate max-w-xs" title="${HELPERS.escapeHtml(t.task_details)}">${HELPERS.escapeHtml(t.task_details || '-')}</td>
               <td class="py-2 px-3 text-slate-500 font-mono text-[11px]">${HELPERS.escapeHtml(t.category)}</td>
@@ -1299,8 +1316,23 @@ const MonthlyInputView = {
         t.task_details || "",
         t.category || "Process development",
         (t.points !== "" && t.points !== undefined && t.points !== null) ? t.points : "",
-        t.supervisor || "Sazzad(50463)"
+        t.supervisor || "Kamrul (44819)"
       );
+    }
+
+    // Instant Firebase Highway Broadcast - sub-50ms sync to all other PCs
+    if (typeof FirebaseSyncService !== 'undefined') {
+      try {
+        await FirebaseSyncService.pushEntireMonth(this.selectedMonth);
+        console.log(`🔥 Broadcasted entire ${this.selectedMonth} to Firebase for multi-PC instant sync.`);
+      } catch (err) {
+        console.warn("Firebase bulk paste push notice:", err);
+      }
+    }
+
+    // Google Sheets Cloud Sync - atomic bulk push in background
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
+      GoogleSheetsSync.pushAllLocalData().catch(e => console.warn("Google Sheets bulk push notice:", e));
     }
 
     if (window.appState.syncEngine) {
@@ -1311,9 +1343,9 @@ const MonthlyInputView = {
     await this.render();
 
     if (typeof window.showToast === 'function') {
-      window.showToast(`📋 Successfully imported ${parsed.length} tasks from Excel!`, "success");
+      window.showToast(`📋 Successfully imported ${parsed.length} tasks from Excel! Synced to Cloud & other PCs.`, "success");
     } else {
-      alert(`Successfully imported ${parsed.length} tasks from Excel!`);
+      alert(`Successfully imported ${parsed.length} tasks from Excel! Synced to Cloud & other PCs.`);
     }
   },
 
@@ -1393,12 +1425,13 @@ const MonthlyInputView = {
           ${idx + 1}
         </td>
 
-        <!-- Task Name (2-Line Uniform Height with docked Walton TMS Button) -->
+        <!-- Task Name (Multi-line auto-expanding, no text clipping, docked Walton TMS Button) -->
         <td class="py-1 px-1.5 border-r border-slate-200 align-middle">
           <div class="flex items-center gap-1 w-full">
             <textarea id="task-name-input-${t.task_id}" rows="2"
                       onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                      class="flex-1 h-[38px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1.5 py-1 text-[11px] text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-red-100 resize-none overflow-y-auto leading-snug block"
+                      oninput="this.style.height='auto';this.style.height=Math.min(88, Math.max(46, this.scrollHeight))+'px'"
+                      class="flex-1 min-h-[46px] max-h-[88px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-2 py-1.5 text-[11px] text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-red-100 resize-none overflow-y-auto leading-snug block"
                       placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
             ${(typeof TmsSyncService !== 'undefined') ? TmsSyncService.renderTmsActionHtml(this.selectedMonth, t) : ''}
           </div>
@@ -1411,10 +1444,10 @@ const MonthlyInputView = {
                    placeholder="1. Design 2. Handover..."
                    title="${HELPERS.escapeHtml(t.task_details || '')}"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_details', this.value)"
-                   class="w-full h-[38px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded pl-1.5 pr-10 py-1 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-red-100" />
+                   class="w-full h-[46px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded pl-2 pr-10 py-1 text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-red-100" />
             <button id="ai-btn-${t.task_id}" type="button" onclick="MonthlyInputView.generateTaskDetails('${t.task_id}')"
                     title="Auto-generate engineering steps with AI"
-                    class="absolute right-0.5 px-1 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[9px] font-black text-white shadow-xs flex items-center gap-0.5 flex-shrink-0">
+                    class="absolute right-1 px-1.5 py-1 rounded bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-[9px] font-black text-white shadow-xs flex items-center gap-0.5 flex-shrink-0">
               <span>✨</span><span>AI</span>
             </button>
           </div>
@@ -1423,7 +1456,7 @@ const MonthlyInputView = {
         <!-- Category Dropdown -->
         <td class="py-1 px-1 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
-                  class="w-full h-[38px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1 py-1 text-[10px] text-slate-700 font-medium focus:outline-none">
+                  class="w-full h-[46px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1.5 py-1 text-[10px] text-slate-700 font-medium focus:outline-none">
             ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
         </td>
@@ -1434,14 +1467,14 @@ const MonthlyInputView = {
             <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
                    placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                   class="w-11 h-[38px] text-center bg-white border border-emerald-300 hover:border-emerald-500 rounded px-0.5 py-1 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-xs placeholder:text-slate-400" />
+                   class="w-11 h-[46px] text-center bg-white border border-emerald-300 hover:border-emerald-500 rounded px-0.5 py-1 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-xs placeholder:text-slate-400" />
           </div>
         </td>
 
         <!-- Supervisor Dropdown -->
         <td class="py-1 px-1 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
-                  class="w-full h-[38px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1 py-1 text-[10px] text-slate-700 font-medium focus:outline-none">
+                  class="w-full h-[46px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1.5 py-1 text-[10px] text-slate-700 font-medium focus:outline-none">
             ${supervisors.map(s => {
               const isSel = (currentSup === s.display || currentSup === s.name || (!t.supervisor && s.name === 'Kamrul'));
               return `<option value="${s.display}" ${isSel ? 'selected' : ''}>${s.display}</option>`;
@@ -1452,7 +1485,7 @@ const MonthlyInputView = {
         <!-- Assignee Dropdown -->
         <td class="py-1 px-1 border-r border-slate-200 align-middle">
           <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
-                  class="w-full h-[38px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1 py-1 text-[10px] text-slate-800 font-bold focus:outline-none">
+                  class="w-full h-[46px] bg-white border border-slate-200 hover:border-slate-400 focus:border-red-500 rounded px-1.5 py-1 text-[10px] text-slate-800 font-bold focus:outline-none">
             ${engineers.map(e => {
               const isSel = (currentAssignee === e.display || currentAssignee === e.name);
               return `<option value="${e.display}" ${isSel ? 'selected' : ''}>${e.display}</option>`;
@@ -1463,9 +1496,9 @@ const MonthlyInputView = {
         <!-- Direct Drag & Drop Photo Attachment / Studio -->
         <td class="py-1 px-1 border-r border-slate-200 align-middle">
           ${hasPhoto ? `
-            <div class="flex items-center justify-between gap-0.5 h-[38px] bg-slate-50 border border-slate-200 rounded px-1">
+            <div class="flex items-center justify-between gap-0.5 h-[46px] bg-slate-50 border border-slate-200 rounded px-1">
               <div class="flex items-center gap-1 overflow-hidden cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="Click to view & edit in Photo Studio">
-                <img src="${thumb}" class="w-5 h-5 rounded object-cover flex-shrink-0">
+                <img src="${thumb}" class="w-6 h-6 rounded object-cover flex-shrink-0">
                 <span class="text-[8.5px] text-emerald-600 font-bold font-mono">Photo</span>
               </div>
               <button onclick="MonthlyInputView.deleteRowPhoto('${t.task_id}')" title="Delete Photo" class="text-xs text-slate-400 hover:text-red-600 p-0.5">
@@ -1477,7 +1510,7 @@ const MonthlyInputView = {
                  ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50');"
                  ondragleave="this.classList.remove('border-red-500', 'bg-red-50');"
                  ondrop="MonthlyInputView.handlePhotoDrop(event, '${t.task_id}')"
-                 class="border border-dashed border-slate-300 hover:border-red-400 rounded h-[38px] px-1 flex items-center justify-between gap-0.5 bg-slate-50/50">
+                 class="border border-dashed border-slate-300 hover:border-red-400 rounded h-[46px] px-1 flex items-center justify-between gap-0.5 bg-slate-50/50">
               <label for="row-file-${t.task_id}" class="cursor-pointer flex items-center justify-center gap-0.5 text-[9.5px] text-slate-500 hover:text-red-600 font-medium py-0.5 flex-1 whitespace-nowrap">
                 <span>📸</span> <span>Upload</span>
               </label>
@@ -1712,7 +1745,7 @@ const MonthlyInputView = {
         if (container) {
           container.querySelectorAll('textarea[id^="task-name-input-"]').forEach(el => {
             el.style.height = 'auto';
-            el.style.height = Math.max(30, el.scrollHeight) + 'px';
+            el.style.height = Math.min(88, Math.max(46, el.scrollHeight)) + 'px';
           });
           container.style.minHeight = '';
         }
@@ -1902,13 +1935,13 @@ const MonthlyInputView = {
               <colgroup>
                 <col style="width: 28px;">   <!-- Checkbox -->
                 <col style="width: 32px;">   <!-- SL -->
-                <col style="width: 215px;">  <!-- Task Name -->
-                <col style="width: 180px;">  <!-- Task Details -->
-                <col style="width: 125px;">  <!-- Category -->
-                <col style="width: 56px;">   <!-- Point -->
+                <col style="width: 275px;">  <!-- Task Name (Expanded for zero text clipping) -->
+                <col style="width: 195px;">  <!-- Task Details (Expanded) -->
+                <col style="width: 120px;">  <!-- Category -->
+                <col style="width: 50px;">   <!-- Point -->
                 <col style="width: 115px;">  <!-- Supervisor -->
-                <col style="width: 135px;">  <!-- Assignee -->
-                <col style="width: 88px;">   <!-- Photo -->
+                <col style="width: 130px;">  <!-- Assignee -->
+                <col style="width: 84px;">   <!-- Photo -->
                 <col style="width: 48px;">   <!-- Report -->
                 <col style="width: 72px;">   <!-- Actions -->
               </colgroup>
@@ -1920,8 +1953,8 @@ const MonthlyInputView = {
                            class="w-3.5 h-3.5 rounded text-red-600 focus:ring-red-500 cursor-pointer" />
                   </th>
                   <th class="py-2 px-1 w-[32px] text-center border-r border-slate-300 text-[11px]">SL</th>
-                  <th class="py-2 px-1.5 w-[215px] border-r border-slate-300 text-[11px]">Task Name</th>
-                  <th class="py-2 px-1.5 w-[180px] border-r border-slate-300 text-[11px]">
+                  <th class="py-2 px-1.5 w-[275px] border-r border-slate-300 text-[11px]">Task Name</th>
+                  <th class="py-2 px-1.5 w-[195px] border-r border-slate-300 text-[11px]">
                     <div class="flex items-center justify-between gap-1">
                       <span class="truncate">Task Details</span>
                       <button id="ai-fill-all-btn" type="button" onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate steps for all empty tasks" class="px-1.5 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-[9px] font-bold text-white shadow-xs transition flex items-center gap-0.5 flex-shrink-0">
@@ -1929,13 +1962,13 @@ const MonthlyInputView = {
                       </button>
                     </div>
                   </th>
-                  <th class="py-2 px-1 w-[125px] border-r border-slate-300 text-[11px]">Category</th>
-                  <th class="py-2 px-0.5 w-[56px] text-center border-r border-slate-300 bg-[#C8E6C9] font-black text-[11px]">
+                  <th class="py-2 px-1 w-[120px] border-r border-slate-300 text-[11px]">Category</th>
+                  <th class="py-2 px-0.5 w-[50px] text-center border-r border-slate-300 bg-[#C8E6C9] font-black text-[11px]">
                     <span>Point</span>
                   </th>
                   <th class="py-2 px-1 w-[115px] border-r border-slate-300 text-[11px]">Supervisor</th>
-                  <th class="py-2 px-1 w-[135px] border-r border-slate-300 text-[11px]">Assignee</th>
-                  <th class="py-2 px-1 w-[88px] text-center border-r border-slate-300 text-[11px]">Photo</th>
+                  <th class="py-2 px-1 w-[130px] border-r border-slate-300 text-[11px]">Assignee</th>
+                  <th class="py-2 px-1 w-[84px] text-center border-r border-slate-300 text-[11px]">Photo</th>
                   <th class="py-2 px-0.5 w-[48px] text-center border-r border-slate-300 text-[11px]">Report</th>
                   <th class="py-2 px-0.5 w-[72px] text-center text-[11px]">Actions</th>
                 </tr>
@@ -1968,6 +2001,16 @@ const MonthlyInputView = {
 
     // Initialize/sync ranking table
     this.updateRankingTable();
+
+    // Auto-expand textarea heights to comfortably display all lines without vertical truncation
+    setTimeout(() => {
+      if (container) {
+        container.querySelectorAll('textarea[id^="task-name-input-"]').forEach(el => {
+          el.style.height = 'auto';
+          el.style.height = Math.min(88, Math.max(46, el.scrollHeight)) + 'px';
+        });
+      }
+    }, 10);
 
     // Preserve scroll position without disruptive height bouncing
     if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {

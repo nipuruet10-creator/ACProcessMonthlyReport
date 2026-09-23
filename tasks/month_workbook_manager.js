@@ -112,6 +112,14 @@ class MonthWorkbookManager {
             deletedLegacyIds.push(t.task_id);
             return false;
           }
+          // Auto-repair mistakenly defaulted Sazzad supervisor to Kamrul (44819)
+          if (t.supervisor) {
+            const supLower = String(t.supervisor).toLowerCase();
+            if (supLower.includes('sazzad') || supLower.includes('50463')) {
+              t.supervisor = 'Kamrul (44819)';
+              modified = true;
+            }
+          }
           return true;
         });
         if (this.workbooks[k].length !== initialLen) {
@@ -419,6 +427,9 @@ class MonthWorkbookManager {
 
     this.workbooks[m].push(newTask);
     this.save();
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushTask(m, newTask);
+    }
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
       GoogleSheetsSync.pushTask(newTask).then(ok => {
         if (ok) {
@@ -477,6 +488,9 @@ class MonthWorkbookManager {
 
     tasks[idx] = updated;
     this.save();
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushTask(m, updated);
+    }
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
       GoogleSheetsSync.pushTask(updated);
     }
@@ -815,6 +829,11 @@ class MonthWorkbookManager {
         rt.month = norm;
         if (!rt.assignee && rt.engineer) rt.assignee = rt.engineer;
         if (!rt.engineer && rt.assignee) rt.engineer = rt.assignee;
+
+        // Auto-sanitize supervisor so legacy Sazzad/50463 entries from Google Sheets become Kamrul (44819)
+        if (!rt.supervisor || String(rt.supervisor).toLowerCase().includes('sazzad') || String(rt.supervisor).includes('50463')) {
+          rt.supervisor = 'Kamrul (44819)';
+        }
 
         if (rt.points !== "" && rt.points !== undefined && rt.points !== null && !isNaN(parseFloat(rt.points))) {
           rt.points = parseFloat(rt.points);
