@@ -466,7 +466,6 @@ function syncSingleTask(task) {
   const lastRow = sheet.getLastRow();
   const headers = DB_CONFIG.TASK_HEADERS;
   const taskIdCol = 0; // task_id is column 0
-  const cleanId = String(task.task_id).trim();
 
   let foundRowIndex = -1;
   let existingRow = null;
@@ -510,7 +509,7 @@ function syncSingleTask(task) {
       const hasExist = (existVal !== undefined && existVal !== null && String(existVal).trim() !== '');
       
       // If field was omitted from payload completely (val === undefined), keep existing
-      if (val === undefined && hasExist) {
+      if ((val === undefined || (h === 'points' && (val === '' || val === null))) && hasExist) {
         val = existVal;
       } else if (task.clear_photos && (h === 'photo_1' || h === 'photo_2')) {
         val = ''; // Explicitly cleared photo

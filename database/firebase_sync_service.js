@@ -137,6 +137,16 @@ const FirebaseSyncService = {
         deletedSet = new Set(deletedList);
       } catch (e) {}
 
+      // Hydrate cloud tombstones from Firebase to guarantee cross-device permanent deletions
+      try {
+        const tombSnap = await this.db.ref('walton_monthly_report/deleted_task_ids').once('value');
+        const cloudTombs = tombSnap.val();
+        if (cloudTombs && typeof cloudTombs === 'object') {
+          Object.keys(cloudTombs).forEach(id => deletedSet.add(id));
+          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
+        }
+      } catch (e) {}
+
       if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
         // Auto-heal and filter out any tombstoned / locally deleted tasks
         const remoteTasks = [];
@@ -151,13 +161,19 @@ const FirebaseSyncService = {
           }
 
           // If task_name is missing from Firebase node, attempt to heal from local task
-          if (!t.task_name) {
-            const localMatch = wbMgr.getTask(normMonth, t.task_id);
-            if (localMatch && localMatch.task_name) {
-              t.task_name = localMatch.task_name;
-              t.assignee = t.assignee || localMatch.assignee;
-              t.category = t.category || localMatch.category;
-            }
+          const localMatch = wbMgr.getTask(normMonth, t.task_id);
+          if (!t.task_name && localMatch && localMatch.task_name) {
+            t.task_name = localMatch.task_name;
+            t.assignee = t.assignee || localMatch.assignee;
+            t.category = t.category || localMatch.category;
+          }
+
+          // Heal missing points from local task if Firebase has empty points but local has points
+          const rPts = (t.points !== undefined && t.points !== null) ? String(t.points).trim() : '';
+          const lPts = (localMatch && localMatch.points !== undefined && localMatch.points !== null) ? String(localMatch.points).trim() : '';
+          if (rPts === '' && lPts !== '') {
+            t.points = localMatch.points;
+            this.updateCell(normMonth, t.task_id, 'points', t.points);
           }
 
           if (t.task_name) {
@@ -293,6 +309,33 @@ const FirebaseSyncService = {
       this._handleRemoteTaskRemoved(normMonth, taskId);
     });
 
+    // 4. Real-time Cloud Tombstones from any laptop
+    if (!this._tombstonesBound) {
+      this._tombstonesBound = true;
+      this.db.ref('walton_monthly_report/deleted_task_ids').on('child_added', (snapshot) => {
+        const deletedId = snapshot.key;
+        if (!deletedId) return;
+
+        try {
+          const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+          if (!deleted.includes(deletedId)) {
+            deleted.push(deletedId);
+            localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
+          }
+        } catch (e) {}
+
+        if (window.appState && window.appState.workbookMgr) {
+          const wbMgr = window.appState.workbookMgr;
+          const activeMonth = wbMgr.activeMonth || 'SEP-2026';
+          const tasks = wbMgr.getTasksForMonth(activeMonth);
+          const found = tasks.some(t => t.task_id === deletedId);
+          if (found) {
+            this._handleRemoteTaskRemoved(activeMonth, deletedId);
+          }
+        }
+      });
+    }
+
     console.log(`🔥 Firebase listening to real-time changes for ${normMonth}`);
   },
 
@@ -329,8 +372,16 @@ const FirebaseSyncService = {
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);
     if (existing) {
-      // If already present, merge any remote updates smoothly
-      Object.assign(existing, task);
+      // If already present, merge any remote updates smoothly without wiping points
+      for (const [k, v] of Object.entries(task)) {
+        if (k === 'points') {
+          const rPts = (v !== undefined && v !== null) ? String(v).trim() : '';
+          const lPts = (existing.points !== undefined && existing.points !== null) ? String(existing.points).trim() : '';
+          if (rPts === '' && lPts !== '') continue;
+        }
+        if ((k === 'task_name' || k === 'task_details') && (!v || String(v).trim() === '') && existing[k]) continue;
+        existing[k] = v;
+      }
       wbMgr.save();
       return;
     }
@@ -395,8 +446,22 @@ const FirebaseSyncService = {
       }
     }
 
-    // Update in-memory workbook
-    tasks[idx] = { ...localTask, ...task };
+    // Update in-memory workbook safely: NEVER let empty remote points wipe local points
+    const mergedTask = { ...localTask };
+    for (const [k, v] of Object.entries(task)) {
+      if (k === 'points') {
+        const rPts = (v !== undefined && v !== null) ? String(v).trim() : '';
+        const lPts = (localTask.points !== undefined && localTask.points !== null) ? String(localTask.points).trim() : '';
+        if (rPts === '' && lPts !== '') {
+          continue; // Preserve local points
+        }
+      }
+      if ((k === 'task_name' || k === 'task_details') && (!v || String(v).trim() === '') && localTask[k]) {
+        continue;
+      }
+      mergedTask[k] = v;
+    }
+    tasks[idx] = mergedTask;
     wbMgr.save();
 
     // Cell-level Micro-Patching (Google Docs style: patch only changed DOM element!)
@@ -432,13 +497,14 @@ const FirebaseSyncService = {
 
       // 3. Points
       else if (field === 'points') {
-        const input = document.querySelector(`input[onchange*="${taskId}'][onchange*="points"]`);
+        const input = document.getElementById(`task-point-${taskId}`) || document.querySelector(`input[onchange*="${taskId}"][onchange*="points"]`);
         if (input && activeId !== input.id) {
           input.value = (task.points !== undefined && task.points !== null) ? task.points : '';
           this._flashCell(input);
         }
-        if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.updateRankingTable) {
-          MonthlyInputView.updateRankingTable();
+        if (typeof MonthlyInputView !== 'undefined') {
+          if (MonthlyInputView.updateRankingTable) MonthlyInputView.updateRankingTable();
+          if (MonthlyInputView.updateEngineerSummary) MonthlyInputView.updateEngineerSummary();
         }
       }
 
@@ -643,6 +709,8 @@ const FirebaseSyncService = {
     try {
       const taskRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${taskId}`);
       await taskRef.remove();
+      // Record tombstone in Firebase so all devices delete permanently
+      await this.db.ref(`walton_monthly_report/deleted_task_ids/${taskId}`).set(Date.now());
       return true;
     } catch (e) {
       console.warn("Firebase deleteTask notice:", e);
@@ -673,8 +741,10 @@ const FirebaseSyncService = {
 
     try {
       const updates = {};
+      const now = Date.now();
       taskIds.forEach(id => {
         updates[`walton_monthly_report/workbooks/${normMonth}/tasks/${id}`] = null;
+        updates[`walton_monthly_report/deleted_task_ids/${id}`] = now;
       });
       await this.db.ref().update(updates);
       return true;

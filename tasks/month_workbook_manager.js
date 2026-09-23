@@ -893,20 +893,83 @@ class MonthWorkbookManager {
           }
 
           if (isDifferent) {
+            const localTimestamp = lt.last_updated ? new Date(lt.last_updated).getTime() : (lt._lastFieldEditTime || 0);
+            const remoteTimestamp = rt.last_updated ? new Date(rt.last_updated).getTime() : 0;
+            const isLocalStrictlyNewer = localTimestamp > remoteTimestamp && remoteTimestamp > 0;
+            let needsCloudPushBack = false;
+
             // NON-DESTRUCTIVE MULTI-DEVICE PROTECTION:
             for (const k of Object.keys(rt)) {
               const rVal = rt[k];
               const lVal = lt[k];
-              const isRecentLocalEdit = lt._lastFieldEditTime && (Date.now() - lt._lastFieldEditTime < 6000);
-              const isProtectedField = (k === 'task_details' || k === 'photo_1' || k === 'photo_2' || k === 'ai_report_title' || k === 'ai_report_description');
+
+              // 1. POINTS PROTECTION: Never allow empty/blank remote points to wipe populated local points!
+              if (k === 'points') {
+                const rPts = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
+                const lPts = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
+                if (rPts === '' && lPts !== '') {
+                  // Keep local points, and mark to push back so cloud is permanently updated
+                  needsCloudPushBack = true;
+                  continue;
+                }
+                if (isLocalStrictlyNewer && lPts !== '') {
+                  continue; // Newer local edit wins
+                }
+              }
+
+              // 2. TEXT FIELDS PROTECTION: Never wipe non-empty task_name or task_details with empty remote strings
+              if (k === 'task_name' || k === 'task_details') {
+                const rStr = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
+                const lStr = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
+                if (rStr === '' && lStr !== '') {
+                  continue; // Keep local non-empty text!
+                }
+                if (isLocalStrictlyNewer && lStr !== '') {
+                  continue;
+                }
+              }
+
+              // 3. PHOTOS PROTECTION:
+              if (k === 'photo_1' || k === 'photo_2') {
+                const isRecentLocalPhoto = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 15000);
+                if (!rVal && lVal && isRecentLocalPhoto) {
+                  continue;
+                }
+              }
+
+              // 4. SUPERVISOR AUTO-GUARD:
+              if (k === 'supervisor') {
+                if (!rVal || String(rVal).toLowerCase().includes('sazzad') || String(rVal).includes('50463')) {
+                  lt.supervisor = 'Kamrul (44819)';
+                  continue;
+                }
+              }
+
+              const isRecentLocalEdit = lt._lastFieldEditTime && (Date.now() - lt._lastFieldEditTime < 10000);
+              const isProtectedField = (k === 'points' || k === 'task_name' || k === 'task_details' || k === 'photo_1' || k === 'photo_2' || k === 'ai_report_title' || k === 'ai_report_description');
               
               if (isRecentLocalEdit && isProtectedField && (rVal === "" || rVal === null || rVal === undefined) && (lVal !== "" && lVal !== null && lVal !== undefined)) {
-                // User locally typed/edited in last 6 seconds, keep local
+                // User locally edited in last 10 seconds, keep local
                 continue;
               }
+
+              if (isLocalStrictlyNewer && (lVal !== "" && lVal !== null && lVal !== undefined) && (rVal === "" || rVal === null || rVal === undefined)) {
+                continue;
+              }
+
               lt[k] = rVal;
             }
             anyChanges = true;
+
+            // If local points or fields were preserved while remote had empty cells, push back to cloud!
+            if (needsCloudPushBack) {
+              if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+                FirebaseSyncService.pushTask(norm, lt);
+              }
+              if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+                GoogleSheetsSync.pushTask(lt);
+              }
+            }
           }
         }
       });

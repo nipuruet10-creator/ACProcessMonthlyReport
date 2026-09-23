@@ -53,11 +53,17 @@ const MonthlyInputView = {
       if (typeof GoogleSheetsSync !== 'undefined') {
         GoogleSheetsSync._lastLocalEditTime = Date.now();
       }
-      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: value });
+
+      let cleanVal = value;
+      if (field === 'points') {
+        cleanVal = (value !== '' && value !== null && !isNaN(parseFloat(value))) ? parseFloat(value) : '';
+      }
+
+      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: cleanVal });
 
       // Ultra-Fast Real-time Firebase Sync (Sub-30ms Instant Highway)
       if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-        FirebaseSyncService.updateCell(this.selectedMonth, taskId, field, value);
+        FirebaseSyncService.updateCell(this.selectedMonth, taskId, field, cleanVal);
       }
       
       // If Assignee was changed, re-render immediately so the task transfers to that respective concern engineer's tab!
@@ -71,6 +77,9 @@ const MonthlyInputView = {
 
       // Update summary cards without full re-render to keep focus
       this.updateEngineerSummary();
+      if (field === 'points' && typeof this.updateRankingTable === 'function') {
+        this.updateRankingTable();
+      }
     } catch (e) {
       console.warn("Inline update notice:", e);
     }
@@ -1382,6 +1391,15 @@ const MonthlyInputView = {
 
     container.innerHTML = this.renderRankingTableHtml(ranking, totalTasksSum, totalWbsSum);
 
+    // Update summary strip if present
+    const topPerformer = (ranking && ranking.length > 0 && ranking[0].total_point > 0)
+      ? `${ranking[0].name} (${ranking[0].total_point} pts)`
+      : 'None';
+    const topEl = document.getElementById('ranking-top-performer');
+    if (topEl) topEl.textContent = `Top: ${topPerformer}`;
+    const metricsEl = document.getElementById('ranking-summary-metrics');
+    if (metricsEl) metricsEl.innerHTML = `&bull; ${totalTasksSum} Tasks &bull; ${totalActualSum} Actual Pts &bull; ${totalWbsSum} WBS Pts`;
+
     // Update KPI badges if DOM elements exist
     const kpiTasks = document.getElementById('kpi-total-tasks-val');
     if (kpiTasks) kpiTasks.textContent = totalTasksSum;
@@ -1461,13 +1479,14 @@ const MonthlyInputView = {
           </select>
         </td>
 
-        <!-- Task Point (Centered, Clean, No Waste Space) -->
+        <!-- Task Point (Centered, Clean, High-Affordance Executive Input) -->
         <td class="py-1 px-0.5 text-center bg-[#D4EDDA]/50 border-r border-slate-200 align-middle">
           <div class="flex items-center justify-center">
             <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
                    placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
+                   oninput="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                   class="w-11 h-[46px] text-center bg-white border border-emerald-300 hover:border-emerald-500 rounded px-0.5 py-1 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-xs placeholder:text-slate-400" />
+                   class="w-full max-w-[50px] h-[46px] text-center bg-white border border-emerald-300 hover:border-emerald-500 rounded px-0.5 py-1 text-xs font-mono font-black text-emerald-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-xs placeholder:text-slate-400" />
           </div>
         </td>
 
@@ -1794,100 +1813,69 @@ const MonthlyInputView = {
     container.innerHTML = `
       <div class="space-y-4 text-slate-800">
         
-        <!-- Optimized Top Toolbar with Walton Logo & Compact Actions -->
-        <div class="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-sm">
-          <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-            <div class="flex items-center gap-3">
-              <img src="assets/img/walton_logo.png" alt="WALTON" class="h-10 w-auto object-contain flex-shrink-0 drop-shadow-sm">
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-50 text-red-600 border border-red-200">
-                    EXCEL GRID
-                  </span>
-                  <h2 class="text-xl sm:text-2xl font-black text-slate-800">Monthly Task Entry Grid: ${month}</h2>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-0.5">
-                  Direct cell editing active &bull; Paste rows from Excel (<kbd class="px-1 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[9px] text-slate-600">Ctrl+V</kbd>) &bull; Drop photos on rows
-                </p>
-              </div>
-            </div>
-
-            <!-- Action Buttons (Admin Access and Lock moved to Settings) -->
-            <div class="flex flex-wrap items-center gap-2">
-              <button onclick="MonthlyInputView.openPasteModal()" title="Copy rows in Excel (Ctrl+C) and click here or press Ctrl+V to bulk paste" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-bold text-white shadow-md shadow-red-200/50 flex items-center gap-1.5 transition">
-                <span>📋</span> <span>Paste Excel</span>
-                <span class="text-[9px] bg-white/20 text-white px-1 py-0.2 rounded font-mono">Ctrl+V</span>
-              </button>
-
-              <button onclick="MonthlyInputView.openPhotoStudio()" title="Open Interactive Photo Studio" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm transition flex items-center gap-1.5">
-                <span>🖼️</span> <span>Photo Studio</span>
-              </button>
-
-              <button onclick="CostSavingTracker.openCostSavingsModal('${month}')" title="Manage Monthly Cost Savings" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm transition flex items-center gap-1.5">
-                <span>💰</span> <span>Cost Savings</span>
-              </button>
-
-              <button onclick="MonthlyInputView.exportToExcel()" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 transition shadow-sm">
-                <span>📤</span> <span>Export</span>
-              </button>
-
-              <button id="sync-btn-input" onclick="MonthlyInputView.triggerSync()" class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm transition flex items-center gap-1.5">
-                <span class="text-amber-500">⚡</span> <span>Sync</span>
-              </button>
-
-              <button onclick="TmsSyncService.syncMonthTasks(MonthlyInputView.selectedMonth, MonthlyInputView.filterEngineer)" title="Sync all tasks in active month/filter to Walton TMS (192.168.118.138)" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md shadow-blue-200/50 flex items-center gap-1.5 transition cursor-pointer">
-                <span>🚀</span> <span>Walton TMS Sync</span>
-              </button>
-
-              <button onclick="MonthlyInputView.openNewTaskModal()" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 transition shadow-sm">
-                <span>📝</span> <span>Task Dialog</span>
-              </button>
-
-              <button onclick="MonthlyInputView.addNewRow()" class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-black text-white shadow-sm transition flex items-center gap-1.5">
-                <span>➕</span> <span>Insert Row</span>
-              </button>
-            </div>
+        <!-- Compact Single-Row Executive Toolbar -->
+        <div class="bg-white border border-slate-200/90 rounded-2xl px-3.5 py-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+          <!-- Left: Month Selector & Add Month -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            ${HELPERS.renderMonthSelectorUI(months, this.selectedMonth, 'MonthlyInputView.handleMonthSelect', 'MonthlyInputView.openAddMonthModal')}
           </div>
 
-          <!-- Controls: Month Selector (Jan 2026 to Running Month) + Filter Dropdown -->
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-3">
-            <!-- Month Selector UI (Excludes 2025, shows Jan-Sep 2026) -->
-            ${HELPERS.renderMonthSelectorUI(months, this.selectedMonth, 'MonthlyInputView.handleMonthSelect', 'MonthlyInputView.openAddMonthModal')}
+          <!-- Middle: Core Actions (Clean, High-Affordance Executive Buttons) -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="MonthlyInputView.openPasteModal()" title="Copy rows in Excel (Ctrl+C) and click here or press Ctrl+V to bulk paste" 
+                    class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>📋</span> <span>Paste Excel</span>
+              <span class="text-[9px] bg-white/25 text-white px-1.5 py-0.2 rounded font-mono font-bold">Ctrl+V</span>
+            </button>
 
-            <!-- Concern Personnel Filter Dropdown -->
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xs font-semibold text-slate-500 font-mono">Filter by Concern:</span>
-              <select onchange="MonthlyInputView.handleEngineerFilter(this.value)" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 shadow-sm">
-                <option value="">All Personnel (${allTasks.length} tasks)</option>
-                ${personnel.map(p => `
-                  <option value="${p.display}" ${this.filterEngineer === p.display || this.filterEngineer === p.name ? 'selected' : ''}>
-                    ${p.display}
-                  </option>
-                `).join('')}
-              </select>
-            </div>
+            <button onclick="CostSavingTracker.openCostSavingsModal('${month}')" title="Manage Monthly Cost Savings" 
+                    class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200/80 transition flex items-center gap-1.5 cursor-pointer">
+              <span>💰</span> <span>Cost Savings</span>
+            </button>
+
+            <button onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate engineering steps for tasks" 
+                    class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200/80 transition flex items-center gap-1.5 cursor-pointer">
+              <span>✨</span> <span>Auto-Fill AI</span>
+            </button>
+
+            <button onclick="MonthlyInputView.addNewRow(true)" title="Insert a new task row" 
+                    class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+              <span>➕</span> <span>Add Row</span>
+            </button>
+          </div>
+
+          <!-- Right: Filter by Concern Personnel Dropdown -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-[11px] font-mono font-semibold text-slate-400 hidden sm:inline">Concern:</span>
+            <select onchange="MonthlyInputView.handleEngineerFilter(this.value)" 
+                    class="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-red-500 shadow-xs cursor-pointer">
+              <option value="">All Personnel (${allTasks.length})</option>
+              ${personnel.map(p => `
+                <option value="${p.display}" ${this.filterEngineer === p.display || this.filterEngineer === p.name ? 'selected' : ''}>
+                  ${p.display}
+                </option>
+              `).join('')}
+            </select>
           </div>
         </div>
 
-        <!-- 1ST SECTION: COMPACT & COLLAPSIBLE TASK POINT RANKING BAR -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm">
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-base flex-shrink-0 shadow-sm">
+        <!-- Compact Collapsible Points Ranking Bar -->
+        <div class="bg-white border border-slate-200/80 rounded-2xl p-2.5 sm:px-4 sm:py-3 shadow-xs">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 flex-wrap text-xs">
+              <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center text-sm flex-shrink-0 shadow-xs">
                 🏆
               </div>
-              <div class="flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
-                <span class="font-black text-slate-800 text-sm">Performance &amp; Points Ranking (${month})</span>
-                <span class="font-mono font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg">Top: ${topPerformer}</span>
-                <span class="text-slate-500 font-mono hidden md:inline">&bull; ${totalTasksSum} Tasks &bull; ${totalActualSum} Actual Pts &bull; ${totalWbsSum} WBS Pts</span>
-              </div>
+              <span class="font-black text-slate-800 text-xs sm:text-sm">Performance &amp; Points Ranking (${month})</span>
+              <span id="ranking-top-performer" class="font-mono font-bold text-amber-800 bg-amber-50/80 border border-amber-200/80 px-2 py-0.5 rounded-md text-[11px]">Top: ${topPerformer}</span>
+              <span id="ranking-summary-metrics" class="text-slate-500 font-mono text-[11px] hidden md:inline">&bull; ${totalTasksSum} Tasks &bull; ${totalActualSum} Actual Pts &bull; ${totalWbsSum} WBS Pts</span>
             </div>
-            <button id="ranking-toggle-btn" onclick="MonthlyInputView.toggleRanking()" class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-sm">
+            <button id="ranking-toggle-btn" onclick="MonthlyInputView.toggleRanking()" class="text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-1 rounded-xl transition flex items-center gap-1 shadow-xs cursor-pointer">
               <span>${this.isRankingExpanded ? 'Hide Details ▲' : 'View Full Ranking Table ▼'}</span>
             </button>
           </div>
-          <div id="ranking-table-collapsible" class="${this.isRankingExpanded ? 'block mt-3.5' : 'hidden mt-0'}">
-            <div id="ranking-table-container" class="overflow-x-auto -webkit-overflow-scrolling-touch rounded-2xl border border-slate-300 shadow-sm">
+          <div id="ranking-table-collapsible" class="${this.isRankingExpanded ? 'block mt-3' : 'hidden mt-0'}">
+            <div id="ranking-table-container" class="overflow-x-auto -webkit-overflow-scrolling-touch rounded-xl border border-slate-300 shadow-xs">
               ${this.renderRankingTableHtml(ranking, totalTasksSum, totalWbsSum)}
             </div>
           </div>
@@ -1931,46 +1919,46 @@ const MonthlyInputView = {
           </div>
 
           <div class="overflow-x-auto -webkit-overflow-scrolling-touch pb-2 w-full">
-            <table class="w-full text-left text-xs border-collapse border border-slate-300" style="table-layout: fixed; width: 100%;">
+            <table class="w-full text-left text-xs border-collapse border border-slate-300" style="table-layout: fixed; width: 100%; min-width: 1050px;">
               <colgroup>
-                <col style="width: 28px;">   <!-- Checkbox -->
-                <col style="width: 32px;">   <!-- SL -->
-                <col style="width: 275px;">  <!-- Task Name (Expanded for zero text clipping) -->
-                <col style="width: 195px;">  <!-- Task Details (Expanded) -->
+                <col style="width: 30px;">   <!-- Checkbox -->
+                <col style="width: 36px;">   <!-- SL -->
+                <col style="width: 32%;">    <!-- Task Name (Expanded for full width display) -->
+                <col style="width: 25%;">    <!-- Task Details (Expanded) -->
                 <col style="width: 120px;">  <!-- Category -->
-                <col style="width: 50px;">   <!-- Point -->
-                <col style="width: 115px;">  <!-- Supervisor -->
+                <col style="width: 58px;">   <!-- Point -->
+                <col style="width: 120px;">  <!-- Supervisor -->
                 <col style="width: 130px;">  <!-- Assignee -->
-                <col style="width: 84px;">   <!-- Photo -->
-                <col style="width: 48px;">   <!-- Report -->
-                <col style="width: 72px;">   <!-- Actions -->
+                <col style="width: 86px;">   <!-- Photo -->
+                <col style="width: 50px;">   <!-- Report -->
+                <col style="width: 74px;">   <!-- Actions -->
               </colgroup>
               <thead class="bg-[#D1E7DD] text-slate-900 font-bold border-b-2 border-slate-300">
                 <tr>
                   <!-- Multi-select checkbox column -->
-                  <th class="py-2 px-1 w-[28px] text-center border-r border-slate-300">
+                  <th class="py-2 px-1 text-center border-r border-slate-300">
                     <input type="checkbox" id="task-select-all" onchange="MonthlyInputView.toggleSelectAll(this.checked)" title="Select All Rows"
                            class="w-3.5 h-3.5 rounded text-red-600 focus:ring-red-500 cursor-pointer" />
                   </th>
-                  <th class="py-2 px-1 w-[32px] text-center border-r border-slate-300 text-[11px]">SL</th>
-                  <th class="py-2 px-1.5 w-[275px] border-r border-slate-300 text-[11px]">Task Name</th>
-                  <th class="py-2 px-1.5 w-[195px] border-r border-slate-300 text-[11px]">
+                  <th class="py-2 px-1 text-center border-r border-slate-300 text-[11px]">SL</th>
+                  <th class="py-2 px-1.5 border-r border-slate-300 text-[11px]">Task Name</th>
+                  <th class="py-2 px-1.5 border-r border-slate-300 text-[11px]">
                     <div class="flex items-center justify-between gap-1">
                       <span class="truncate">Task Details</span>
-                      <button id="ai-fill-all-btn" type="button" onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate steps for all empty tasks" class="px-1.5 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-[9px] font-bold text-white shadow-xs transition flex items-center gap-0.5 flex-shrink-0">
+                      <button id="ai-fill-all-btn" type="button" onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate steps for all empty tasks" class="px-1.5 py-0.5 rounded bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-[9px] font-bold text-white shadow-xs transition flex items-center gap-0.5 flex-shrink-0 cursor-pointer">
                         <span>✨</span><span>AI All</span>
                       </button>
                     </div>
                   </th>
-                  <th class="py-2 px-1 w-[120px] border-r border-slate-300 text-[11px]">Category</th>
-                  <th class="py-2 px-0.5 w-[50px] text-center border-r border-slate-300 bg-[#C8E6C9] font-black text-[11px]">
+                  <th class="py-2 px-1 border-r border-slate-300 text-[11px]">Category</th>
+                  <th class="py-2 px-0.5 text-center border-r border-slate-300 bg-[#C8E6C9] font-black text-[11px]">
                     <span>Point</span>
                   </th>
-                  <th class="py-2 px-1 w-[115px] border-r border-slate-300 text-[11px]">Supervisor</th>
-                  <th class="py-2 px-1 w-[130px] border-r border-slate-300 text-[11px]">Assignee</th>
-                  <th class="py-2 px-1 w-[84px] text-center border-r border-slate-300 text-[11px]">Photo</th>
-                  <th class="py-2 px-0.5 w-[48px] text-center border-r border-slate-300 text-[11px]">Report</th>
-                  <th class="py-2 px-0.5 w-[72px] text-center text-[11px]">Actions</th>
+                  <th class="py-2 px-1 border-r border-slate-300 text-[11px]">Supervisor</th>
+                  <th class="py-2 px-1 border-r border-slate-300 text-[11px]">Assignee</th>
+                  <th class="py-2 px-1 text-center border-r border-slate-300 text-[11px]">Photo</th>
+                  <th class="py-2 px-0.5 text-center border-r border-slate-300 text-[11px]">Report</th>
+                  <th class="py-2 px-0.5 text-center text-[11px]">Actions</th>
                 </tr>
               </thead>
               <tbody id="monthly-input-tbody" class="divide-y divide-slate-200 text-slate-700 font-sans bg-white">

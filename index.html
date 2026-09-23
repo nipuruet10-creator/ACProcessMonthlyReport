@@ -12,9 +12,10 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Lexend', 'Segoe UI', 'sans-serif'],
-            lexend: ['Lexend', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace']
+            sans: ['"Plus Jakarta Sans"', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
+            inter: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
           },
           colors: {
             brand: {
@@ -31,10 +32,10 @@
     }
   </script>
 
-  <!-- Google Fonts: Lexend -->
+  <!-- Google Fonts: Plus Jakarta Sans, Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Lexend:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -56,12 +57,12 @@
 <body class="min-h-screen bg-[#F4F6F9] text-slate-800 flex flex-col antialiased selection:bg-red-600 selection:text-white font-sans">
 
   <!-- TOP CORPORATE MISSION CONTROL BAR -->
-  <header class="sticky top-0 z-40 bg-white/98 backdrop-blur-xl border-b border-slate-200 shadow-sm no-print">
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-[4.5rem] py-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4">
+  <header class="sticky top-0 z-40 bg-white/98 backdrop-blur-xl border-b border-slate-200 shadow-xs no-print">
+    <div class="w-full max-w-[1920px] mx-auto px-3 sm:px-6 lg:px-8 min-h-[4rem] py-1.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4">
       
       <!-- Brand & Department Identifier -->
       <div class="flex items-center gap-2.5 sm:gap-3.5">
-        <img src="assets/img/walton_logo.png" alt="WALTON" class="h-9 sm:h-11 w-auto object-contain flex-shrink-0 drop-shadow-sm">
+        <img src="assets/img/walton_logo.png" alt="WALTON" class="h-8 sm:h-9 w-auto object-contain flex-shrink-0 drop-shadow-xs">
         <div>
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-[11px] sm:text-xs font-black tracking-widest text-red-600 uppercase font-mono">WALTON</span>
@@ -69,7 +70,7 @@
             <span class="text-[11px] sm:text-xs font-semibold text-slate-500 hidden sm:inline">Hi-Tech Industries PLC &bull;</span>
             <span class="text-[11px] sm:text-xs font-bold text-slate-600">AC Process</span>
           </div>
-          <h1 class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wide mt-0.5">
+          <h1 class="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wide">
             Process Development Monthly Report
           </h1>
         </div>
@@ -81,7 +82,7 @@
         <div id="navbar-cloud-sync-badge"></div>
 
         <!-- Global Sync Button -->
-        <button onclick="App.triggerGlobalSync()" title="Synchronize latest tasks from Cloud & compile slides" class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+        <button onclick="App.triggerGlobalSync()" title="Synchronize latest tasks from Cloud & compile slides" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
           <span class="text-amber-500">⚡</span>
           <span class="hidden md:inline">Sync Data</span>
         </button>
@@ -90,7 +91,7 @@
         <div id="user-role-badge"></div>
 
         <!-- Generate Monthly Report Fast Action -->
-        <button onclick="ReportBuilderView.generateMonthlyReport()" class="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-black text-white shadow-lg shadow-red-200/50 transition">
+        <button onclick="ReportBuilderView.generateMonthlyReport()" class="hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-black text-white shadow-md shadow-red-200/50 transition">
           <span>🚀</span>
           <span>Generate Report</span>
         </button>
@@ -98,48 +99,36 @@
 
     </div>
 
-    <!-- NAVIGATION TABS (9 Core Sections) -->
-    <div class="border-t border-slate-100 bg-white/80">
-      <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 flex flex-wrap items-center gap-1 sm:gap-1.5 py-1.5">
-        <button onclick="App.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+    <!-- NAVIGATION TABS (Streamlined & Minimal) -->
+    <div class="border-t border-slate-100 bg-white/90">
+      <div class="w-full max-w-[1920px] mx-auto px-2 sm:px-6 lg:px-8 flex flex-wrap items-center gap-1 py-1">
+        <button onclick="App.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           📊 Dashboard
         </button>
-        <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           📋 Monthly Input
         </button>
-        <button onclick="App.switchTab('mgmt-report')" data-tab="mgmt-report" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('mgmt-report')" data-tab="mgmt-report" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           👔 Management Report
         </button>
-        <button onclick="App.switchTab('projects')" data-tab="projects" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('projects')" data-tab="projects" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           🚀 Projects
         </button>
-        <button onclick="App.switchTab('ai-breakdown')" data-tab="ai-breakdown" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
-          🤖 AI Breakdown
-        </button>
-        <button onclick="App.switchTab('report-builder')" data-tab="report-builder" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
-          🛠 Report Builder
-        </button>
-        <button onclick="App.switchTab('photo-manager')" data-tab="photo-manager" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('photo-manager')" data-tab="photo-manager" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           📸 Photo Manager
         </button>
-        <button onclick="App.switchTab('final-report')" data-tab="final-report" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('final-report')" data-tab="final-report" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           ✏️ Final Report
         </button>
-        <button onclick="App.switchTab('history')" data-tab="history" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
-          📚 Report History
-        </button>
-        <button onclick="App.switchTab('master-data')" data-tab="master-data" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
-          🏛 Master Data
-        </button>
-        <button onclick="App.switchTab('settings')" data-tab="settings" class="nav-tab-btn inline-flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition border border-transparent whitespace-nowrap">
+        <button onclick="App.switchTab('settings')" data-tab="settings" class="nav-tab-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-transparent whitespace-nowrap">
           ⚙️ Settings
         </button>
       </div>
     </div>
   </header>
 
-  <!-- MAIN VIEWPORT CONTAINER -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- MAIN VIEWPORT CONTAINER (Full-Width Responsive for Maximum Table Space) -->
+  <main class="flex-1 w-full max-w-[1920px] mx-auto px-2 sm:px-4 2xl:px-6 py-3 sm:py-4">
     
     <!-- View 1: Dashboard -->
     <div id="dashboard-view-container" class="view-container hidden"></div>
@@ -178,7 +167,7 @@
 
   <!-- FOOTER -->
   <footer class="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-400 font-mono no-print">
-    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+    <div class="w-full max-w-[1920px] mx-auto px-4 sm:px-6 2xl:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
       <div>WALTON Hi-Tech Industries PLC &bull; AC Process Development Department &bull; Process Monthly Report Automation System v2.0</div>
       <div><a href="tests/run_tests.html" target="_blank" class="text-emerald-600 hover:text-emerald-700 font-bold hover:underline inline-flex items-center gap-1"><span>✔</span> <span>Run Automated Tests</span></a></div>
     </div>
