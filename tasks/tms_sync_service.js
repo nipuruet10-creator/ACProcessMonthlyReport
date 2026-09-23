@@ -336,8 +336,7 @@ const TmsSyncService = {
     return `
       <button id="tms-btn-${task.task_id}" onclick="TmsSyncService.syncSingleTask('${month}', '${task.task_id}')"
               title="Sync &amp; 100% Complete on Walton TMS (192.168.118.138)"
-              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
-        <span>⚡</span>
+              class="inline-flex items-center px-2 py-0.5 rounded-md bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap">
         <span>TMS</span>
       </button>
     `;

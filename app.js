@@ -116,14 +116,14 @@ const App = {
   async switchTab(tabId) {
     this.currentTab = tabId;
 
-    // Update Navigation Tab UI Buttons
+    // Update Navigation Tab UI Buttons (Executive Sidebar Style from Mockup)
     document.querySelectorAll('.nav-tab-btn').forEach(btn => {
       if (btn.dataset.tab === tabId) {
-        btn.classList.add('bg-red-600', 'text-white', 'border-red-500', 'shadow-md', 'shadow-red-200/50');
-        btn.classList.remove('text-slate-500', 'border-transparent', 'hover:text-slate-800', 'hover:bg-slate-100');
+        btn.classList.add('bg-[#2563EB]', 'text-white', 'shadow-md', 'shadow-blue-500/25');
+        btn.classList.remove('text-slate-600', 'hover:bg-slate-50', 'hover:text-slate-900');
       } else {
-        btn.classList.remove('bg-red-600', 'text-white', 'border-red-500', 'shadow-md', 'shadow-red-200/50');
-        btn.classList.add('text-slate-500', 'border-transparent', 'hover:text-slate-800', 'hover:bg-slate-100');
+        btn.classList.remove('bg-[#2563EB]', 'text-white', 'shadow-md', 'shadow-blue-500/25');
+        btn.classList.add('text-slate-600', 'hover:bg-slate-50', 'hover:text-slate-900');
       }
     });
 
@@ -175,15 +175,15 @@ const App = {
     const badge = document.getElementById('user-role-badge');
     if (!badge) return;
 
-    const user = typeof authManager !== 'undefined' ? authManager.currentUser : { name: "Report Owner", role: "REPORT_OWNER" };
+    const user = typeof authManager !== 'undefined' ? authManager.currentUser : { name: "Admin", role: "ADMIN" };
     badge.innerHTML = `
-      <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
+      <div class="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200">
         <div class="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center text-[10px] font-bold text-white">
-          ${user.name.charAt(0)}
+          ${user.name ? user.name.charAt(0).toUpperCase() : 'A'}
         </div>
         <div class="text-left leading-none">
-          <div class="text-xs font-bold text-slate-700">${user.name}</div>
-          <div class="text-[9px] font-mono text-red-600 uppercase font-semibold">${user.role}</div>
+          <div class="text-xs font-bold text-slate-800">${user.name || 'Admin'}</div>
+          <div class="text-[9px] font-mono text-red-600 uppercase font-black">${user.role || 'ADMIN'}</div>
         </div>
       </div>
     `;
