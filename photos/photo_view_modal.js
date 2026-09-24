@@ -137,8 +137,11 @@ const PhotoViewModal = {
                   </span>
                 </div>
 
-                <!-- Dropzone / Image Container -->
+                <!-- Dropzone / Image Container (Ctrl+V Paste Supported) -->
                 <div id="modal-dropzone-before"
+                     data-task-id="${task.task_id}" data-slot="before_photo"
+                     onmouseenter="PhotoViewModal._activeSlot={taskId:'${task.task_id}', slot:'before_photo'};"
+                     onmouseleave="PhotoViewModal._activeSlot=null;"
                      ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50/50');"
                      ondragleave="this.classList.remove('border-red-500', 'bg-red-50/50');"
                      ondrop="PhotoViewModal.handleDrop(event, 'before_photo')"
@@ -159,7 +162,7 @@ const PhotoViewModal = {
                       <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-2xl mb-2 text-slate-500 group-hover:scale-110 transition">
                         📸
                       </div>
-                      <span class="text-xs font-bold text-slate-700">Drag & Drop Before Photo Here</span>
+                      <span class="text-xs font-bold text-slate-700">Drag &amp; Drop or Ctrl+V Paste Before Photo</span>
                       <span class="text-[11px] text-slate-400 mt-1">or click to browse from device</span>
                     </label>
                   `}
@@ -196,8 +199,11 @@ const PhotoViewModal = {
                   </span>
                 </div>
 
-                <!-- Dropzone / Image Container -->
+                <!-- Dropzone / Image Container (Ctrl+V Paste Supported) -->
                 <div id="modal-dropzone-after"
+                     data-task-id="${task.task_id}" data-slot="after_photo"
+                     onmouseenter="PhotoViewModal._activeSlot={taskId:'${task.task_id}', slot:'after_photo'};"
+                     onmouseleave="PhotoViewModal._activeSlot=null;"
                      ondragover="event.preventDefault(); this.classList.add('border-sky-500', 'bg-sky-50/50');"
                      ondragleave="this.classList.remove('border-sky-500', 'bg-sky-50/50');"
                      ondrop="PhotoViewModal.handleDrop(event, 'after_photo')"
@@ -218,7 +224,7 @@ const PhotoViewModal = {
                       <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-2xl mb-2 text-slate-500 group-hover:scale-110 transition">
                         📸
                       </div>
-                      <span class="text-xs font-bold text-slate-700">Drag & Drop After Photo Here</span>
+                      <span class="text-xs font-bold text-slate-700">Drag &amp; Drop or Ctrl+V Paste After Photo</span>
                       <span class="text-[11px] text-slate-400 mt-1">or click to browse from device</span>
                     </label>
                   `}

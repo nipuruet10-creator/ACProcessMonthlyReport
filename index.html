@@ -60,9 +60,9 @@
   <aside class="w-64 bg-white border-r border-slate-200/90 flex flex-col justify-between p-4 sticky top-0 h-screen z-30 flex-shrink-0 no-print overflow-y-auto">
     <!-- Top: Brand & Navigation -->
     <div>
-      <!-- Walton Logo -->
-      <div class="px-2 py-3 mb-4">
-        <img src="assets/img/walton_logo.png" alt="WALTON" class="h-9 w-auto object-contain">
+      <!-- Walton Logo (Requirement 5: Larger logo & adjusted container) -->
+      <div class="px-2 py-2 mb-3">
+        <img src="assets/img/walton_logo.png" alt="WALTON" class="h-11 w-auto object-contain max-w-[180px] transition-all">
       </div>
 
       <!-- Vertical Navigation Tabs -->
@@ -120,7 +120,7 @@
     </div>
   </aside>
 
-  <!-- MAIN WORKSPACE -->
+  <!-- MAIN WORKSPACE (Requirement 1: Full-height container without trailing blank space) -->
   <div class="flex-1 min-w-0 flex flex-col min-h-screen bg-[#F8FAFC]">
     
     <!-- TOP EXECUTIVE HEADER BAR -->
@@ -131,11 +131,6 @@
           <div class="text-xs font-bold text-slate-700 tracking-wide">Walton Hi-Tech Industries PLC.</div>
           <h1 class="text-base sm:text-lg font-black text-slate-900 tracking-tight">AC Process Development</h1>
           <div class="text-[11px] text-slate-500 font-medium">Process Development Monthly Report</div>
-        </div>
-
-        <!-- Centered Month Selector Container -->
-        <div id="top-month-selector-container" class="flex-shrink-0">
-          <!-- Dynamically populated by MonthlyInputView -->
         </div>
 
         <!-- Right Quick Actions -->

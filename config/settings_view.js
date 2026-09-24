@@ -125,7 +125,66 @@ const SettingsView = {
                   <span>🔑</span> <span>Forgot Password / OTP</span>
                 </button>
               </div>
-            `}
+          </div>
+        </div>
+
+        <!-- Walton eService TMS Credentials & Engineer Passwords Card (Requirement 3) -->
+        <div class="bg-slate-900 border border-blue-900/40 rounded-2xl p-6 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 text-lg font-bold">
+                🔑
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  Walton eService TMS Credentials &amp; Engineer Passwords
+                  <span class="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-mono font-bold border border-blue-500/20">Auto-Pilot Active</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Manage personal Walton TMS login passwords for each engineer and supervisor. Anyone can add or modify passwords.</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.openAddStaffModal()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow flex items-center gap-1.5 cursor-pointer">
+              <span>➕ Add New Staff / Password</span>
+            </button>
+          </div>
+
+          <!-- Engineers TMS Table -->
+          <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-800/80 text-slate-300 font-mono text-[11px] uppercase border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3 w-10 text-center">#</th>
+                  <th class="py-2.5 px-3">Engineer / Staff Name</th>
+                  <th class="py-2.5 px-3 w-28">Employee ID</th>
+                  <th class="py-2.5 px-4">Walton TMS Password</th>
+                  <th class="py-2.5 px-3 text-center w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                ${(typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : [])).map((eng, idx) => `
+                  <tr class="hover:bg-slate-900/70 transition">
+                    <td class="py-2.5 px-3 text-center font-mono text-slate-500">${idx + 1}</td>
+                    <td class="py-2.5 px-3 font-bold text-white">
+                      ${HELPERS.escapeHtml(eng.fullName || eng.name)}
+                      <span class="text-[10px] text-slate-400 font-mono font-normal block">${HELPERS.escapeHtml(eng.display || eng.name)}</span>
+                    </td>
+                    <td class="py-2.5 px-3 font-mono font-bold text-cyan-400">${eng.id || '—'}</td>
+                    <td class="py-2.5 px-4">
+                      <div class="flex items-center gap-1.5">
+                        <input type="password" id="tms-pass-input-${eng.id || eng.name}" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}"
+                               class="bg-slate-900 border border-slate-700 hover:border-slate-600 focus:border-blue-500 rounded-lg px-3 py-1 text-xs text-white font-mono focus:outline-none w-44 transition" />
+                        <button onclick="SettingsView.togglePasswordVisibility('tms-pass-input-${eng.id || eng.name}')" title="Show/Hide Password" class="p-1 text-slate-400 hover:text-white text-xs">👁️</button>
+                      </div>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                      <button onclick="SettingsView.saveTmsPassword('${eng.id || eng.name}')" class="px-3 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/40 text-xs font-bold transition flex items-center justify-center gap-1 mx-auto cursor-pointer">
+                        <span>💾 Save</span>
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1443,6 +1502,131 @@ function syncCostSavingsTable(costList) {
       }
     } else {
       select.innerHTML = originalText;
+    }
+  },
+
+  /**
+   * Save / Modify TMS Password for an Engineer (Requirement 3)
+   */
+  saveTmsPassword(idOrName) {
+    const input = document.getElementById(`tms-pass-input-${idOrName}`);
+    if (!input) return;
+    const newPass = input.value.trim();
+    if (!newPass) {
+      alert("Password cannot be empty.");
+      return;
+    }
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.updateTmsPassword) {
+      MasterDataManager.updateTmsPassword(idOrName, newPass);
+    } else if (typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) {
+      const eng = MASTER_LISTS.ENGINEERS.find(e => String(e.id) === String(idOrName) || e.name === idOrName);
+      if (eng) eng.tms_password = newPass;
+      localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✅ Saved TMS Password for ${idOrName}!`, "success");
+    } else {
+      alert(`✅ Saved TMS Password for ${idOrName}!`);
+    }
+  },
+
+  togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.type = (input.type === 'password') ? 'text' : 'password';
+    }
+  },
+
+  openAddStaffModal() {
+    let container = document.getElementById('add-staff-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'add-staff-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">👤</span>
+              <div>
+                <h3 class="text-base font-black text-slate-800">Add Staff / Engineer TMS Password</h3>
+                <p class="text-xs text-slate-400">Register employee ID and Walton TMS password</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeAddStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3 my-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Engineer First Name (e.g. Sazzad):</label>
+              <input type="text" id="new-staff-name" placeholder="Name" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 50463):</label>
+              <input type="text" id="new-staff-id" placeholder="50463" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Full Designation / Title:</label>
+              <input type="text" id="new-staff-fullname" placeholder="Engr. Sazzadul Islam" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
+              <input type="password" id="new-staff-password" value="Sep@2026" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeAddStaffModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmAddStaff()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition">
+              💾 Add Staff &amp; Save
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeAddStaffModal() {
+    const container = document.getElementById('add-staff-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmAddStaff() {
+    const nameEl = document.getElementById('new-staff-name');
+    const idEl = document.getElementById('new-staff-id');
+    const fullEl = document.getElementById('new-staff-fullname');
+    const passEl = document.getElementById('new-staff-password');
+
+    if (!nameEl || !idEl || !nameEl.value.trim() || !idEl.value.trim()) {
+      alert("Please enter Engineer Name and Employee ID.");
+      return;
+    }
+
+    const name = nameEl.value.trim();
+    const id = idEl.value.trim();
+    const fullName = fullEl ? fullEl.value.trim() : `Engr. ${name}`;
+    const pass = passEl ? passEl.value.trim() : "Sep@2026";
+
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.addEngineer) {
+      MasterDataManager.addEngineer({
+        id: id,
+        name: name,
+        fullName: fullName,
+        display: `${name} (${id})`,
+        tms_password: pass
+      });
+    }
+
+    this.closeAddStaffModal();
+    this.render();
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✨ Added Engr. ${name} (${id}) to Master Registry & TMS!`, "success");
     }
   }
 };

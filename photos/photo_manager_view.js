@@ -158,15 +158,21 @@ const PhotoManagerView = {
                   <!-- Dual Dropzones (Before & After) -->
                   <div class="grid grid-cols-2 gap-3 mt-4 h-36">
                     
-                    <!-- Slot 1: Before / Present Condition -->
-                    <div class="relative rounded-xl border border-dashed ${photos.before_photo ? 'border-slate-200 bg-slate-50' : 'border-slate-300 bg-slate-50/60 hover:border-red-400'} flex flex-col items-center justify-center overflow-hidden transition group"
+                    <!-- Slot 1: Before / Present Condition (Requirement 7: Ctrl+C / Ctrl+V Paste Supported) -->
+                    <div class="relative rounded-xl border border-dashed ${photos.before_photo ? 'border-slate-200 bg-slate-50' : 'border-slate-300 bg-slate-50/60 hover:border-red-400'} flex flex-col items-center justify-center overflow-hidden transition group cursor-pointer"
+                         data-task-id="${t.task_id}" data-slot="before_photo" tabindex="0"
+                         onmouseenter="PhotoManagerView._activeSlot={taskId:'${t.task_id}', slot:'before_photo'}; PhotoManagerView._lastHoveredTaskId='${t.task_id}';"
+                         onmouseleave="PhotoManagerView._activeSlot=null;"
                          ondragover="event.preventDefault(); this.classList.add('border-red-500', 'bg-red-50');"
                          ondragleave="this.classList.remove('border-red-500', 'bg-red-50');"
                          ondrop="PhotoManagerView.handleSlotDrop(event, '${t.task_id}', 'before_photo')">
                       
                       ${photos.before_photo ? `
                         <img src="${photos.before_photo}" class="w-full h-full object-cover">
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition">
+                          <button onclick="PhotoManagerView.copyPhotoToClipboard('${t.task_id}', 'before_photo')" title="Copy image to Clipboard (Ctrl+C)" class="p-1.5 rounded-lg bg-white/90 text-slate-800 text-[10px] font-bold hover:bg-white flex items-center gap-0.5">
+                            📋 Copy
+                          </button>
                           <label for="slot-file-${t.task_id}-before" class="p-1.5 rounded-lg bg-white/90 text-slate-800 text-[10px] font-bold cursor-pointer hover:bg-white">
                             Change
                           </label>
@@ -175,27 +181,33 @@ const PhotoManagerView = {
                           </button>
                         </div>
                         <span class="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-mono text-white font-bold">
-                          Before
+                          Before (Ctrl+V Paste)
                         </span>
                       ` : `
                         <label for="slot-file-${t.task_id}-before" class="cursor-pointer flex flex-col items-center justify-center p-2 text-center w-full h-full">
                           <span class="text-lg">📷</span>
                           <span class="text-[10px] font-bold text-slate-500 mt-1">Before Photo</span>
-                          <span class="text-[9px] text-slate-400">Drop or Click</span>
+                          <span class="text-[9px] text-slate-400">Drop, Click or Ctrl+V</span>
                         </label>
                       `}
                       <input type="file" id="slot-file-${t.task_id}-before" accept="image/*" class="hidden" onchange="PhotoManagerView.handleSlotFile(event, '${t.task_id}', 'before_photo')">
                     </div>
 
-                    <!-- Slot 2: After / Proposed Project -->
-                    <div class="relative rounded-xl border border-dashed ${photos.after_photo ? 'border-slate-200 bg-slate-50' : 'border-slate-300 bg-slate-50/60 hover:border-sky-400'} flex flex-col items-center justify-center overflow-hidden transition group"
+                    <!-- Slot 2: After / Proposed Project (Requirement 7: Ctrl+C / Ctrl+V Paste Supported) -->
+                    <div class="relative rounded-xl border border-dashed ${photos.after_photo ? 'border-slate-200 bg-slate-50' : 'border-slate-300 bg-slate-50/60 hover:border-sky-400'} flex flex-col items-center justify-center overflow-hidden transition group cursor-pointer"
+                         data-task-id="${t.task_id}" data-slot="after_photo" tabindex="0"
+                         onmouseenter="PhotoManagerView._activeSlot={taskId:'${t.task_id}', slot:'after_photo'}; PhotoManagerView._lastHoveredTaskId='${t.task_id}';"
+                         onmouseleave="PhotoManagerView._activeSlot=null;"
                          ondragover="event.preventDefault(); this.classList.add('border-sky-500', 'bg-sky-50');"
                          ondragleave="this.classList.remove('border-sky-500', 'bg-sky-50');"
                          ondrop="PhotoManagerView.handleSlotDrop(event, '${t.task_id}', 'after_photo')">
                       
                       ${photos.after_photo ? `
                         <img src="${photos.after_photo}" class="w-full h-full object-cover">
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition">
+                          <button onclick="PhotoManagerView.copyPhotoToClipboard('${t.task_id}', 'after_photo')" title="Copy image to Clipboard (Ctrl+C)" class="p-1.5 rounded-lg bg-white/90 text-slate-800 text-[10px] font-bold hover:bg-white flex items-center gap-0.5">
+                            📋 Copy
+                          </button>
                           <label for="slot-file-${t.task_id}-after" class="p-1.5 rounded-lg bg-white/90 text-slate-800 text-[10px] font-bold cursor-pointer hover:bg-white">
                             Change
                           </label>
@@ -204,13 +216,13 @@ const PhotoManagerView = {
                           </button>
                         </div>
                         <span class="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-sky-600 text-[9px] font-mono text-white font-bold">
-                          After
+                          After (Ctrl+V Paste)
                         </span>
                       ` : `
                         <label for="slot-file-${t.task_id}-after" class="cursor-pointer flex flex-col items-center justify-center p-2 text-center w-full h-full">
                           <span class="text-lg">📸</span>
                           <span class="text-[10px] font-bold text-slate-500 mt-1">After Photo</span>
-                          <span class="text-[9px] text-slate-400">Drop or Click</span>
+                          <span class="text-[9px] text-slate-400">Drop, Click or Ctrl+V</span>
                         </label>
                       `}
                       <input type="file" id="slot-file-${t.task_id}-after" accept="image/*" class="hidden" onchange="PhotoManagerView.handleSlotFile(event, '${t.task_id}', 'after_photo')">
@@ -231,6 +243,96 @@ const PhotoManagerView = {
         </div>
       </div>
     `;
+
+    this.initPasteListener();
+  },
+
+  _activeSlot: null,
+  _lastHoveredTaskId: null,
+  _pasteInitialized: false,
+
+  initPasteListener() {
+    if (this._pasteInitialized) return;
+    this._pasteInitialized = true;
+
+    document.addEventListener('paste', async (event) => {
+      const items = (event.clipboardData || window.clipboardData) ? (event.clipboardData || window.clipboardData).items : [];
+      let imageFile = null;
+      if (items) {
+        for (const item of items) {
+          if (item.type && item.type.startsWith('image/')) {
+            imageFile = item.getAsFile();
+            break;
+          }
+        }
+      }
+
+      if (!imageFile && event.clipboardData && event.clipboardData.files && event.clipboardData.files.length > 0) {
+        const f = event.clipboardData.files[0];
+        if (f.type.startsWith('image/')) imageFile = f;
+      }
+
+      if (!imageFile) return;
+
+      let target = this._activeSlot;
+
+      if (!target && window.photoViewModal && photoViewModal._activeSlot) {
+        target = photoViewModal._activeSlot;
+      }
+
+      if (!target && document.activeElement) {
+        const el = document.activeElement.closest('[data-task-id][data-slot]');
+        if (el) {
+          target = { taskId: el.getAttribute('data-task-id'), slot: el.getAttribute('data-slot') };
+        }
+      }
+
+      if (!target && window.photoViewModal && photoViewModal.activeTaskId) {
+        target = { taskId: photoViewModal.activeTaskId, slot: 'before_photo' };
+      }
+
+      if (!target && this._lastHoveredTaskId) {
+        target = { taskId: this._lastHoveredTaskId, slot: 'before_photo' };
+      }
+
+      if (target && target.taskId && target.slot) {
+        event.preventDefault();
+        try {
+          await photoManager.savePhotoFile(target.taskId, target.slot, imageFile);
+          const slotLabel = target.slot === 'before_photo' ? 'Before' : 'After';
+          if (typeof window.showToast === 'function') {
+            window.showToast(`📋 Pasted photo into ${slotLabel} Photo for task ${target.taskId}!`, "success");
+          }
+          if (document.getElementById('photo-manager-view-container')) {
+            await this.render();
+          }
+          if (window.photoViewModal && photoViewModal.isOpen) {
+            photoViewModal.open(target.taskId);
+          }
+        } catch (err) {
+          alert("Failed to paste photo: " + err.message);
+        }
+      }
+    });
+  },
+
+  async copyPhotoToClipboard(taskId, slot) {
+    const photos = photoManager.getTaskPhotos(taskId);
+    const dataUrl = photos ? (photos[slot] || photos.photo_1) : null;
+    if (!dataUrl) return;
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob })
+      ]);
+      if (typeof window.showToast === 'function') {
+        window.showToast(`📋 Photo copied to clipboard! (Ctrl+C)`, "success");
+      }
+    } catch (e) {
+      console.warn("Clipboard copy fallback:", e);
+    }
+  }
   }
 };
 

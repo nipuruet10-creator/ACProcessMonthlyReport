@@ -210,6 +210,23 @@ const MasterDataManager = {
     return this.updateEngineer(id, { tms_password: (password || '').trim() });
   },
 
+  updateTmsPassword(idOrName, password) {
+    const clean = String(idOrName).trim().toLowerCase();
+    const idMatch = (clean.match(/\b(\d{4,6})\b/) || [])[1];
+    const eng = MASTER_LISTS.ENGINEERS.find(e => 
+      (idMatch && String(e.id) === idMatch) ||
+      String(e.id).toLowerCase() === clean ||
+      e.name.toLowerCase() === clean ||
+      clean.includes(e.name.toLowerCase())
+    );
+    if (eng) {
+      eng.tms_password = (password || '').trim();
+      this.saveEngineers();
+      return eng;
+    }
+    return null;
+  },
+
   setGlobalTmsPassword(newPassword) {
     const pass = (newPassword || '').trim();
     if (!pass) throw new Error("Password cannot be empty");

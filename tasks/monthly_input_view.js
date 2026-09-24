@@ -1536,8 +1536,8 @@ const MonthlyInputView = {
           <div class="flex items-center justify-between gap-1.5 w-full">
             <textarea id="task-name-input-${t.task_id}" rows="1"
                       onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                      oninput="this.style.height='auto';this.style.height=Math.min(80, Math.max(34, this.scrollHeight))+'px'"
-                      class="flex-1 min-h-[34px] max-h-[80px] bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-blue-100 resize-none overflow-y-auto leading-snug block transition"
+                      oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+                      class="flex-1 min-h-[36px] bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-blue-100 resize-none overflow-hidden leading-snug block transition"
                       placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
             ${(typeof TmsSyncService !== 'undefined') ? TmsSyncService.renderTmsActionHtml(this.selectedMonth, t) : ''}
           </div>
@@ -1895,34 +1895,9 @@ const MonthlyInputView = {
     }).join('');
 
     container.innerHTML = `
-      <div class="space-y-4 text-slate-800">
+      <div class="space-y-4 text-slate-800 pb-12">
         
-        <!-- EXECUTIVE MONTH SELECTOR & QUICK BAR (Requirement 2: Positioned directly above task points) -->
-        <div class="bg-white rounded-2xl px-5 py-3 border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2.5">
-            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <span>📅</span> <span>Month:</span>
-            </span>
-            <div class="relative inline-flex items-center">
-              <select onchange="MonthlyInputView.handleMonthSelect(this.value)" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold font-mono rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer pr-7 shadow-2xs">
-                ${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${m} ${m === month ? '(Active)' : ''}</option>`).join('')}
-              </select>
-              <span class="absolute right-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
-            </div>
-            <button onclick="MonthlyInputView.openAddMonthModal()" title="Add / Create New Month" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold shadow-xs transition cursor-pointer">
-              <span>➕</span> <span>Add Month</span>
-            </button>
-          </div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono text-[11px]">
-              <span>Active:</span> <span class="font-bold text-blue-600">${month}</span>
-            </span>
-            <span class="text-slate-300">|</span>
-            <span class="text-slate-500 text-xs font-mono">${allTasks.length} tasks registered</span>
-          </div>
-        </div>
-
-        <!-- REDESIGNED EXECUTIVE PERFORMANCE SUMMARY STRIP (Requirement 3: Distinctive, clean, un-truncated layout) -->
+        <!-- REDESIGNED EXECUTIVE PERFORMANCE SUMMARY STRIP -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <!-- Card 1: Total Engineers -->
           <div class="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-blue-300 shadow-xs transition flex items-center justify-between">
@@ -2008,15 +1983,16 @@ const MonthlyInputView = {
         <!-- TASK MANAGEMENT ENTRY GRID CARD (Matching media_1790166211871.jpg) -->
         <div class="bg-white border border-slate-200/90 rounded-3xl overflow-hidden shadow-xs">
           
-          <!-- Card Header Toolbar -->
+          <!-- Card Header Toolbar (Requirement 4: Embedded Month Selector & Toolbar Actions) -->
           <div class="px-5 py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-lg shadow-sm shadow-blue-500/25 flex-shrink-0">
                 📝
               </div>
               <div>
-                <h3 class="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-                  Task Management Entry Grid
+                <h3 class="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>Task Management Entry Grid</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono text-[11px] font-bold border border-blue-200">${month}</span>
                 </h3>
                 <p class="text-xs text-slate-400">
                   Add, edit and manage process development tasks for the selected month
@@ -2024,8 +2000,20 @@ const MonthlyInputView = {
               </div>
             </div>
 
-            <!-- Header Actions -->
+            <!-- Header Actions: Month Selector + Tools + Add Row -->
             <div class="flex items-center gap-2 flex-wrap">
+              
+              <!-- Integrated Month Selector (Requirement 4) -->
+              <div class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-2.5 py-1 transition shadow-2xs">
+                <span class="text-xs font-bold text-slate-500 font-mono">📅 MONTH:</span>
+                <select onchange="MonthlyInputView.handleMonthSelect(this.value)" class="bg-transparent text-xs font-bold text-slate-800 font-mono focus:outline-none cursor-pointer pr-1">
+                  ${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${m} ${m === month ? '(Active)' : ''}</option>`).join('')}
+                </select>
+                <button onclick="MonthlyInputView.openAddMonthModal()" title="Add / Create New Month" class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 transition cursor-pointer flex items-center gap-1">
+                  <span>➕ Add Month</span>
+                </button>
+              </div>
+
               <!-- Bulk Actions (Dynamic) -->
               <button id="bulk-copy-mgmt-btn" onclick="MonthlyInputView.copySelectedToManagementReport()" class="hidden px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition items-center gap-1.5">
                 <span>👔</span> <span>Copy to Mgmt (<span id="selected-mgmt-task-count">0</span>)</span>
@@ -2035,22 +2023,22 @@ const MonthlyInputView = {
               </button>
 
               <button onclick="MonthlyInputView.openPasteModal()" title="Copy rows in Excel (Ctrl+C) and click here or press Ctrl+V to bulk paste" 
-                      class="px-3.5 py-1.5 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-xs font-semibold text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                      class="px-3 py-1.5 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-xs font-semibold text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer">
                 <span>📋</span> <span>Paste Excel</span>
               </button>
 
               <button onclick="CostSavingTracker.openCostSavingsModal('${month}')" title="Manage Monthly Cost Savings" 
-                      class="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-800 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer">
+                      class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-800 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer">
                 <span>💰</span> <span>Cost Savings</span>
               </button>
 
               <button onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate engineering steps for tasks" 
-                      class="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-xs font-semibold text-purple-700 border border-purple-200 transition flex items-center gap-1.5 cursor-pointer">
+                      class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-xs font-semibold text-purple-700 border border-purple-200 transition flex items-center gap-1.5 cursor-pointer">
                 <span>✨</span> <span>Auto-Fill AI</span>
               </button>
 
               <button onclick="MonthlyInputView.addNewRow(true)" title="Insert a new task row" 
-                      class="px-3.5 py-1.5 rounded-xl bg-[#1E3A8A] hover:bg-blue-900 text-xs font-bold text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                      class="px-3.5 py-1.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition flex items-center gap-1.5 cursor-pointer">
                 <span>➕</span> <span>Add Row</span>
               </button>
 
@@ -2188,12 +2176,12 @@ const MonthlyInputView = {
     // Initialize/sync ranking table
     this.updateRankingTable();
 
-    // Auto-expand textarea heights to comfortably display all lines without vertical truncation
+    // Auto-expand textarea heights to comfortably display all lines without vertical truncation (Requirement 6)
     setTimeout(() => {
       if (container) {
         container.querySelectorAll('textarea[id^="task-name-input-"]').forEach(el => {
           el.style.height = 'auto';
-          el.style.height = Math.min(88, Math.max(46, el.scrollHeight)) + 'px';
+          el.style.height = el.scrollHeight + 'px';
         });
       }
     }, 10);
