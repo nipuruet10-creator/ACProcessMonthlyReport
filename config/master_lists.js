@@ -13,7 +13,6 @@ const DEFAULT_ENGINEERS = [
   { id: "58102", name: "Abdullah", fullName: "Engr. Abdullah Jashim", display: "Abdullah (58102)", email: "abdullah58102@waltonbd.com", tms_password: "Sep@2026" },
   { id: "58279", name: "Emon", fullName: "Engr. Yousof Ahmed Emon", display: "Emon (58279)", email: "emon58279@waltonbd.com", tms_password: "Sep@2026" },
   { id: "56880", name: "Hashmi", fullName: "Engr. Abuzar Hashmi", display: "Hashmi (56880)", email: "hashmi56880@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "44819", name: "Kamrul", fullName: "Engr. Kamrul Hasan", display: "Kamrul (44819)", email: "kamrulkuet50@gmail.com", tms_password: "Sep@2026" },
   { id: "52800", name: "Anam", fullName: "Engr. Md. Rafiul Anam", display: "Anam (52800)", email: "mdrafiulanam@gmail.com", tms_password: "Sep@2026" },
   { id: "7686", name: "Jowel", fullName: "Engr. Jowel", display: "Jowel (7686)", email: "jowel7686@waltonbd.com", tms_password: "Sep@2026" },
   { id: "54636", name: "Pear", fullName: "Engr. Pear", display: "Pear (54636)", email: "pear54636@waltonbd.com", tms_password: "Sep@2026" }
@@ -41,8 +40,8 @@ const DEFAULT_CATEGORIES = [
   "Others"
 ];
 
-const REMOVED_ENGINEER_IDS = new Set(["28117", "37486", "40121", "39635", "46484", "51121", "2571"]);
-const REMOVED_ENGINEER_NAMES = new Set(["shishir", "rana", "mehedi", "shahria", "kasfia", "takvir", "nurul"]);
+const REMOVED_ENGINEER_IDS = new Set(["28117", "37486", "40121", "39635", "46484", "51121", "2571", "44819"]);
+const REMOVED_ENGINEER_NAMES = new Set(["shishir", "rana", "mehedi", "shahria", "kasfia", "takvir", "nurul", "kamrul"]);
 
 function loadMasterEngineers() {
   try {

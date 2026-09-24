@@ -170,6 +170,145 @@ const ManagementReportView = {
           }).join('')}
         </div>
 
+        <!-- EXECUTIVE SLIDE DECK OVERVIEW SECTION (Requirement 4: Slide-by-Slide Pre-Download Editor) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl font-bold">
+                📑
+              </div>
+              <div>
+                <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                  <span>Executive Slide Deck Overview</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-mono font-bold border border-indigo-200">
+                    Total ${tasks.length + 3} Slides
+                  </span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Inspect and modify every slide of the Management Report before downloading PPTX or PDF.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="ManagementReportView.previewPresentation()" class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+                <span>👁️</span> <span>Preview Full Presentation</span>
+              </button>
+              <button onclick="ManagementReportView.exportPPTX()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-black shadow-md shadow-red-200/50 transition flex items-center gap-1.5 cursor-pointer">
+                <span>📊</span> <span>Export PPTX</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Slides Sequence Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            <!-- Slide 1: Cover -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm border border-slate-700">
+              <div>
+                <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+                  <span class="text-[10px] font-mono font-bold bg-blue-500 text-white px-2 py-0.5 rounded">Slide #1 &bull; Cover</span>
+                  <span class="text-[10px] font-mono text-slate-400">16:9 Deck</span>
+                </div>
+                <h4 class="text-xs font-black text-white mt-2">Executive Management Report</h4>
+                <p class="text-[11px] text-slate-300 mt-1">Walton AC Process Development &bull; ${month}</p>
+                <p class="text-[10px] text-slate-400 mt-2 font-mono">Presenters: ${concernsList.join(', ') || 'Process Engineers'}</p>
+              </div>
+              <div class="pt-3 mt-3 border-t border-slate-700 flex justify-end">
+                <button onclick="ManagementReportView.previewPresentation()" class="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1">
+                  <span>👁️</span> <span>Preview Slide</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Slide 2: Summary Table -->
+            <div class="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+              <div>
+                <div class="flex items-center justify-between pb-2 border-b border-indigo-100">
+                  <span class="text-[10px] font-mono font-bold bg-indigo-600 text-white px-2 py-0.5 rounded">Slide #2 &bull; All-Works Summary</span>
+                  <span class="text-[10px] font-mono text-indigo-700 font-bold">Auto-Calculated</span>
+                </div>
+                <h4 class="text-xs font-black text-slate-900 mt-2">Strategic Performance &amp; Savings Table</h4>
+                <div class="grid grid-cols-2 gap-2 mt-2 text-[11px]">
+                  <div class="bg-white/80 rounded-lg p-1.5 border border-indigo-100">
+                    <span class="text-slate-400 block text-[9px] uppercase font-bold">Total Savings</span>
+                    <strong class="text-amber-800 font-mono">${summary.formattedTotalSavings}</strong>
+                  </div>
+                  <div class="bg-white/80 rounded-lg p-1.5 border border-indigo-100">
+                    <span class="text-slate-400 block text-[9px] uppercase font-bold">Completion</span>
+                    <strong class="text-emerald-700 font-mono">${summary.completionRate}%</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="pt-3 mt-3 border-t border-indigo-100 flex justify-end">
+                <button onclick="ManagementReportView.previewPresentation()" class="text-xs text-indigo-700 hover:text-indigo-900 font-bold flex items-center gap-1">
+                  <span>👁️</span> <span>Preview Slide</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Slides 3+: Task Slides (Concern by Concern) -->
+            ${tasks.map((t, idx) => {
+              const isCompleted = (t.status || '').toLowerCase().includes('complete');
+              return `
+                <div class="bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-4 flex flex-col justify-between shadow-sm transition space-y-3">
+                  <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span class="text-[10px] font-mono font-bold bg-slate-900 text-white px-2 py-0.5 rounded">
+                        Slide #${idx + 3} &bull; ${HELPERS.escapeHtml(t.concern || t.assignee || 'General')}
+                      </span>
+                      <span class="text-[9px] font-bold ${isCompleted ? 'text-emerald-600 bg-emerald-50' : 'text-sky-600 bg-sky-50'} px-1.5 py-0.5 rounded">
+                        ${isCompleted ? 'Completed' : 'In Progress'}
+                      </span>
+                    </div>
+
+                    <h4 class="text-xs font-black text-slate-900 mt-2 line-clamp-2 leading-snug" title="${HELPERS.escapeHtml(t.task_name)}">
+                      ${HELPERS.escapeHtml(t.task_name)}
+                    </h4>
+
+                    <div class="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                      <span>⚙️ ${HELPERS.escapeHtml(t.category || 'Process')}</span>
+                      <span class="font-mono font-bold text-amber-800">${HELPERS.escapeHtml(t.cost_impact || '৳ 0')}</span>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                      ${HELPERS.escapeHtml(t.milestones || t.key_impact || 'Engineering development and implementation.')}
+                    </p>
+                  </div>
+
+                  <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <button onclick="ManagementReportView.previewPresentation()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1">
+                      <span>👁️</span> <span>Preview</span>
+                    </button>
+                    <button onclick="ManagementReportView.openEditTaskModal('${t.task_id}')" class="px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-xs font-bold text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 transition flex items-center gap-1 cursor-pointer">
+                      <span>✏️</span> <span>Edit Slide</span>
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+
+            <!-- Final Slide: Closing Slide -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm border border-slate-700">
+              <div>
+                <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+                  <span class="text-[10px] font-mono font-bold bg-slate-700 text-white px-2 py-0.5 rounded">Slide #${tasks.length + 3} &bull; Closing</span>
+                  <span class="text-[10px] font-mono text-slate-400">Final Slide</span>
+                </div>
+                <h4 class="text-xs font-black text-white mt-2">Executive Thank You &amp; Q&amp;A</h4>
+                <p class="text-[11px] text-slate-300 mt-1">Walton Hi-Tech Industries PLC &bull; Process Development</p>
+                <p class="text-[10px] text-slate-400 mt-2 font-mono">Continuous Quality &amp; Efficiency Excellence</p>
+              </div>
+              <div class="pt-3 mt-3 border-t border-slate-700 flex justify-end">
+                <button onclick="ManagementReportView.previewPresentation()" class="text-xs text-slate-300 hover:text-white font-bold flex items-center gap-1">
+                  <span>👁️</span> <span>Preview Slide</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- MANAGEMENT TASKS CARDS / LIST -->
         <div class="space-y-4">
           ${tasks.length === 0 ? `

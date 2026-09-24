@@ -75,6 +75,10 @@
           <span class="text-base">📝</span>
           <span>Monthly Input</span>
         </button>
+        <button onclick="App.switchTab('monthly-report')" data-tab="monthly-report" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
+          <span class="text-base">📑</span>
+          <span>Monthly Report</span>
+        </button>
         <button onclick="App.switchTab('mgmt-report')" data-tab="mgmt-report" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
           <span class="text-base">📊</span>
           <span>Management Report</span>
@@ -170,6 +174,9 @@
       <!-- View 2: Monthly Input (Single Source of Truth) -->
       <div id="monthly-input-view-container" class="view-container hidden"></div>
 
+      <!-- View 2a: Dedicated Monthly Report Slide Sequence Hub -->
+      <div id="monthly-report-view-container" class="view-container hidden"></div>
+
       <!-- View 2c: Dedicated Executive Management Report View -->
       <div id="mgmt-report-view-container" class="view-container hidden"></div>
 
@@ -248,6 +255,7 @@
   <script src="report/builder_view.js"></script>
   <script src="report/top_works_manager.js"></script>
   <script src="report/final_editor_view.js"></script>
+  <script src="report/monthly_report_view.js"></script>
   <script src="dashboard/cost_saving_tracker.js"></script>
   <script src="dashboard/bom_tracker.js"></script>
   <script src="dashboard/project_tracker.js"></script>

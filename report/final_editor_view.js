@@ -428,54 +428,9 @@ const FinalEditorView = {
             <span class="text-xs text-slate-400 font-mono">
               💡 Changes saved here will instantly reflect in the final summary slide across PPTX, HTML, and PDF exports.
             </span>
-            <button onclick="FinalEditorView.saveTopWorks()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-black text-white shadow-md shadow-red-200/50 transition flex items-center gap-1.5">
+            <button onclick="FinalEditorView.saveTopWorks()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-xs font-black text-white shadow-md shadow-red-200/50 transition flex items-center gap-1.5 cursor-pointer">
               <span>💾</span> <span>Save Top 5 Projects</span>
             </button>
-          </div>
-        </div>
-
-        <!-- SECTION 3: INDIVIDUAL TASK SLIDE PRESENTATION OVERRIDES -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h3 class="text-base font-black text-slate-800">Task Slide Presentation Editorial Overrides</h3>
-              <p class="text-xs text-slate-400">Modify slide presentation text without affecting your raw spreadsheet data.</p>
-            </div>
-            <span class="text-xs font-mono font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-              Total ${activeSlides.length} Active Slides
-            </span>
-          </div>
-
-          <!-- Slide sequence cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${activeSlides.length === 0 ? `
-              <div class="col-span-full py-12 text-center bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 text-xs font-mono">
-                No active slides in ${month}. Add tasks in Monthly Input and press SYNC.
-              </div>
-            ` : activeSlides.map((s, idx) => `
-              <div class="bg-white border ${s.has_manual_override ? 'border-red-400 bg-red-50/10' : 'border-slate-200'} rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-slate-300 transition">
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-mono font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                      Slide #${idx + 1}
-                    </span>
-                    <span class="text-[10px] font-mono text-slate-400">${s.task_id}</span>
-                  </div>
-                  <h4 class="text-xs font-bold text-slate-800 line-clamp-2" title="${HELPERS.escapeHtml(s.slide_title)}">${HELPERS.escapeHtml(s.slide_title)}</h4>
-                  <div class="text-[11px] text-slate-400 mt-1">Engineer: <span class="text-slate-700 font-semibold">${s.engineer}</span></div>
-                  <p class="text-[11px] text-slate-500 mt-2 line-clamp-2 leading-relaxed">${HELPERS.escapeHtml(s.description)}</p>
-                </div>
-
-                <div class="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
-                  <button onclick="SlidePreviewModal.openSingle(window.appState.syncEngine.getActiveSlides('${month}')[${idx}])" class="text-xs text-red-600 hover:underline font-semibold flex items-center gap-1">
-                    <span>👁️</span> <span>Preview</span>
-                  </button>
-                  <button onclick="FinalEditorView.openModal('${s.task_id}')" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm transition flex items-center gap-1">
-                    <span>✏️</span> <span>Edit Slide</span>
-                  </button>
-                </div>
-              </div>
-            `).join('')}
           </div>
         </div>
 

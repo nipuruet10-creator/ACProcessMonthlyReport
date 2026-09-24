@@ -2003,16 +2003,8 @@ const MonthlyInputView = {
             <!-- Header Actions: Month Selector + Tools + Add Row -->
             <div class="flex items-center gap-2 flex-wrap">
               
-              <!-- Integrated Month Selector (Requirement 4) -->
-              <div class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-2.5 py-1 transition shadow-2xs">
-                <span class="text-xs font-bold text-slate-500 font-mono">📅 MONTH:</span>
-                <select onchange="MonthlyInputView.handleMonthSelect(this.value)" class="bg-transparent text-xs font-bold text-slate-800 font-mono focus:outline-none cursor-pointer pr-1">
-                  ${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${m} ${m === month ? '(Active)' : ''}</option>`).join('')}
-                </select>
-                <button onclick="MonthlyInputView.openAddMonthModal()" title="Add / Create New Month" class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs border border-blue-200 transition cursor-pointer flex items-center gap-1">
-                  <span>➕ Add Month</span>
-                </button>
-              </div>
+              <!-- Integrated Month Selector (Running Month + Archive Dropdown) -->
+              ${HELPERS.renderMonthSelectorUI(months, month, 'MonthlyInputView.handleMonthSelect', 'MonthlyInputView.openAddMonthModal')}
 
               <!-- Bulk Actions (Dynamic) -->
               <button id="bulk-copy-mgmt-btn" onclick="MonthlyInputView.copySelectedToManagementReport()" class="hidden px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition items-center gap-1.5">

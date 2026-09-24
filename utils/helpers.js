@@ -130,72 +130,104 @@ const HELPERS = {
    * Renders a unified Month Selector UI: Current active month pill + Previous/Other Months dropdown + Add Month button
    */
   renderMonthSelectorUI(months, selectedMonth, onselectJsMethodName, onAddMonthJsMethodName = null) {
-    const current = selectedMonth || (months && months[0] ? months[0] : 'SEP-2026');
+    const runningMonth = "SEP-2026";
+    const current = selectedMonth || (months && months[0] ? months[0] : runningMonth);
     const safeMonths = Array.isArray(months) ? months : [current];
 
     const monthOrder = { "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12 };
     const runningYear = 2026;
     const runningMonthIndex = 9; // SEP-2026
 
-    // Exclude any 2025 months; strictly show Jan'2026 up to current running month (Sep'2026)
-    const filteredMonths = safeMonths.filter(m => {
+    const isArchived = (m) => {
       const parts = String(m).toUpperCase().split('-');
       if (parts.length !== 2) return false;
       const yr = parseInt(parts[1], 10);
       const mIdx = monthOrder[parts[0]] || 0;
-      if (isNaN(yr) || yr < runningYear) return false; // Strictly exclude 2025 and older
-      if (yr === runningYear) {
-        return mIdx <= runningMonthIndex || m === current;
-      }
-      return m === current;
+      if (yr < runningYear) return true;
+      if (yr === runningYear && mIdx < runningMonthIndex) return true;
+      return false;
+    };
+
+    // Filter valid 2026+ months
+    const validMonths = safeMonths.filter(m => {
+      const parts = String(m).toUpperCase().split('-');
+      if (parts.length !== 2) return false;
+      const yr = parseInt(parts[1], 10);
+      return !isNaN(yr) && yr >= runningYear;
     });
 
-    const displayMonths = filteredMonths.length > 0 ? filteredMonths : [current];
-
-    // Group display months by year
-    const groups = {};
-    displayMonths.forEach(m => {
-      const parts = m.split('-');
-      const yr = parts[1] || 'Other';
-      if (!groups[yr]) groups[yr] = [];
-      groups[yr].push(m);
+    // Sort chronologically (Jan to Sep)
+    validMonths.sort((a, b) => {
+      const pA = a.split('-');
+      const pB = b.split('-');
+      const yA = parseInt(pA[1], 10), yB = parseInt(pB[1], 10);
+      if (yA !== yB) return yA - yB;
+      return (monthOrder[pA[0]] || 0) - (monthOrder[pB[0]] || 0);
     });
 
-    const sortedYears = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    const archiveMonths = validMonths.filter(m => isArchived(m));
+    const isViewingArchive = isArchived(current);
 
-    let optgroups = '';
-    sortedYears.forEach(yr => {
-      optgroups += `<optgroup label="Year ${yr}">`;
-      groups[yr].forEach(m => {
-        const isCurrent = (m === current);
-        optgroups += `<option value="${m}" ${isCurrent ? 'selected' : ''}>${m}${isCurrent ? ' (Active)' : ''}</option>`;
-      });
-      optgroups += `</optgroup>`;
-    });
+    if (isViewingArchive) {
+      return `
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- Return to Running Month Quick Action -->
+          <button type="button" onclick="${onselectJsMethodName}('${runningMonth}')" 
+                  title="Return to active running month"
+                  class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+            <span>🟢</span> <span>Running Month: <strong>${runningMonth}</strong></span>
+          </button>
+
+          <!-- Active Archived Month Indicator -->
+          <div class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-amber-500 text-white shadow-xs border border-amber-600 flex items-center gap-1.5">
+            <span>📦</span> <span>Archive: ${current}</span>
+            <span class="px-1.5 py-0.2 rounded text-[9px] bg-black/20 uppercase tracking-wider font-bold">Historical</span>
+          </div>
+
+          <!-- Archive Dropdown to switch between archived months -->
+          <div class="relative inline-flex items-center">
+            <select onchange="if(this.value) { ${onselectJsMethodName}(this.value); }" 
+                    title="Switch to another archived month (Jan'26 – Aug'26)"
+                    class="bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-amber-900 shadow-xs focus:outline-none cursor-pointer">
+              <option value="" disabled>Change Archive ▼</option>
+              ${archiveMonths.map(m => `<option value="${m}" ${m === current ? 'selected' : ''}>${m} ${m === current ? '(Current)' : ''}</option>`).join('')}
+            </select>
+          </div>
+
+          ${onAddMonthJsMethodName ? `
+          <button type="button" onclick="${onAddMonthJsMethodName}()" title="Add a new month" 
+                  class="px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition flex items-center gap-1 whitespace-nowrap cursor-pointer">
+            <span>➕</span> <span>Add Month</span>
+          </button>
+          ` : ''}
+        </div>
+      `;
+    }
 
     return `
       <div class="flex items-center gap-2 flex-wrap">
-        <!-- Current Month Active Pill -->
-        <button type="button" onclick="${onselectJsMethodName}('${current}')" 
-                class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-black bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-md shadow-red-200/50 border border-red-500 flex items-center gap-1.5 whitespace-nowrap">
-          <span>📅</span> <span>${current}</span>
+        <!-- Running Month Active Pill -->
+        <button type="button" onclick="${onselectJsMethodName}('${runningMonth}')" 
+                title="Active Running Month"
+                class="px-3.5 py-1.5 rounded-xl text-xs font-mono font-black bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-sm shadow-blue-500/20 border border-blue-600 flex items-center gap-1.5 whitespace-nowrap cursor-default">
+          <span>🟢</span> <span>Running Month: ${runningMonth}</span>
           <span class="px-1.5 py-0.2 rounded text-[9px] bg-white/20 text-white uppercase tracking-wider font-bold">Active</span>
         </button>
 
-        <!-- Months Dropdown (Jan 2026 to Running Month) -->
+        <!-- Archived Months Dropdown (Jan 2026 to Aug 2026) -->
         <div class="relative inline-flex items-center">
           <select onchange="if(this.value) { ${onselectJsMethodName}(this.value); }" 
-                  title="Select month (Jan 2026 to running month)"
-                  class="bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-700 shadow-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200 transition cursor-pointer">
-            <option value="" disabled>📂 Select Month ▼</option>
-            ${optgroups}
+                  title="View archived past months (Jan'26 – Aug'26)"
+                  class="bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-700 shadow-xs focus:outline-none focus:border-blue-500 transition cursor-pointer">
+            <option value="" selected disabled>📦 Archive Months (Jan'26 – Aug'26) ▼</option>
+            ${archiveMonths.map(m => `<option value="${m}">${m} (Archived)</option>`).join('')}
           </select>
         </div>
 
         ${onAddMonthJsMethodName ? `
         <!-- Add Month Button -->
-        <button type="button" onclick="${onAddMonthJsMethodName}()" title="Add a new historical or future month" 
-                class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition flex items-center gap-1 whitespace-nowrap">
+        <button type="button" onclick="${onAddMonthJsMethodName}()" title="Add a new month" 
+                class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition flex items-center gap-1 whitespace-nowrap cursor-pointer">
           <span>➕</span> <span>Add Month</span>
         </button>
         ` : ''}
