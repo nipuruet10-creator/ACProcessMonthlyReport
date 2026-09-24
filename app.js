@@ -6,7 +6,7 @@
  */
 
 const App = {
-  currentTab: 'monthly-input', // Default to Monthly Input for fast engineer entry
+  currentTab: 'dashboard', // Default to Dashboard as requested by user
 
   async init() {
     console.log("Initializing Walton AC Process Monthly Report Automation System...");

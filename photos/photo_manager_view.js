@@ -333,7 +333,6 @@ const PhotoManagerView = {
       console.warn("Clipboard copy fallback:", e);
     }
   }
-  }
 };
 
 if (typeof module !== 'undefined' && module.exports) {

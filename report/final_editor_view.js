@@ -269,14 +269,14 @@ const FinalEditorView = {
               <img src="assets/img/walton_logo.png" alt="WALTON" class="h-12 w-auto object-contain flex-shrink-0 drop-shadow-sm">
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-red-50 text-red-600 border border-red-200">
-                    FINAL REPORT &amp; SUMMARY HUB
+                  <span class="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-600 border border-blue-200">
+                    TOP 5 SUMMARY HUB
                   </span>
                   <span class="text-xs text-slate-400 font-mono">${month}</span>
                 </div>
-                <h2 class="text-2xl font-black text-slate-800 mt-1">Final Summary Page &amp; Slide Management</h2>
+                <h2 class="text-2xl font-black text-slate-800 mt-1">Top 5 Summary &amp; Slide Management</h2>
                 <p class="text-xs text-slate-500 mt-0.5">
-                  Input Top 5 Completed &amp; Ongoing works for the final slide, customize slide overrides, and export.
+                  Input Top 5 Completed &amp; Ongoing works for the monthly summary slide, customize slide overrides, and export.
                 </p>
               </div>
             </div>

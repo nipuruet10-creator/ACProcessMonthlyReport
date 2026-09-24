@@ -125,6 +125,7 @@ const SettingsView = {
                   <span>🔑</span> <span>Forgot Password / OTP</span>
                 </button>
               </div>
+            `}
           </div>
         </div>
 

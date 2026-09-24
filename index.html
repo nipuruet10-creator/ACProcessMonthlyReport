@@ -67,13 +67,13 @@
 
       <!-- Vertical Navigation Tabs -->
       <nav class="space-y-1.5 font-medium">
-        <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left">
-          <span class="text-base">📝</span>
-          <span>Monthly Input</span>
-        </button>
-        <button onclick="App.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
+        <button onclick="App.switchTab('dashboard')" data-tab="dashboard" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left bg-[#2563EB] text-white shadow-md shadow-blue-500/25">
           <span class="text-base">🏠</span>
           <span>Dashboard</span>
+        </button>
+        <button onclick="App.switchTab('monthly-input')" data-tab="monthly-input" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
+          <span class="text-base">📝</span>
+          <span>Monthly Input</span>
         </button>
         <button onclick="App.switchTab('mgmt-report')" data-tab="mgmt-report" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
           <span class="text-base">📊</span>
@@ -88,8 +88,8 @@
           <span>Photo Manager</span>
         </button>
         <button onclick="App.switchTab('final-report')" data-tab="final-report" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
-          <span class="text-base">📄</span>
-          <span>Final Report</span>
+          <span class="text-base">🏆</span>
+          <span>Top 5 Summary</span>
         </button>
         <button onclick="App.switchTab('settings')" data-tab="settings" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
           <span class="text-base">⚙️</span>
@@ -164,11 +164,11 @@
     <!-- MAIN VIEWPORT CONTAINER (Full Width for Maximum Table Area) -->
     <main class="flex-1 w-full max-w-[1920px] mx-auto px-3 sm:px-6 py-4">
       
-      <!-- View 1: Dashboard -->
-      <div id="dashboard-view-container" class="view-container hidden"></div>
+      <!-- View 1: Dashboard (Default Landing Page) -->
+      <div id="dashboard-view-container" class="view-container"></div>
 
       <!-- View 2: Monthly Input (Single Source of Truth) -->
-      <div id="monthly-input-view-container" class="view-container"></div>
+      <div id="monthly-input-view-container" class="view-container hidden"></div>
 
       <!-- View 2c: Dedicated Executive Management Report View -->
       <div id="mgmt-report-view-container" class="view-container hidden"></div>

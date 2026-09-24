@@ -1808,11 +1808,11 @@ class PPTXGenerator {
       : ["—", "—", "—", "—", "—"];
 
     const cardPalettes = [
-      { bg: "991B1B", border: "EF4444" },
-      { bg: "1E3A8A", border: "60A5FA" },
-      { bg: "065F46", border: "34D399" },
-      { bg: "C2410C", border: "FBBF24" },
-      { bg: "581C87", border: "A78BFA" }
+      { bg: "881337", border: "FDA4AF" }, // Walton Crimson
+      { bg: "0F172A", border: "93C5FD" }, // Deep Walton Navy
+      { bg: "1E3A8A", border: "60A5FA" }, // Royal Corporate Blue
+      { bg: "0F4C81", border: "7DD3FC" }, // Industrial Cyan
+      { bg: "1E293B", border: "CBD5E1" }  // Dark Slate Steel
     ];
 
     completedTop5.forEach((item, idx) => {
@@ -2326,11 +2326,11 @@ class PPTXGenerator {
       : ["—", "—", "—", "—", "—"];
 
     const cardPalettes = [
-      { bg: "1E40AF", border: "1D4ED8" },
-      { bg: "6366F1", border: "4F46E5" },
-      { bg: "0284C7", border: "0369A1" },
-      { bg: "F59E0B", border: "D97706" },
-      { bg: "10B981", border: "059669" }
+      { bg: "0B192C", border: "60A5FA" }, // Sapphire Navy
+      { bg: "0052CC", border: "93C5FD" }, // Walton Corporate Blue
+      { bg: "0284C7", border: "7DD3FC" }, // Industrial Cyan
+      { bg: "0F766E", border: "6EE7B7" }, // Executive Teal
+      { bg: "1E293B", border: "CBD5E1" }  // Dark Slate Steel
     ];
 
     completedTop5.forEach((item, idx) => {

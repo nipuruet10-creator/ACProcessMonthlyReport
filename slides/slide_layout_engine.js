@@ -2195,11 +2195,8 @@ const SlideLayoutEngine = {
       rolling = CostSavingTracker.getRolling6Months(month);
     }
 
-    let currentImpact = "336,995 TK";
-    let yearlyImpact = "3,251,940 TK";
-
-    let currentImpact = (data && data.currentImpact) || "0 TK";
-    let yearlyImpact = (data && data.yearlyImpact) || "0 TK";
+    let currentImpact = (data && data.currentImpact) || "336,995 TK";
+    let yearlyImpact = (data && data.yearlyImpact) || "3,251,940 TK";
 
     if (rolling && Array.isArray(rolling.months)) {
       if (rolling.displayCurrentMonth) currentImpact = rolling.displayCurrentMonth;
@@ -2683,11 +2680,11 @@ const SlideLayoutEngine = {
           <div class="grid grid-cols-5 gap-3 items-stretch">
             ${completedTop5.map((item, idx) => {
               const palettes = [
-                { bg: 'linear-gradient(135deg, #991B1B 0%, #C5161D 100%)', border: '#EF4444', shadow: 'rgba(197, 22, 29, 0.35)' },
-                { bg: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', border: '#60A5FA', shadow: 'rgba(37, 99, 235, 0.35)' },
-                { bg: 'linear-gradient(135deg, #065F46 0%, #059669 100%)', border: '#34D399', shadow: 'rgba(5, 150, 105, 0.35)' },
-                { bg: 'linear-gradient(135deg, #C2410C 0%, #D97706 100%)', border: '#FBBF24', shadow: 'rgba(217, 119, 6, 0.35)' },
-                { bg: 'linear-gradient(135deg, #581C87 0%, #7C3AED 100%)', border: '#A78BFA', shadow: 'rgba(124, 58, 237, 0.35)' }
+                { bg: 'linear-gradient(135deg, #881337 0%, #BE123C 50%, #C5161D 100%)', border: '#FDA4AF', shadow: 'rgba(197, 22, 29, 0.25)' },
+                { bg: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%)', border: '#93C5FD', shadow: 'rgba(15, 23, 42, 0.25)' },
+                { bg: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', border: '#60A5FA', shadow: 'rgba(37, 99, 235, 0.25)' },
+                { bg: 'linear-gradient(135deg, #0F4C81 0%, #0284C7 100%)', border: '#7DD3FC', shadow: 'rgba(2, 132, 199, 0.25)' },
+                { bg: 'linear-gradient(135deg, #1E293B 0%, #334155 100%)', border: '#CBD5E1', shadow: 'rgba(51, 65, 85, 0.25)' }
               ];
               const pal = palettes[idx % palettes.length];
               const hasItem = item && item.trim() && item.trim() !== "—";
@@ -2695,11 +2692,11 @@ const SlideLayoutEngine = {
               <div class="rounded-xl p-3.5 flex flex-col justify-between shadow-md transition h-full min-h-[118px] text-white relative overflow-hidden group hover:scale-[1.02] duration-200"
                    style="background: ${pal.bg}; border: 1.5px solid ${pal.border}; box-shadow: 0 6px 16px ${pal.shadow};">
                 <div class="flex items-center justify-between mb-1.5 relative z-10">
-                  <div class="w-6 h-6 rounded-lg bg-white/25 backdrop-blur-sm text-white font-black text-xs flex items-center justify-center border border-white/35 shadow-sm">
+                  <div class="w-6 h-6 rounded-lg bg-white/20 backdrop-blur-md text-white font-extrabold text-xs flex items-center justify-center border border-white/35 shadow-sm font-mono">
                     0${idx + 1}
                   </div>
                 </div>
-                <div class="text-[14.5px] sm:text-[15.5px] font-black text-white leading-snug my-auto drop-shadow-sm line-clamp-3 relative z-10 tracking-tight">
+                <div class="text-[14px] sm:text-[15px] font-bold text-white leading-snug my-auto drop-shadow-sm line-clamp-3 relative z-10 tracking-tight">
                   ${hasItem ? item : '— (Pending completion)'}
                 </div>
                 <div class="absolute -right-3 -bottom-3 w-16 h-16 rounded-full bg-white/10 pointer-events-none"></div>
@@ -2716,7 +2713,7 @@ const SlideLayoutEngine = {
           </div>
           <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 min-h-0 flex flex-col justify-between">
             <table class="w-full text-xs border-collapse h-full">
-              <thead class="bg-[#C5161D] text-white font-bold text-[12px] uppercase tracking-wider">
+              <thead class="bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white font-bold text-[11.5px] uppercase tracking-wider border-b-2 border-[#C5161D]">
                 <tr>
                   <th class="py-2.5 px-1.5 w-9 text-center">Sl</th>
                   <th class="py-2.5 px-3.5 text-left w-[42%]">Project Name</th>
@@ -2728,12 +2725,12 @@ const SlideLayoutEngine = {
                 ${ongoingTop5.map((p, idx) => {
                   const hasName = p.name && p.name.trim() && p.name.trim() !== "—";
                   return `
-                  <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-red-50/20 transition">
+                  <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'} hover:bg-red-50/20 transition">
                     <td class="py-2.5 px-2 text-center font-bold text-red-600 font-mono align-middle text-[13px]">${p.sl || idx + 1}</td>
                     <td class="py-2.5 px-3.5 text-[13.5px] ${hasName ? 'font-bold text-[#0F172A]' : 'font-medium text-slate-400 italic'} align-middle">${hasName ? p.name : '—'}</td>
                     <td class="py-2.5 px-3.5 text-[13px] ${p.progress && p.progress.trim() && p.progress.trim() !== "—" ? 'text-slate-700 font-semibold' : 'text-slate-400 italic'} align-middle">${p.progress && p.progress.trim() ? p.progress : '—'}</td>
                     <td class="py-2.5 px-2.5 text-center font-mono font-bold text-slate-700 align-middle">
-                      <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200 text-[11.5px] font-bold">
+                      <span class="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[11.5px] font-bold">
                         ${p.deadline && p.deadline.trim() && p.deadline.trim() !== "—" ? p.deadline : '—'}
                       </span>
                     </td>
@@ -3377,11 +3374,11 @@ const SlideLayoutEngine = {
           <div class="grid grid-cols-5 gap-3 items-stretch">
             ${completedTop5.map((item, idx) => {
               const palettes = [
-                { bg: 'linear-gradient(135deg, #0F172A 0%, #0052CC 100%)', border: '#2563EB', shadow: 'rgba(0, 82, 204, 0.35)' },
-                { bg: 'linear-gradient(135deg, #0369A1 0%, #0284C7 100%)', border: '#38BDF8', shadow: 'rgba(2, 132, 199, 0.35)' },
-                { bg: 'linear-gradient(135deg, #047857 0%, #0D9488 100%)', border: '#14B8A6', shadow: 'rgba(13, 148, 136, 0.35)' },
-                { bg: 'linear-gradient(135deg, #581C87 0%, #7C3AED 100%)', border: '#A855F7', shadow: 'rgba(124, 58, 237, 0.35)' },
-                { bg: 'linear-gradient(135deg, #9A3412 0%, #EA580C 100%)', border: '#FB923C', shadow: 'rgba(234, 88, 12, 0.35)' }
+                { bg: 'linear-gradient(135deg, #0B192C 0%, #1E3E62 100%)', border: '#60A5FA', shadow: 'rgba(11, 25, 44, 0.25)' },
+                { bg: 'linear-gradient(135deg, #0052CC 0%, #1D4ED8 100%)', border: '#93C5FD', shadow: 'rgba(0, 82, 204, 0.25)' },
+                { bg: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)', border: '#7DD3FC', shadow: 'rgba(2, 132, 199, 0.25)' },
+                { bg: 'linear-gradient(135deg, #0F766E 0%, #047857 100%)', border: '#6EE7B7', shadow: 'rgba(15, 118, 110, 0.25)' },
+                { bg: 'linear-gradient(135deg, #1E293B 0%, #334155 100%)', border: '#CBD5E1', shadow: 'rgba(51, 65, 85, 0.25)' }
               ];
               const pal = palettes[idx % palettes.length];
               const hasItem = item && item.trim();
@@ -3389,11 +3386,11 @@ const SlideLayoutEngine = {
               <div class="rounded-xl p-3.5 flex flex-col justify-between shadow-md transition h-full min-h-[118px] text-white relative overflow-hidden group hover:scale-[1.02] duration-200"
                    style="background: ${pal.bg}; border: 1.5px solid ${pal.border}; box-shadow: 0 6px 16px ${pal.shadow};">
                 <div class="flex items-center justify-between mb-1.5 relative z-10">
-                  <div class="w-6 h-6 rounded-lg bg-white/25 backdrop-blur-sm text-white font-black text-xs flex items-center justify-center border border-white/35 shadow-sm">
+                  <div class="w-6 h-6 rounded-lg bg-white/20 backdrop-blur-md text-white font-extrabold text-xs flex items-center justify-center border border-white/35 shadow-sm font-mono">
                     0${idx + 1}
                   </div>
                 </div>
-                <div class="text-[14.5px] sm:text-[15.5px] font-black text-white leading-snug my-auto drop-shadow-sm line-clamp-3 relative z-10 tracking-tight">
+                <div class="text-[14px] sm:text-[15px] font-bold text-white leading-snug my-auto drop-shadow-sm line-clamp-3 relative z-10 tracking-tight">
                   ${hasItem ? item : '— (Pending completion)'}
                 </div>
                 <div class="absolute -right-3 -bottom-3 w-16 h-16 rounded-full bg-white/10 pointer-events-none"></div>
@@ -3410,7 +3407,7 @@ const SlideLayoutEngine = {
           </div>
           <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 min-h-0 flex flex-col justify-between">
             <table class="w-full text-xs border-collapse h-full">
-              <thead class="bg-[#0052CC] text-white font-bold text-[12px] uppercase tracking-wider">
+              <thead class="bg-gradient-to-r from-[#0B2038] via-[#0052CC] to-[#0B2038] text-white font-bold text-[11.5px] uppercase tracking-wider border-b-2 border-blue-400">
                 <tr>
                   <th class="py-2.5 px-1.5 w-9 text-center">Sl</th>
                   <th class="py-2.5 px-3.5 text-left w-[42%]">Project Name</th>
@@ -3422,13 +3419,13 @@ const SlideLayoutEngine = {
                 ${ongoingTop5.map((p, idx) => {
                   const hasName = p.name && p.name.trim();
                   return `
-                  <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-sky-50/20'} hover:bg-sky-50/40 transition">
-                    <td class="py-2.5 px-2 text-center font-bold text-[#0284C7] font-mono align-middle text-[13px]">${p.sl || idx + 1}</td>
+                  <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'} hover:bg-blue-50/20 transition">
+                    <td class="py-2.5 px-2 text-center font-bold text-blue-600 font-mono align-middle text-[13px]">${p.sl || idx + 1}</td>
                     <td class="py-2.5 px-3.5 text-[13.5px] ${hasName ? 'font-bold text-[#0F172A]' : 'font-medium text-slate-400 italic'} align-middle">${hasName ? p.name : '—'}</td>
-                    <td class="py-2.5 px-3.5 text-[13px] ${p.progress && p.progress.trim() ? 'text-slate-700 font-semibold' : 'text-slate-400 italic'} align-middle">${p.progress && p.progress.trim() ? p.progress : '—'}</td>
+                    <td class="py-2.5 px-3.5 text-[13px] ${p.progress && p.progress.trim() && p.progress.trim() !== "—" ? 'text-slate-700 font-semibold' : 'text-slate-400 italic'} align-middle">${p.progress && p.progress.trim() ? p.progress : '—'}</td>
                     <td class="py-2.5 px-2.5 text-center font-mono font-bold text-slate-700 align-middle">
-                      <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 border border-slate-200 text-[11.5px] font-bold">
-                        ${p.deadline && p.deadline.trim() ? p.deadline : '—'}
+                      <span class="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[11.5px] font-bold">
+                        ${p.deadline && p.deadline.trim() && p.deadline.trim() !== "—" ? p.deadline : '—'}
                       </span>
                     </td>
                   </tr>`;
