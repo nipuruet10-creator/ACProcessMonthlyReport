@@ -165,7 +165,7 @@ const App = {
     } else if (tabId === 'final-report') {
       if (typeof FinalEditorView !== 'undefined') await FinalEditorView.render('final-report-view-container');
     } else if (tabId === 'cost-savings') {
-      this.openCostSavingsModal();
+      if (typeof CostSavingsView !== 'undefined') await CostSavingsView.render('cost-savings-view-container');
     } else if (tabId === 'history') {
       if (typeof VersionView !== 'undefined') VersionView.render('history-view-container');
     } else if (tabId === 'master-data') {

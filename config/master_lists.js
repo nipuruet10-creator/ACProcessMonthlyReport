@@ -264,6 +264,20 @@ const MasterDataManager = {
     return MASTER_LISTS.CATEGORIES;
   },
 
+  isProjectCategory(category) {
+    if (!category) return false;
+    const cat = String(category).trim().toLowerCase();
+    return cat === 'project' || cat === 'ongoing projects' || cat === 'completed projects' || (cat.includes('project') && !cat.includes('top 5'));
+  },
+
+  getRoutineCategories() {
+    return this.getCategories().filter(c => !this.isProjectCategory(c));
+  },
+
+  getProjectCategories() {
+    return ["Ongoing Projects", "Completed Projects", "Project"];
+  },
+
   addCategory(category) {
     const cat = (category || "").trim();
     if (!cat) throw new Error("Category name required");

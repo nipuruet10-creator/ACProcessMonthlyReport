@@ -239,9 +239,9 @@ const MonthlyInputView = {
     const supervisors = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getSupervisors)
       ? MasterDataManager.getSupervisors()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.SUPERVISORS) ? MASTER_LISTS.SUPERVISORS : []);
-    const categories = (typeof MasterDataManager !== 'undefined')
-      ? MasterDataManager.getCategories()
-      : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
+    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getRoutineCategories)
+      ? MasterDataManager.getRoutineCategories()
+      : ((typeof MasterDataManager !== 'undefined') ? MasterDataManager.getCategories() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []));
 
     const activeProfile = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_active_engineer_profile') : null;
     const defaultEng = this.filterEngineer || activeProfile || ((engineers[0] && engineers[0].display) ? engineers[0].display : "Sazzad (50463)");
@@ -1819,9 +1819,24 @@ const MonthlyInputView = {
       return Boolean(vFirst && filterFirst && vFirst === filterFirst);
     };
 
+    // Requirement 1: Separate Projects from Monthly Input
+    // Routine monthly task entry only includes routine engineering tasks.
+    // Strategic projects (Ongoing & Completed Projects) are managed separately in Projects View.
+    const isProjectTask = (t) => {
+      if (!t) return false;
+      if (t.is_project) return true;
+      if (typeof MasterDataManager !== 'undefined' && MasterDataManager.isProjectCategory) {
+        return MasterDataManager.isProjectCategory(t.category);
+      }
+      const c = (t.category || '').toLowerCase().trim();
+      return c === 'project' || c === 'ongoing projects' || c === 'completed projects' || (c.includes('project') && !c.includes('top 5'));
+    };
+
+    const routineTasks = allTasks.filter(t => !isProjectTask(t));
+
     const tasks = this.filterEngineer 
-      ? allTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
-      : allTasks;
+      ? routineTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
+      : routineTasks;
 
     // Fetch tasks currently copied to Executive Management Report for this month
     const mgmtMgr = window.managementReportMgr || (typeof ManagementReportManager !== 'undefined' ? new ManagementReportManager() : null);
@@ -1841,9 +1856,9 @@ const MonthlyInputView = {
       ? MasterDataManager.getEngineers()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
 
-    const categories = typeof MasterDataManager !== 'undefined' 
-      ? MasterDataManager.getCategories() 
-      : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
+    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getRoutineCategories) 
+      ? MasterDataManager.getRoutineCategories() 
+      : ((typeof MasterDataManager !== 'undefined') ? MasterDataManager.getCategories() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []));
 
     const rankingData = workbookMgr.calculatePointsRanking(month);
     const { ranking, totalTasksSum, totalWbsSum, totalActualSum } = rankingData;

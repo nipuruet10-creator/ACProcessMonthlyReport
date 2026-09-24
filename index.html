@@ -91,7 +91,7 @@
           <span class="text-base">📁</span>
           <span>Photo Manager</span>
         </button>
-        <button onclick="App.openCostSavingsModal()" data-tab="cost-savings" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
+        <button onclick="App.switchTab('cost-savings')" data-tab="cost-savings" class="nav-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-semibold transition text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50">
           <span class="text-base">💰</span>
           <span>Cost Savings</span>
         </button>
@@ -196,6 +196,9 @@
       <!-- View 5: Photo Manager Gallery -->
       <div id="photo-manager-view-container" class="view-container hidden"></div>
 
+      <!-- View 5b: Dedicated Full-Page Cost Savings View -->
+      <div id="cost-savings-view-container" class="view-container hidden"></div>
+
       <!-- View 6: Final Report Overrides -->
       <div id="final-report-view-container" class="view-container hidden"></div>
 
@@ -261,6 +264,7 @@
   <script src="report/final_editor_view.js"></script>
   <script src="report/monthly_report_view.js"></script>
   <script src="dashboard/cost_saving_tracker.js"></script>
+  <script src="dashboard/cost_savings_view.js"></script>
   <script src="dashboard/bom_tracker.js"></script>
   <script src="dashboard/project_tracker.js"></script>
   <script src="projects/projects_view.js"></script>
