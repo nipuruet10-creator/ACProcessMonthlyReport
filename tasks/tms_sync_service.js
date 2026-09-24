@@ -47,26 +47,48 @@ const TmsSyncService = {
 
   /**
    * Format dates for Walton TMS (YYYY-MM-DD 12:00:00)
+   * Requirement 1: Assign date is 7 days before today OR 1st of running month.
+   * Deadline is ALWAYS 1 day after the running date (tomorrow).
    */
   getFormattedDates(monthCode) {
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
-    let year = now.getFullYear();
-    let monthNum = now.getMonth() + 1;
+    let targetYear = now.getFullYear();
+    let targetMonthNum = now.getMonth() + 1;
 
     if (monthCode && monthCode.includes('-')) {
       const parts = monthCode.split('-');
       const mStr = parts[0].toUpperCase();
       const yStr = parseInt(parts[1], 10);
-      if (!isNaN(yStr)) year = yStr;
+      if (!isNaN(yStr)) targetYear = yStr;
 
       const mIdx = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"].indexOf(mStr);
-      if (mIdx !== -1) monthNum = mIdx + 1;
+      if (mIdx !== -1) targetMonthNum = mIdx + 1;
     }
 
-    const startDate = `${year}-${pad(monthNum)}-01 12:00:00`;
-    const deadlineDate = `${year}-${pad(monthNum)}-22 12:00:00`;
-    return { startDate, deadlineDate };
+    const isCurrentMonth = (targetYear === now.getFullYear() && targetMonthNum === (now.getMonth() + 1));
+
+    // Deadline: "Deadline always running date er cheye 1 din pore hobe" -> today + 1 day
+    const tomorrow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+    const deadlineDate = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())} 12:00:00`;
+
+    // Assign Date: "Task Assign date aj theke 7 din age or running month er 1 tarik hobe."
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const firstOfTargetMonth = new Date(targetYear, targetMonthNum - 1, 1, 12, 0, 0);
+
+    let assignDateObj;
+    if (isCurrentMonth) {
+      assignDateObj = (sevenDaysAgo < firstOfTargetMonth) ? firstOfTargetMonth : sevenDaysAgo;
+    } else {
+      assignDateObj = firstOfTargetMonth;
+    }
+
+    const startDate = `${assignDateObj.getFullYear()}-${pad(assignDateObj.getMonth() + 1)}-${pad(assignDateObj.getDate())} 12:00:00`;
+
+    const diffMs = Math.abs(tomorrow.getTime() - assignDateObj.getTime());
+    const totalDays = String(Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24))));
+
+    return { startDate, deadlineDate, totalDays };
   },
 
   /**
@@ -132,6 +154,7 @@ const TmsSyncService = {
       taskDetails: task.task_details || `${task.task_name} execution and implementation.`,
       startDate: dates.startDate,
       deadlineDate: dates.deadlineDate,
+      totalDays: dates.totalDays,
       points: (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : 50,
       supervisorId: supId,
       category: task.category || "Process development"
@@ -538,6 +561,7 @@ const TmsSyncService = {
           taskDetails: t.task_details || `${t.task_name} execution and implementation.`,
           startDate: dates.startDate,
           deadlineDate: dates.deadlineDate,
+          totalDays: dates.totalDays,
           points: (t.points !== undefined && t.points !== null && t.points !== "") ? t.points : 50,
           supervisorId: supId,
           category: t.category || "Process development"

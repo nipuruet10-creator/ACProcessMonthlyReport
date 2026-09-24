@@ -164,12 +164,21 @@ const App = {
       if (typeof PhotoManagerView !== 'undefined') await PhotoManagerView.render('photo-manager-view-container');
     } else if (tabId === 'final-report') {
       if (typeof FinalEditorView !== 'undefined') await FinalEditorView.render('final-report-view-container');
+    } else if (tabId === 'cost-savings') {
+      this.openCostSavingsModal();
     } else if (tabId === 'history') {
       if (typeof VersionView !== 'undefined') VersionView.render('history-view-container');
     } else if (tabId === 'master-data') {
       if (typeof MasterDataView !== 'undefined') MasterDataView.render('master-data-view-container');
     } else if (tabId === 'settings') {
       if (typeof SettingsView !== 'undefined') SettingsView.render('settings-view-container');
+    }
+  },
+
+  openCostSavingsModal() {
+    const activeM = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.activeMonth : 'SEP-2026';
+    if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.openCostSavingsModal) {
+      CostSavingTracker.openCostSavingsModal(activeM);
     }
   },
 

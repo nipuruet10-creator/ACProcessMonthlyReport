@@ -1911,9 +1911,9 @@ const MonthlyInputView = {
       const isSel = (this.filterEngineer === e.display || this.filterEngineer === e.display.split(' ')[0]);
       return `
         <button type="button" onclick="MonthlyInputView.handleEngineerFilter('${HELPERS.escapeHtml(e.display)}')" 
-                class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border ${isSel ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
+                class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border flex-shrink-0 ${isSel ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
           <span>👤 ${HELPERS.escapeHtml(e.display)}</span>
-          <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${isSel ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}">${e.count}</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${isSel ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}">${e.count}</span>
         </button>
       `;
     }).join('');
@@ -1989,16 +1989,16 @@ const MonthlyInputView = {
           </div>
         </div>
 
-        <!-- ENGINEERS FILTER PILLS (Requirement 4: Wrapped onto 2nd row for complete visibility) -->
-        <div class="bg-white rounded-2xl p-3 border border-slate-200/90 shadow-xs">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="text-xs font-bold text-slate-700 whitespace-nowrap px-1 flex items-center gap-1">
+        <!-- ENGINEERS FILTER PILLS (Requirement 2: Strictly 1 Single Line Layout) -->
+        <div class="bg-white rounded-2xl p-2.5 border border-slate-200/90 shadow-xs">
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <span class="text-xs font-bold text-slate-700 whitespace-nowrap px-1 flex items-center gap-1 flex-shrink-0">
               <span>👤</span> <span>Engineers:</span>
             </span>
             <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
-                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
+                    class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border flex-shrink-0 ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
               <span>👥 All Personnel</span>
-              <span class="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'}">${allTasks.length}</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'}">${allTasks.length}</span>
             </button>
             ${engineerTabsHtml}
           </div>
@@ -2007,55 +2007,42 @@ const MonthlyInputView = {
         <!-- TASK MANAGEMENT ENTRY GRID CARD (Matching media_1790166211871.jpg) -->
         <div class="bg-white border border-slate-200/90 rounded-3xl overflow-hidden shadow-xs">
           
-          <!-- Card Header Toolbar (Requirement 4: Embedded Month Selector & Toolbar Actions) -->
-          <div class="px-5 py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-lg shadow-sm shadow-blue-500/25 flex-shrink-0">
+          <!-- Card Header Toolbar (Requirement 2: Strictly 1 Single Line Layout) -->
+          <div class="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <div class="flex items-center gap-2.5 flex-shrink-0">
+              <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white text-sm shadow-xs flex-shrink-0">
                 📝
               </div>
-              <div>
-                <h3 class="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>Task Management Entry Grid</span>
-                  <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono text-[11px] font-bold border border-blue-200">${month}</span>
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
+                  Task Management Entry Grid
                 </h3>
-                <p class="text-xs text-slate-400">
-                  Add, edit and manage process development tasks for the selected month
-                </p>
+                <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono text-[10px] font-bold border border-blue-200 whitespace-nowrap">${month}</span>
               </div>
             </div>
 
-            <!-- Header Actions: Month Selector + Tools + Add Row -->
-            <div class="flex items-center gap-2 flex-wrap">
+            <!-- Header Actions: Month Selector + Tools (1 Single Line) -->
+            <div class="flex items-center gap-2 flex-shrink-0 whitespace-nowrap">
               
               <!-- Integrated Month Selector (Running Month + Archive Dropdown) -->
               ${HELPERS.renderMonthSelectorUI(months, month, 'MonthlyInputView.handleMonthSelect', 'MonthlyInputView.openAddMonthModal')}
 
               <!-- Bulk Actions (Dynamic) -->
-              <button id="bulk-copy-mgmt-btn" onclick="MonthlyInputView.copySelectedToManagementReport()" class="hidden px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition items-center gap-1.5">
+              <button id="bulk-copy-mgmt-btn" onclick="MonthlyInputView.copySelectedToManagementReport()" class="hidden px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition items-center gap-1">
                 <span>👔</span> <span>Copy to Mgmt (<span id="selected-mgmt-task-count">0</span>)</span>
               </button>
-              <button id="bulk-delete-btn" onclick="MonthlyInputView.deleteSelectedTasks()" class="hidden px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition items-center gap-1.5">
+              <button id="bulk-delete-btn" onclick="MonthlyInputView.deleteSelectedTasks()" class="hidden px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs transition items-center gap-1">
                 <span>🗑️</span> <span>Delete (<span id="selected-task-count">0</span>)</span>
               </button>
 
               <button onclick="MonthlyInputView.openPasteModal()" title="Copy rows in Excel (Ctrl+C) and click here or press Ctrl+V to bulk paste" 
-                      class="px-3 py-1.5 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-xs font-semibold text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                      class="px-2.5 py-1.5 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-xs font-semibold text-white shadow-xs flex items-center gap-1 transition cursor-pointer">
                 <span>📋</span> <span>Paste Excel</span>
               </button>
 
-              <button onclick="CostSavingTracker.openCostSavingsModal('${month}')" title="Manage Monthly Cost Savings" 
-                      class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-800 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer">
-                <span>💰</span> <span>Cost Savings</span>
-              </button>
-
               <button onclick="MonthlyInputView.generateAllTaskDetails()" title="AI Auto-generate engineering steps for tasks" 
-                      class="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-xs font-semibold text-purple-700 border border-purple-200 transition flex items-center gap-1.5 cursor-pointer">
+                      class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-xs font-semibold text-purple-700 border border-purple-200 transition flex items-center gap-1 cursor-pointer">
                 <span>✨</span> <span>Auto-Fill AI</span>
-              </button>
-
-              <button onclick="MonthlyInputView.addNewRow(true)" title="Insert a new task row" 
-                      class="px-3.5 py-1.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition flex items-center gap-1.5 cursor-pointer">
-                <span>➕</span> <span>Add Row</span>
               </button>
 
               <button onclick="MonthlyInputView.toggleRanking()" title="Toggle Points Ranking Table" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs">
@@ -2191,15 +2178,9 @@ const MonthlyInputView = {
 
           <!-- Bottom Footer (No Pagination Numbers - User Requirement: "entry gulo number deyar dorkar nai. sob gulo ekta page e thakbe.") -->
           <div class="px-5 py-3.5 bg-white border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-              <span id="total-rows-counter" class="text-xs font-semibold text-slate-600 font-mono">
-                Showing all ${tasks.length} tasks
-              </span>
-              <button type="button" onclick="MonthlyInputView.addNewRow(true)" 
-                      class="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 text-xs font-bold rounded-lg transition cursor-pointer">
-                <span>➕ Add Row</span>
-              </button>
-            </div>
+            <span id="total-rows-counter" class="text-xs font-semibold text-slate-600 font-mono">
+              Showing all ${tasks.length} tasks
+            </span>
             <div class="flex items-center gap-2">
               <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 shadow-xs">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

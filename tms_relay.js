@@ -107,19 +107,30 @@ async function createAndCompleteTask(cookie, taskInfo) {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
 
-  // Dates formatting
+  // Dates formatting (Requirement 1: Assign date 7 days ago / 1st of month, Deadline tomorrow)
   let assignDate = taskInfo.startDate;
   if (!assignDate || !assignDate.includes(':')) {
-    const year = now.getFullYear();
-    const month = pad(now.getMonth() + 1);
-    assignDate = `${year}-${month}-01 12:00:00`;
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
+    const assignObj = (sevenDaysAgo < firstOfMonth) ? firstOfMonth : sevenDaysAgo;
+    assignDate = `${assignObj.getFullYear()}-${pad(assignObj.getMonth() + 1)}-${pad(assignObj.getDate())} 12:00:00`;
   }
 
   let deadlineDate = taskInfo.deadlineDate;
   if (!deadlineDate || !deadlineDate.includes(':')) {
-    const year = now.getFullYear();
-    const month = pad(now.getMonth() + 1);
-    deadlineDate = `${year}-${month}-22 12:00:00`;
+    const tomorrow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000);
+    deadlineDate = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())} 12:00:00`;
+  }
+
+  let totalDays = taskInfo.totalDays;
+  if (!totalDays) {
+    try {
+      const aTime = new Date(assignDate.replace(' ', 'T')).getTime();
+      const dTime = new Date(deadlineDate.replace(' ', 'T')).getTime();
+      totalDays = String(Math.max(1, Math.ceil(Math.abs(dTime - aTime) / (1000 * 60 * 60 * 24))));
+    } catch (e) {
+      totalDays = '8';
+    }
   }
 
   const supervisorId = taskInfo.supervisorId ? String(taskInfo.supervisorId).trim() : '44819';
@@ -145,7 +156,7 @@ async function createAndCompleteTask(cookie, taskInfo) {
     task_details: taskInfo.taskDetails || '1. Engineering execution 2. Review and testing 3. Handover to production',
     assign_date: assignDate,
     dead_line_date: deadlineDate,
-    total_days: '21',
+    total_days: totalDays,
     tpoint: points,
     tpoint2: '0',
     emp_id: supervisorId,
