@@ -184,14 +184,24 @@ const FirebaseSyncService = {
 
             // Cross-device photo reconciliation on initial connect
             if (typeof photoManager !== 'undefined') {
+              const isRecentBeforeDelete = localMatch && localMatch._photoDeleted_before && (Date.now() - localMatch._photoDeleted_before < 300000);
+              const isRecentAfterDelete = localMatch && localMatch._photoDeleted_after && (Date.now() - localMatch._photoDeleted_after < 300000);
+              const isLocalBeforeEmpty = localMatch && localMatch.photo_1 === "";
+              const isLocalAfterEmpty = localMatch && localMatch.photo_2 === "";
+
               if (t.photo_1) {
-                photoManager.setTaskPhoto(t.task_id, 'before_photo', t.photo_1, t.photo_1, normMonth);
-              } else if (t.clear_photos) {
+                if (!isRecentBeforeDelete && !isLocalBeforeEmpty && !localMatch?.clear_photos) {
+                  photoManager.setTaskPhoto(t.task_id, 'before_photo', t.photo_1, t.photo_1, normMonth);
+                }
+              } else if (t.clear_photos || isLocalBeforeEmpty) {
                 photoManager.removePhoto(t.task_id, 'before_photo', normMonth);
               }
+
               if (t.photo_2) {
-                photoManager.setTaskPhoto(t.task_id, 'after_photo', t.photo_2, t.photo_2, normMonth);
-              } else if (t.clear_photos) {
+                if (!isRecentAfterDelete && !isLocalAfterEmpty && !localMatch?.clear_photos) {
+                  photoManager.setTaskPhoto(t.task_id, 'after_photo', t.photo_2, t.photo_2, normMonth);
+                }
+              } else if (t.clear_photos || isLocalAfterEmpty) {
                 photoManager.removePhoto(t.task_id, 'after_photo', normMonth);
               }
             }
@@ -322,6 +332,8 @@ const FirebaseSyncService = {
           }
         }
       });
+    }
+
     // 5. Real-time Master Engineers & Passwords Sync
     if (!this._engineersBound) {
       this._engineersBound = true;

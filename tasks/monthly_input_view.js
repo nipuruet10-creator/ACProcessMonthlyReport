@@ -1520,7 +1520,7 @@ const MonthlyInputView = {
   },
 
   renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors, copiedSourceIds = null, copiedNames = null) {
-    const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id) : {};
+    const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id, this.selectedMonth) : {};
     const rawThumb = (photos && (photos.before_photo || photos.photo_1 || photos.after_photo)) || t.photo_1 || t.photo_2;
     const hasPhoto = Boolean(rawThumb);
     const thumb = rawThumb;

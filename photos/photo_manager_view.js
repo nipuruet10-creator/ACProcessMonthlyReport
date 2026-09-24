@@ -149,7 +149,8 @@ const PhotoManagerView = {
 
   async removeSlotPhoto(taskId, slot) {
     if (confirm("Remove this photo?")) {
-      await photoManager.removePhoto(taskId, slot, this.selectedMonth);
+      const month = this.selectedMonth || (window.appState && window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026");
+      await photoManager.removePhoto(taskId, slot, month);
       this.selectedTarget = null;
       if (typeof window.showToast === 'function') {
         window.showToast(`Removed photo from ${taskId}`, "info");
@@ -157,6 +158,9 @@ const PhotoManagerView = {
       await this.render();
       if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
         MonthlyReportView.render();
+      }
+      if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+        MonthlyInputView.render();
       }
     }
   },

@@ -757,19 +757,39 @@ class MonthWorkbookManager {
             if (rt.photo_2) photoManager.setTaskPhoto(rt.task_id, 'after_photo', rt.photo_2, rt.photo_2);
           }
         } else {
+          let needsCloudPushBack = false;
+
           // If remote task has photos and local task or photoManager does not, hydrate!
+          // CRITICAL SAFEGUARD: Never resurrect photos if local user deleted them or cleared photos!
+          const isRecentBeforeDelete = lt._photoDeleted_before && (Date.now() - lt._photoDeleted_before < 300000);
+          const isRecentAfterDelete = lt._photoDeleted_after && (Date.now() - lt._photoDeleted_after < 300000);
+          const isRecentPhotoEdit = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 120000);
+
           if (typeof photoManager !== 'undefined') {
             const currentPhotos = photoManager.getTaskPhotos(rt.task_id);
+
+            // Hydrate before_photo only if remote has it AND local did NOT delete it
             if (rt.photo_1 && (!currentPhotos || !currentPhotos.before_photo)) {
-              photoManager.setTaskPhoto(rt.task_id, 'before_photo', rt.photo_1, rt.photo_1);
-              lt.photo_1 = rt.photo_1;
-              anyChanges = true;
+              if (!isRecentBeforeDelete && !isRecentPhotoEdit && !lt.clear_photos && lt.photo_1 !== "") {
+                photoManager.setTaskPhoto(rt.task_id, 'before_photo', rt.photo_1, rt.photo_1);
+                lt.photo_1 = rt.photo_1;
+                anyChanges = true;
+              } else if (lt.photo_1 === "" || isRecentBeforeDelete || lt.clear_photos) {
+                needsCloudPushBack = true;
+              }
             }
+
+            // Hydrate after_photo only if remote has it AND local did NOT delete it
             if (rt.photo_2 && (!currentPhotos || !currentPhotos.after_photo)) {
-              photoManager.setTaskPhoto(rt.task_id, 'after_photo', rt.photo_2, rt.photo_2);
-              lt.photo_2 = rt.photo_2;
-              anyChanges = true;
+              if (!isRecentAfterDelete && !isRecentPhotoEdit && !lt.clear_photos && lt.photo_2 !== "") {
+                photoManager.setTaskPhoto(rt.task_id, 'after_photo', rt.photo_2, rt.photo_2);
+                lt.photo_2 = rt.photo_2;
+                anyChanges = true;
+              } else if (lt.photo_2 === "" || isRecentAfterDelete || lt.clear_photos) {
+                needsCloudPushBack = true;
+              }
             }
+
             // If remote task has NO photos, and local user didn't attach a photo recently (last 15s), clear ghost photo!
             const isRecentLocalPhoto = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 15000);
             if (!rt.photo_1 && lt.photo_1 && !isRecentLocalPhoto) {
@@ -800,7 +820,6 @@ class MonthWorkbookManager {
             const localTimestamp = lt.last_updated ? new Date(lt.last_updated).getTime() : (lt._lastFieldEditTime || 0);
             const remoteTimestamp = rt.last_updated ? new Date(rt.last_updated).getTime() : 0;
             const isLocalStrictlyNewer = localTimestamp > remoteTimestamp && remoteTimestamp > 0;
-            let needsCloudPushBack = false;
 
             // NON-DESTRUCTIVE MULTI-DEVICE PROTECTION:
             for (const k of Object.keys(rt)) {
@@ -835,8 +854,20 @@ class MonthWorkbookManager {
 
               // 3. PHOTOS PROTECTION:
               if (k === 'photo_1' || k === 'photo_2') {
-                const isRecentLocalPhoto = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 15000);
-                if (!rVal && lVal && isRecentLocalPhoto) {
+                const isBeforeSlot = (k === 'photo_1');
+                const isRecentDelete = isBeforeSlot
+                  ? (lt._photoDeleted_before && (Date.now() - lt._photoDeleted_before < 300000))
+                  : (lt._photoDeleted_after && (Date.now() - lt._photoDeleted_after < 300000));
+                const isRecentPhotoEdit = lt._lastPhotoEditTime && (Date.now() - lt._lastPhotoEditTime < 120000);
+
+                // If remote has photo but local deleted it: DO NOT OVERWRITE LOCAL DELETION!
+                if (rVal && !lVal && (isRecentDelete || isRecentPhotoEdit || lt.clear_photos || lVal === "")) {
+                  needsCloudPushBack = true;
+                  continue;
+                }
+
+                // If local has photo and remote doesn't, but local was recent: keep local!
+                if (!rVal && lVal && isRecentPhotoEdit) {
                   continue;
                 }
               }
@@ -864,15 +895,15 @@ class MonthWorkbookManager {
               lt[k] = rVal;
             }
             anyChanges = true;
+          }
 
-            // If local points or fields were preserved while remote had empty cells, push back to cloud!
-            if (needsCloudPushBack) {
-              if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-                FirebaseSyncService.pushTask(norm, lt);
-              }
-              if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-                GoogleSheetsSync.pushTask(lt);
-              }
+          // If local points, deleted photos, or protected fields need cloud synchronization:
+          if (needsCloudPushBack) {
+            if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+              FirebaseSyncService.pushTask(norm, lt);
+            }
+            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+              GoogleSheetsSync.pushTask(lt);
             }
           }
         }
