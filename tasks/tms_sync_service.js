@@ -7,26 +7,41 @@
 
 const TmsSyncService = {
   RELAY_URL: 'http://127.0.0.1:3138',
+  FALLBACK_RELAY_URLS: ['http://127.0.0.1:3138', 'http://192.168.50.158:3138'],
+  activeRelayUrl: 'http://127.0.0.1:3138',
   isBridgeRunning: false,
   _checkingBridge: false,
 
   /**
-   * Check if local background relay is reachable
+   * Check if local background relay or LAN relay is reachable
    */
   async checkBridgeStatus() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1800);
-      const res = await fetch(`${this.RELAY_URL}/status`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const data = await res.json();
-        this.isBridgeRunning = Boolean(data.status === 'online');
-        return data;
+    const customHost = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_tms_relay_host') : null;
+    const candidates = [
+      customHost,
+      'http://127.0.0.1:3138',
+      'http://192.168.50.158:3138'
+    ].filter(Boolean);
+
+    for (const url of candidates) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1600);
+        const res = await fetch(`${url}/status`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'online') {
+            this.activeRelayUrl = url;
+            this.isBridgeRunning = true;
+            return data;
+          }
+        }
+      } catch (e) {
+        // try next candidate
       }
-    } catch (e) {
-      this.isBridgeRunning = false;
     }
+    this.isBridgeRunning = false;
     return { status: 'offline', relay: 'stopped' };
   },
 
@@ -155,7 +170,7 @@ const TmsSyncService = {
     }
 
     try {
-      const res = await fetch(`${this.RELAY_URL}/sync-task`, {
+      const res = await fetch(`${this.activeRelayUrl || this.RELAY_URL}/sync-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -353,6 +368,8 @@ const TmsSyncService = {
       document.body.appendChild(container);
     }
 
+    const currentBridge = this.activeRelayUrl || 'http://127.0.0.1:3138';
+
     container.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
         <div class="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-7 text-slate-800">
@@ -363,49 +380,80 @@ const TmsSyncService = {
                 ⚡
               </div>
               <div>
-                <h3 class="text-base font-black text-slate-800">Walton TMS Local Bridge Offline</h3>
-                <p class="text-xs text-slate-500">To sync tasks directly to Walton's intranet (192.168.118.138), start the local bridge.</p>
+                <h3 class="text-base font-black text-slate-800">Walton TMS Bridge Connection</h3>
+                <p class="text-xs text-slate-500">To sync tasks directly to Walton Intranet (192.168.118.138), connect to a local or team bridge.</p>
               </div>
             </div>
             <button onclick="TmsSyncService.closeBridgeModal()" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition">✕</button>
           </div>
 
-          <div class="my-4 space-y-3.5 text-xs text-slate-600">
-            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-              <div class="font-bold text-slate-800 flex items-center gap-1.5">
-                <span>1️⃣</span> <span>How to Start the 1-Click Bridge:</span>
+          <div class="my-4 space-y-3 text-xs text-slate-600">
+            
+            <!-- Option 1: Team Shared Bridge (Zero installation for colleagues!) -->
+            <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-2">
+              <div class="font-bold text-blue-900 flex items-center justify-between">
+                <span class="flex items-center gap-1.5"><span>🌐</span> <span>Option 1: Connect to Team Bridge (Sazzad's PC)</span></span>
+                <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-sans font-bold">Fastest</span>
               </div>
-              <p class="text-slate-600">
-                Go to the project folder and double-click:
+              <p class="text-slate-600 text-[11px]">
+                If Sazzad's PC has the bridge running on the office Wi-Fi, you can sync through it without running anything on your PC!
               </p>
-              <div class="bg-white border border-slate-300 rounded-xl p-2.5 font-mono text-[11px] font-bold text-indigo-700 flex items-center justify-between">
-                <span>Run_TMS_Sync_Bridge.bat</span>
-                <span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-sans">Ready to Run</span>
+              <div class="flex items-center gap-2 pt-1">
+                <button type="button" onclick="localStorage.setItem('walton_tms_relay_host', 'http://192.168.50.158:3138'); TmsSyncService.retrySync('${month}', '${task.task_id}')"
+                        class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer">
+                  ⚡ Use Sazzad's Team Bridge (192.168.50.158)
+                </button>
+                <button type="button" onclick="localStorage.removeItem('walton_tms_relay_host'); TmsSyncService.retrySync('${month}', '${task.task_id}')"
+                        class="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs transition cursor-pointer">
+                  Reset to Localhost
+                </button>
               </div>
-              <p class="text-[11px] text-slate-400">
-                The bridge runs quietly on port 3138 and automates login, task creation, and 100% completion in 1.5 seconds!
-              </p>
             </div>
 
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
-              <div class="font-bold text-amber-900 flex items-center gap-1.5">
-                <span>2️⃣</span> <span>Or View Task Details &amp; Manual Credentials:</span>
+            <!-- Option 2: Local 1-Click Bridge -->
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+              <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                <span>💻</span> <span>Option 2: Run Local Bridge on this PC</span>
               </div>
-              <div class="space-y-1 font-mono text-[11px]">
-                <div>• Employee ID: <strong class="text-slate-800">${payload.employeeId}</strong></div>
-                <div>• Password: <strong class="text-slate-800">${payload.password}</strong></div>
-                <div>• Target URL: <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-blue-600 underline">http://192.168.118.138/adm/repo1/mod/tms/login.php</a></div>
+              <p class="text-slate-600 text-[11px]">
+                Go to the project folder and double-click either:
+              </p>
+              <div class="grid grid-cols-2 gap-2 text-[11px] font-mono font-bold">
+                <div class="bg-white border border-slate-300 rounded-xl p-2 text-indigo-700 flex items-center justify-between">
+                  <span>Run_TMS_Sync_Bridge_Silent.vbs</span>
+                  <span class="text-[9px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Silent</span>
+                </div>
+                <div class="bg-white border border-slate-300 rounded-xl p-2 text-indigo-700 flex items-center justify-between">
+                  <span>Run_TMS_Sync_Bridge.bat</span>
+                  <span class="text-[9px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Console</span>
+                </div>
               </div>
             </div>
+
+            <!-- Option 3: Manual Task & Credentials -->
+            <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-1.5">
+              <div class="font-bold text-amber-900 flex items-center justify-between">
+                <span class="flex items-center gap-1.5"><span>🔑</span> <span>Option 3: Manual Login Details</span></span>
+                <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-[11px] text-blue-700 underline font-bold">Open Walton TMS ↗</a>
+              </div>
+              <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-700">
+                <div>ID: <strong class="text-slate-900">${payload.employeeId}</strong></div>
+                <div>Pass: <strong class="text-slate-900">${payload.password}</strong></div>
+              </div>
+            </div>
+
           </div>
 
-          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-            <button onclick="TmsSyncService.closeBridgeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
-              Close
-            </button>
-            <button onclick="TmsSyncService.retrySync('${month}', '${task.task_id}')" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md transition flex items-center gap-1.5">
-              <span>↺</span> <span>Retry Sync</span>
-            </button>
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-[11px] text-slate-400 font-mono">Current: ${currentBridge}</span>
+            <div class="flex items-center gap-2">
+              <button onclick="TmsSyncService.closeBridgeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                Close
+              </button>
+              <button onclick="TmsSyncService.retrySync('${month}', '${task.task_id}')" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md transition flex items-center gap-1.5">
+                <span>↺</span> <span>Retry Sync</span>
+              </button>
+            </div>
           </div>
 
         </div>
@@ -495,7 +543,7 @@ const TmsSyncService = {
           category: t.category || "Process development"
         };
 
-        const res = await fetch(`${this.RELAY_URL}/sync-task`, {
+        const res = await fetch(`${this.activeRelayUrl || this.RELAY_URL}/sync-task`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

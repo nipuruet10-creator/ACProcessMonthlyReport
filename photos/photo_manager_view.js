@@ -35,7 +35,7 @@ const PhotoManagerView = {
     }
 
     try {
-      await photoManager.savePhotoFile(taskId, slot, file);
+      await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated for ${taskId}!`, "success");
       }
@@ -50,7 +50,7 @@ const PhotoManagerView = {
     if (!files || files.length === 0) return;
     const file = files[0];
     try {
-      await photoManager.savePhotoFile(taskId, slot, file);
+      await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated for ${taskId}!`, "success");
       }
@@ -62,7 +62,7 @@ const PhotoManagerView = {
 
   async removeSlotPhoto(taskId, slot) {
     if (confirm("Remove this photo?")) {
-      photoManager.removePhoto(taskId, slot);
+      await photoManager.removePhoto(taskId, slot, this.selectedMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`Removed photo from ${taskId}`, "info");
       }
@@ -111,11 +111,8 @@ const PhotoManagerView = {
 
           <!-- Controls: Month Selector & Concern Engineer Filter -->
           <div class="flex flex-wrap items-center gap-3">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold text-slate-500 font-mono">Month:</span>
-              <select onchange="PhotoManagerView.handleMonthChange(this.value)" class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 font-mono font-bold shadow-sm">
-                ${months.map(m => `<option value="${m}" ${this.selectedMonth === m ? 'selected' : ''}>${m}</option>`).join('')}
-              </select>
+            <div>
+              ${HELPERS.renderMonthSelectorUI(months, this.selectedMonth, 'PhotoManagerView.handleMonthChange', 'MonthlyInputView.openAddMonthModal')}
             </div>
 
             <div class="flex items-center gap-2">
@@ -139,7 +136,7 @@ const PhotoManagerView = {
               No tasks found in ${month}${this.filterEngineer ? ` for ${this.filterEngineer}` : ''}.
             </div>
           ` : tasks.map(t => {
-            const photos = photoManager.getTaskPhotos(t.task_id);
+            const photos = photoManager.getTaskPhotos(t.task_id, month);
             const hasAny = photos.before_photo || photos.after_photo || photos.photo_1;
             return `
               <div class="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-5 flex flex-col justify-between shadow-sm transition">

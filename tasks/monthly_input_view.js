@@ -128,6 +128,11 @@ const MonthlyInputView = {
 
   handleEngineerFilter(engName) {
     this.filterEngineer = engName || "";
+    if (engName && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('walton_active_engineer_profile', engName);
+      } catch (e) {}
+    }
     this.render();
   },
 
@@ -143,11 +148,25 @@ const MonthlyInputView = {
         cleanVal = (value !== '' && value !== null && !isNaN(parseFloat(value))) ? parseFloat(value) : '';
       }
 
-      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { [field]: cleanVal });
+      const patch = { [field]: cleanVal };
+      if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
+        patch.assignee = cleanVal;
+        patch.engineer = cleanVal;
+      }
+
+      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, patch);
 
       // Ultra-Fast Real-time Firebase Sync (Sub-30ms Instant Highway)
       if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
         FirebaseSyncService.updateCell(this.selectedMonth, taskId, field, cleanVal);
+        if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
+          FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'assignee', cleanVal);
+          FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'engineer', cleanVal);
+          const fullTask = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
+          if (fullTask) {
+            FirebaseSyncService.pushTask(this.selectedMonth, fullTask);
+          }
+        }
       }
       
       // If Assignee was changed, re-render immediately so the task transfers to that respective concern engineer's tab!
@@ -224,19 +243,20 @@ const MonthlyInputView = {
       ? MasterDataManager.getCategories()
       : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
 
-    const defaultEng = (engineers[0] && engineers[0].display) ? engineers[0].display : "Sazzad (50463)";
+    const activeProfile = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_active_engineer_profile') : null;
+    const defaultEng = this.filterEngineer || activeProfile || ((engineers[0] && engineers[0].display) ? engineers[0].display : "Sazzad (50463)");
     const defaultSup = (supervisors[0] && supervisors[0].display) ? supervisors[0].display : "Kamrul (44819)";
 
     const newTask = window.appState.workbookMgr.addTask(
       this.selectedMonth,
-      this.filterEngineer || defaultEng,
+      defaultEng,
       "New Engineering Task",
       "YES",
       "",
       "Process development",
       "",
       defaultSup,
-      { last_updated: new Date().toISOString() }
+      { last_updated: new Date().toISOString(), assignee: defaultEng, engineer: defaultEng }
     );
 
     // Guarantee no residual ghost photos attach to the new task row
@@ -1561,7 +1581,8 @@ const MonthlyInputView = {
 
         <!-- Category Dropdown (Soft Blue Pill) -->
         <td class="py-1.5 px-2 text-center border-r border-slate-200 align-middle">
-          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
+          <select id="task-category-select-${t.task_id}" 
+                  onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
                   class="bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-1 text-[11px] font-medium text-center focus:outline-none cursor-pointer max-w-[125px] truncate">
             ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
@@ -1580,7 +1601,8 @@ const MonthlyInputView = {
 
         <!-- Supervisor Dropdown -->
         <td class="py-1.5 px-2 border-r border-slate-200 align-middle">
-          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
+          <select id="task-supervisor-select-${t.task_id}" 
+                  onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'supervisor', this.value)"
                   class="w-full h-8 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2 py-0.5 text-xs text-slate-700 font-medium focus:outline-none cursor-pointer truncate">
             ${supervisors.map(s => {
               const isSel = (currentSup === s.display || currentSup === s.name || (!t.supervisor && s.name === 'Kamrul'));
@@ -1591,11 +1613,13 @@ const MonthlyInputView = {
 
         <!-- Assignee Dropdown -->
         <td class="py-1.5 px-2 border-r border-slate-200 align-middle">
-          <select onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
+          <select id="task-assignee-select-${t.task_id}" 
+                  onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'assignee', this.value)"
                   class="w-full h-8 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2 py-0.5 text-xs text-slate-700 font-bold focus:outline-none cursor-pointer truncate">
             ${engineers.map(e => {
-              const isSel = (currentAssignee === e.display || currentAssignee === e.name);
-              return `<option value="${e.display}" ${isSel ? 'selected' : ''}>${e.display}</option>`;
+              const eDisp = e.display || e.name;
+              const isSel = (currentAssignee === eDisp || currentAssignee === e.name || (t.assignee && (t.assignee.includes(e.name) || t.assignee.includes(e.id))));
+              return `<option value="${eDisp}" ${isSel ? 'selected' : ''}>${eDisp}</option>`;
             }).join('')}
           </select>
         </td>
@@ -2143,14 +2167,39 @@ const MonthlyInputView = {
               <tbody id="monthly-input-tbody" class="divide-y divide-slate-100 text-slate-700 font-sans bg-white">
                 ${tasks.length === 0 ? this._renderEmptyStateHtml(month) : tasks.map((t, idx) => this.renderTaskRowHtml(t, idx, tasks.length, categories, engineers, supervisors, copiedSourceIds, copiedNames)).join('')}
               </tbody>
+              <tfoot class="bg-slate-50/95 border-t-2 border-slate-200">
+                <tr>
+                  <td colspan="11" class="py-2.5 px-4 text-left">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-3">
+                        <button type="button" onclick="MonthlyInputView.addNewRow(true)" 
+                                class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs hover:shadow transition-all duration-150 cursor-pointer">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                          <span>➕ Add Row</span>
+                        </button>
+                        <span class="text-xs text-slate-500 font-medium">Click to append a new task row to the bottom</span>
+                      </div>
+                      <span class="text-xs font-semibold text-slate-500 font-mono">
+                        ${tasks.length} tasks registered
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
           <!-- Bottom Footer (No Pagination Numbers - User Requirement: "entry gulo number deyar dorkar nai. sob gulo ekta page e thakbe.") -->
           <div class="px-5 py-3.5 bg-white border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <span id="total-rows-counter" class="text-xs font-semibold text-slate-600 font-mono">
-              Showing all ${tasks.length} tasks
-            </span>
+            <div class="flex items-center gap-3">
+              <span id="total-rows-counter" class="text-xs font-semibold text-slate-600 font-mono">
+                Showing all ${tasks.length} tasks
+              </span>
+              <button type="button" onclick="MonthlyInputView.addNewRow(true)" 
+                      class="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-300 text-xs font-bold rounded-lg transition cursor-pointer">
+                <span>➕ Add Row</span>
+              </button>
+            </div>
             <div class="flex items-center gap-2">
               <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 shadow-xs">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

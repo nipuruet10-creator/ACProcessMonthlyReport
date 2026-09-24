@@ -474,31 +474,56 @@ const FirebaseSyncService = {
 
       // 4. Category
       else if (field === 'category') {
-        const select = document.querySelector(`select[onchange*="${taskId}'][onchange*="category"]`);
+        const select = document.getElementById(`task-category-select-${taskId}`) ||
+                       document.querySelector(`select[onchange*="${taskId}"][onchange*="category"]`);
         if (select && activeEl !== select) {
-          select.value = task.category || 'Process development';
+          const catVal = task.category || 'Process development';
+          for (let opt of select.options) {
+            if (opt.value.toLowerCase() === catVal.toLowerCase()) {
+              select.value = opt.value;
+              break;
+            }
+          }
           this._flashCell(select);
         }
       }
 
       // 5. Supervisor
       else if (field === 'supervisor') {
-        const select = document.querySelector(`select[onchange*="${taskId}'][onchange*="supervisor"]`);
+        const select = document.getElementById(`task-supervisor-select-${taskId}`) ||
+                       document.querySelector(`select[onchange*="${taskId}"][onchange*="supervisor"]`);
         if (select && activeEl !== select) {
-          select.value = task.supervisor || '';
+          const supVal = task.supervisor || '';
+          for (let opt of select.options) {
+            if (opt.value === supVal || opt.text === supVal || (supVal && opt.value.toLowerCase().includes(supVal.toLowerCase()))) {
+              select.value = opt.value;
+              break;
+            }
+          }
           this._flashCell(select);
         }
       }
 
-      // 6. Assignee
+      // 6. Assignee (Syncs engineer selection across all computers)
       else if (field === 'assignee' || field === 'engineer') {
-        const select = document.querySelector(`select[onchange*="${taskId}'][onchange*="assignee"]`);
+        const select = document.getElementById(`task-assignee-select-${taskId}`) ||
+                       document.querySelector(`select[onchange*="${taskId}"][onchange*="assignee"]`);
         if (select && activeEl !== select) {
-          select.value = task.assignee || task.engineer || '';
+          const val = task.assignee || task.engineer || '';
+          let matched = false;
+          for (let opt of select.options) {
+            if (opt.value === val || opt.text === val || (val && opt.value.toLowerCase().includes(val.toLowerCase()))) {
+              select.value = opt.value;
+              matched = true;
+              break;
+            }
+          }
+          if (!matched && val) select.value = val;
           this._flashCell(select);
         }
-        if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.updateEngineerSummary) {
-          MonthlyInputView.updateEngineerSummary();
+        if (typeof MonthlyInputView !== 'undefined') {
+          if (MonthlyInputView.updateEngineerSummary) MonthlyInputView.updateEngineerSummary();
+          if (MonthlyInputView.filterTableRowsLocally) MonthlyInputView.filterTableRowsLocally();
         }
       }
 

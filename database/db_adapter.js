@@ -18,14 +18,9 @@ class DatabaseAdapter {
    */
   async init() {
     let tasks = HELPERS.storage.get(this.storageKey, null);
-    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-      if (typeof SEED_DATA !== 'undefined' && Array.isArray(SEED_DATA.TASKS)) {
-        console.log("Database empty. Seeding with August 2026 engineering dataset...");
-        tasks = SEED_DATA.TASKS.map(t => TASK_SCHEMA.createTaskRecord(t));
-        HELPERS.storage.set(this.storageKey, tasks);
-      } else {
-        tasks = [];
-      }
+    if (!tasks || !Array.isArray(tasks)) {
+      tasks = [];
+      HELPERS.storage.set(this.storageKey, tasks);
     }
     this.tasksCache = tasks;
     return this.tasksCache;

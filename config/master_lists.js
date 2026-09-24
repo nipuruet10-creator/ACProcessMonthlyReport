@@ -9,7 +9,7 @@
 const DEFAULT_ENGINEERS = [
   { id: "50463", name: "Sazzad", fullName: "Engr. Sazzadul Islam", display: "Sazzad (50463)", email: "sazzad50463@waltonbd.com", tms_password: "Sep@2026" },
   { id: "45127", name: "Rafi", fullName: "Engr. Sajjadul Islam Rafi", display: "Rafi (45127)", email: "rafi45127@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "54634", name: "Faiyaz", fullName: "Engr. Faiyaz", display: "Faiyaz (54634)", email: "faiyaz54634@waltonbd.com", tms_password: "Sep@2026" },
+  { id: "54634", name: "Faiyaz", fullName: "Engr. Faiyaz", display: "Faiyaz (54634)", email: "faiyaz54634@waltonbd.com", tms_password: "619684!Me" },
   { id: "58102", name: "Abdullah", fullName: "Engr. Abdullah Jashim", display: "Abdullah (58102)", email: "abdullah58102@waltonbd.com", tms_password: "Sep@2026" },
   { id: "58279", name: "Emon", fullName: "Engr. Yousof Ahmed Emon", display: "Emon (58279)", email: "emon58279@waltonbd.com", tms_password: "Sep@2026" },
   { id: "56880", name: "Hashmi", fullName: "Engr. Abuzar Hashmi", display: "Hashmi (56880)", email: "hashmi56880@waltonbd.com", tms_password: "Sep@2026" },
@@ -51,10 +51,16 @@ function loadMasterEngineers() {
       if (Array.isArray(parsed) && parsed.length > 0) {
         const filtered = parsed
           .filter(e => !REMOVED_ENGINEER_IDS.has(String(e.id)) && !REMOVED_ENGINEER_NAMES.has(e.name.toLowerCase()))
-          .map(e => ({
-            ...e,
-            tms_password: e.tms_password || "Sep@2026"
-          }));
+          .map(e => {
+            let pass = e.tms_password || "Sep@2026";
+            if (String(e.id) === "54634") {
+              pass = (pass === "Sep@2026" || !pass) ? "619684!Me" : pass;
+            }
+            return {
+              ...e,
+              tms_password: pass
+            };
+          });
         return filtered.length > 0 ? filtered : [...DEFAULT_ENGINEERS];
       }
     }

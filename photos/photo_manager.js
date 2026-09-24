@@ -77,13 +77,23 @@ class PhotoManager {
     this.isReady = true;
   }
 
-  getTaskPhotos(taskId) {
-    const mem = this.photoMap[taskId] || {};
+  getTaskPhotos(taskId, month = null) {
+    let m = month;
+    if (!m && typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
+      m = window.appState.workbookMgr.activeMonth;
+    }
+    if (!m && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.selectedMonth) {
+      m = MonthlyInputView.selectedMonth;
+    }
+    const monthKey = m ? `${m}_${taskId}` : null;
+    const memMonth = monthKey ? this.photoMap[monthKey] : null;
+    const mem = memMonth || this.photoMap[taskId] || {};
+
     let taskP1 = null;
     let taskP2 = null;
     if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
       const wbMgr = window.appState.workbookMgr;
-      const t = wbMgr.getTask(wbMgr.activeMonth, taskId);
+      const t = m ? wbMgr.getTask(m, taskId) : wbMgr.getTask(wbMgr.activeMonth, taskId);
       if (t) {
         taskP1 = t.photo_1 || null;
         taskP2 = t.photo_2 || null;
@@ -103,7 +113,7 @@ class PhotoManager {
    * Compress and save photo file to IndexedDB and sync thumbnail to Google Sheets
    * Full resolution photo stored in IndexedDB; compact thumbnail synced across devices.
    */
-  async savePhotoFile(taskId, slot, file) {
+  async savePhotoFile(taskId, slot, file, month = null) {
     if (!taskId || !file) return null;
 
     let compressedData = "";
@@ -122,20 +132,41 @@ class PhotoManager {
       syncThumbnail = compressedData;
     }
 
-    return this.setTaskPhoto(taskId, slot, compressedData, syncThumbnail);
+    return this.setTaskPhoto(taskId, slot, compressedData, syncThumbnail, month);
   }
 
-  async setTaskPhoto(taskId, slot, base64Url, syncThumbnail = null) {
+  async setTaskPhoto(taskId, slot, base64Url, syncThumbnail = null, month = null) {
+    let m = month;
+    if (!m && typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
+      m = window.appState.workbookMgr.activeMonth;
+    }
+    if (!m && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.selectedMonth) {
+      m = MonthlyInputView.selectedMonth;
+    }
+    const monthKey = m ? `${m}_${taskId}` : null;
+
     if (!this.photoMap[taskId]) {
       this.photoMap[taskId] = { photo_1: null, photo_2: null, before_photo: null, after_photo: null };
     }
     this.photoMap[taskId][slot] = base64Url;
+
+    if (monthKey) {
+      if (!this.photoMap[monthKey]) {
+        this.photoMap[monthKey] = { photo_1: null, photo_2: null, before_photo: null, after_photo: null };
+      }
+      this.photoMap[monthKey][slot] = base64Url;
+    }
 
     // 1. Asynchronously persist to IndexedDB (Gigabytes quota)
     if (typeof PhotoIndexedDB !== 'undefined') {
       PhotoIndexedDB.saveTaskPhotos(taskId, this.photoMap[taskId]).catch(err => {
         console.warn("IndexedDB async save notice:", err);
       });
+      if (monthKey) {
+        PhotoIndexedDB.saveTaskPhotos(monthKey, this.photoMap[monthKey]).catch(err => {
+          console.warn("IndexedDB month async save notice:", err);
+        });
+      }
     }
 
     // 2. Safely update AI Breakdown sheet metadata without saving massive blobs to LocalStorage
@@ -151,8 +182,8 @@ class PhotoManager {
     // 3. Update in-memory active presentation slides without crashing LocalStorage
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.syncEngine) {
-        const month = window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026";
-        const slides = window.appState.syncEngine.getActiveSlides(month);
+        const slideMonth = m || (window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026");
+        const slides = window.appState.syncEngine.getActiveSlides(slideMonth);
         const target = slides.find(s => s.task_id === taskId);
         if (target) {
           if (slot === 'before_photo') target.photo_before = base64Url;
@@ -164,18 +195,18 @@ class PhotoManager {
       console.warn("Active slides memory update notice:", e);
     }
 
-    // 4. Synchronize thumbnail to MonthWorkbookManager & push to Google Sheets!
+    // 4. Synchronize thumbnail to MonthWorkbookManager & push to Google Sheets & Firebase!
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
         const wbMgr = window.appState.workbookMgr;
-        const activeM = wbMgr.activeMonth || "SEP-2026";
-        const allMonths = (wbMgr.getAllMonths && typeof wbMgr.getAllMonths === 'function')
-          ? wbMgr.getAllMonths()
-          : [activeM];
+        const activeM = m || wbMgr.activeMonth || "SEP-2026";
         let targetTask = wbMgr.getTask(activeM, taskId);
         if (!targetTask) {
-          for (const m of allMonths) {
-            const t = wbMgr.getTask(m, taskId);
+          const allMonths = (wbMgr.getAllMonths && typeof wbMgr.getAllMonths === 'function')
+            ? wbMgr.getAllMonths()
+            : [activeM];
+          for (const mon of allMonths) {
+            const t = wbMgr.getTask(mon, taskId);
             if (t) { targetTask = t; break; }
           }
         }
@@ -185,8 +216,15 @@ class PhotoManager {
           
           // ALWAYS preserve full resolution photo locally in targetTask!
           targetTask[photoKey] = base64Url;
+          targetTask._lastPhotoEditTime = Date.now();
+          delete targetTask.clear_photos;
           targetTask.last_updated = new Date().toISOString();
           wbMgr.save();
+
+          // Real-time Firebase Broadcast (syncs uploaded photo immediately to peer laptops!)
+          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+            FirebaseSyncService.pushTask(activeM, targetTask);
+          }
 
           // Push to cloud in background: prefer Google Drive direct CDN link, fallback to sharp thumbnail
           (async () => {
@@ -196,7 +234,6 @@ class PhotoManager {
             }
 
             if (cloudPhotoRef) {
-              // Google Drive successfully stored original photo! Update targetTask with high-res Drive CDN link
               targetTask[photoKey] = cloudPhotoRef;
               targetTask.last_updated = new Date().toISOString();
               wbMgr.save();
@@ -204,7 +241,6 @@ class PhotoManager {
                 GoogleSheetsSync.pushTask(targetTask);
               }
             } else {
-              // Fallback for Google Sheets cell: generate sharp thumbnail fitting in cell
               let th = syncThumbnail;
               if (!th && typeof PhotoStorageProvider !== 'undefined' && PhotoStorageProvider.generateSyncThumbnail) {
                 th = await PhotoStorageProvider.generateSyncThumbnail(base64Url);
@@ -218,29 +254,69 @@ class PhotoManager {
         }
       }
     } catch (syncErr) {
-      console.warn("Photo sync to Google Sheets notice:", syncErr);
+      console.warn("Photo sync notice:", syncErr);
     }
 
     return base64Url;
   }
 
-  async removePhoto(taskId, slot) {
+  async removePhoto(taskId, slot, month = null) {
+    let m = month;
+    if (!m && typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
+      m = window.appState.workbookMgr.activeMonth;
+    }
+    const monthKey = m ? `${m}_${taskId}` : null;
+
     if (this.photoMap[taskId]) {
       this.photoMap[taskId][slot] = null;
       if (typeof PhotoIndexedDB !== 'undefined') {
-        await PhotoIndexedDB.saveTaskPhotos(taskId, this.photoMap[taskId]);
+        PhotoIndexedDB.saveTaskPhotos(taskId, this.photoMap[taskId]).catch(() => {});
+      }
+    }
+    if (monthKey && this.photoMap[monthKey]) {
+      this.photoMap[monthKey][slot] = null;
+      if (typeof PhotoIndexedDB !== 'undefined') {
+        PhotoIndexedDB.saveTaskPhotos(monthKey, this.photoMap[monthKey]).catch(() => {});
       }
     }
 
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.breakdownSheet) {
-        const remaining = this.getTaskPhotos(taskId);
+        const remaining = this.getTaskPhotos(taskId, m);
         const hasAny = remaining.photo_1 || remaining.photo_2 || remaining.before_photo || remaining.after_photo;
         window.appState.breakdownSheet.upsertBreakdown({
           task_id: taskId,
           [slot]: null,
           slide_status: hasAny ? "READY" : "PHOTO PENDING"
         });
+      }
+    } catch (e) {}
+
+    // Also remove from MonthWorkbookManager and push deletion to Firebase
+    try {
+      if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
+        const wbMgr = window.appState.workbookMgr;
+        const activeM = m || wbMgr.activeMonth || "SEP-2026";
+        let targetTask = wbMgr.getTask(activeM, taskId);
+        if (!targetTask) {
+          const allMonths = (wbMgr.getAllMonths && typeof wbMgr.getAllMonths === 'function')
+            ? wbMgr.getAllMonths()
+            : [activeM];
+          for (const mon of allMonths) {
+            const t = wbMgr.getTask(mon, taskId);
+            if (t) { targetTask = t; break; }
+          }
+        }
+        if (targetTask) {
+          const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
+          targetTask[photoKey] = null;
+          targetTask.last_updated = new Date().toISOString();
+          wbMgr.save();
+
+          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+            FirebaseSyncService.pushTask(activeM, targetTask);
+          }
+        }
       }
     } catch (e) {}
 
@@ -262,10 +338,12 @@ class PhotoManager {
         if (targetTask) {
           const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
           targetTask[photoKey] = "";
+          targetTask.clear_photos = true;
+          targetTask._lastPhotoEditTime = 0;
           targetTask.last_updated = new Date().toISOString();
           wbMgr.save();
           if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-            GoogleSheetsSync.pushTask(targetTask);
+            GoogleSheetsSync.pushTask(targetTask, true);
           }
         }
       }

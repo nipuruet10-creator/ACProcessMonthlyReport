@@ -34,48 +34,15 @@ class MonthWorkbookManager {
     // Load full 2026 Production Dataset (Jan 2026 to Aug 2026) directly extracted from Excel
     this.hydrateFromImported2026Dataset();
 
-    // Ensure September 2026 is initialized if not present (preserve user entries)
-    if (!this.workbooks["SEP-2026"] || this.workbooks["SEP-2026"].length === 0) {
-      this.workbooks["SEP-2026"] = this.getDefaultSep2026Tasks();
+    // Ensure September 2026 is initialized if not present (clean empty array, no old dummy data)
+    if (!this.workbooks["SEP-2026"]) {
+      this.workbooks["SEP-2026"] = [];
       this.save();
     }
   }
 
   getDefaultSep2026Tasks() {
-    return [
-      {
-        task_id: "SEP-2026-001",
-        month: "SEP-2026",
-        assignee: "Rafi (45127)",
-        engineer: "Rafi (45127)",
-        supervisor: "Kamrul (44819)",
-        task_name: "Assembly Line Relocation",
-        task_details: "1. Assembly line layout planning & electrical/pneumatic routing design for Assembly Line Relocation 2. Equipment dismantling, structural relocation & precision leveling 3. Power wiring, pneumatic manifold & sensor interlock reconnection 4. Pilot trial production run & line balancing cycle time verification 5. Quality inspection sign-off & official handover to production with SOP",
-        category: "Process extension",
-        points: 50,
-        include_in_report: "YES",
-        status: "Completed",
-        created_at: "2026-09-01T00:00:00.000Z",
-        last_updated: "2026-09-01T00:00:00.000Z",
-        _syncedToCloud: true
-      },
-      {
-        task_id: "SEP-2026-002-PXV",
-        month: "SEP-2026",
-        assignee: "Sazzad (50463)",
-        engineer: "Sazzad (50463)",
-        supervisor: "Kamrul (44819)",
-        task_name: "Compressor Jacket New Die Setup for 18M",
-        task_details: "1. Die mounting, clamping pressure audit & hydraulic cylinder stroke calibration 2. Pilot blanking trial, burr height inspection & sheet metal thickness verification 3. Stamping press die alignment, pilot test stamping & stroke speed timing check 4. Quality assurance inspection, dimensional tolerance sign-off & Cpk capability check 5. Standard operating procedure sign-off & official production line handover",
-        category: "Process development",
-        points: 100,
-        include_in_report: "YES",
-        status: "In Progress",
-        created_at: "2026-09-01T00:00:00.000Z",
-        last_updated: "2026-09-01T00:00:00.000Z",
-        _syncedToCloud: true
-      }
-    ];
+    return []; // Clean empty start - no old dummy data
   }
 
   sanitizeWorkbooks() {
@@ -86,6 +53,18 @@ class MonthWorkbookManager {
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
+        // Filter out legacy dummy mock tasks ("Assembly Line Relocation" or "Compressor Jacket New Die Setup for 18M")
+        const initialCount = this.workbooks[k].length;
+        this.workbooks[k] = this.workbooks[k].filter(t => {
+          if (!t) return false;
+          const nameLower = (t.task_name || '').toLowerCase();
+          if (nameLower.includes("assembly line relocation")) return false;
+          if (nameLower.includes("compressor jacket new die setup")) return false;
+          if (t.task_id === "SEP-2026-001" || t.task_id === "SEP-2026-002-PXV") return false;
+          return true;
+        });
+        if (this.workbooks[k].length !== initialCount) modified = true;
+
         this.workbooks[k].forEach(t => {
           if (!t) return;
           // Auto-repair mistakenly defaulted Sazzad supervisor to Kamrul (44819)
@@ -137,6 +116,8 @@ class MonthWorkbookManager {
     let loadedAny = false;
 
     months.forEach(m => {
+      // Strictly protect running and active months from dataset overwrites
+      if (m === "SEP-2026" || m.includes("2027") || m === this.activeMonth) return;
       const currentTasks = this.workbooks[m] || [];
       const incomingTasks = dataset[m] || [];
 
