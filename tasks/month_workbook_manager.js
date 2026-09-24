@@ -83,35 +83,11 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
-    // Purge deleted legacy dummy task tombstones permanently from all local workbooks
-    const tombstonePatterns = [
-      'compact cassettes',
-      'brazing jig development',
-      '-test',
-      'task entry from new setup',
-      'task 2',
-      'task 3'
-    ];
-    const tombstoneExactIds = ['SEP-2026-002', 'SEP-2026-003', 'SEP-2026-004'];
-    const deletedLegacyIds = [];
-
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        const initialLen = this.workbooks[k].length;
-        this.workbooks[k] = this.workbooks[k].filter(t => {
-          if (!t || !t.task_id || !String(t.task_id).trim()) return false;
-          const name = String(t.task_name || '').trim().toLowerCase();
-          const id = String(t.task_id || '').trim();
-          const idLower = id.toLowerCase();
-          
-          const isExactLegacyId = tombstoneExactIds.includes(id);
-          const isTombstone = isExactLegacyId || tombstonePatterns.some(p => name === p || name.includes(p) || idLower.includes(p));
-          
-          if (isTombstone) {
-            deletedLegacyIds.push(t.task_id);
-            return false;
-          }
+        this.workbooks[k].forEach(t => {
+          if (!t) return;
           // Auto-repair mistakenly defaulted Sazzad supervisor to Kamrul (44819)
           if (t.supervisor) {
             const supLower = String(t.supervisor).toLowerCase();
@@ -120,11 +96,7 @@ class MonthWorkbookManager {
               modified = true;
             }
           }
-          return true;
         });
-        if (this.workbooks[k].length !== initialLen) {
-          modified = true;
-        }
       }
 
       if (norm !== k) {
@@ -144,27 +116,6 @@ class MonthWorkbookManager {
         modified = true;
       }
     });
-
-    if (deletedLegacyIds.length > 0) {
-      try {
-        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        deletedLegacyIds.forEach(id => {
-          if (!deleted.includes(id)) deleted.push(id);
-        });
-        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
-      } catch (e) {}
-
-      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
-        try {
-          const q = GoogleSheetsSync.getPendingQueue();
-          const delSet = new Set(deletedLegacyIds);
-          const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && delSet.has(item.payload.task_id)));
-          if (cleanQ.length !== q.length) {
-            GoogleSheetsSync.savePendingQueue(cleanQ);
-          }
-        } catch (e) {}
-      }
-    }
 
     if (modified) {
       this.save();
@@ -291,10 +242,7 @@ class MonthWorkbookManager {
   getAllMonths() {
     const monthOrder = { "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12 };
     const defaultMonths = [
-      // 2025 Months
-      "JAN-2025", "FEB-2025", "MAR-2025", "APR-2025", "MAY-2025", "JUN-2025",
-      "JUL-2025", "AUG-2025", "SEP-2025", "OCT-2025", "NOV-2025", "DEC-2025",
-      // 2026 Months
+      // 2026 Months (Starts from January 2026 as required)
       "JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026",
       "JUL-2026", "AUG-2026", "SEP-2026", "OCT-2026", "NOV-2026", "DEC-2026",
       // 2027 Months
@@ -799,7 +747,7 @@ class MonthWorkbookManager {
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
 
-        // Always suppress tasks deleted on this device
+        // Suppress tasks deleted on this device if present locally
         if (deletedIds.includes(rt.task_id)) {
           if (localMap.has(rt.task_id)) {
             const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
@@ -808,19 +756,6 @@ class MonthWorkbookManager {
               localMap.delete(rt.task_id);
               anyChanges = true;
             }
-          }
-          // Ensure cloud deletes any residual copies too
-          if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
-            try {
-              const res = GoogleSheetsSync.deleteTask(rt.task_id, norm);
-              if (res && typeof res.catch === 'function') res.catch(() => {});
-            } catch (e) {}
-          }
-          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
-            try {
-              const res = FirebaseSyncService.deleteTask(norm, rt.task_id);
-              if (res && typeof res.catch === 'function') res.catch(() => {});
-            } catch (e) {}
           }
           return;
         }

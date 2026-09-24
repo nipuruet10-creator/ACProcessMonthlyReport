@@ -61,6 +61,10 @@ const FirebaseSyncService = {
    * Initialize Firebase Engine
    */
   init(forceReinit = false) {
+    try {
+      localStorage.removeItem('walton_deleted_task_ids');
+    } catch (e) {}
+
     const config = this.getConfig();
     if (!config || !config.databaseURL) {
       this.status = 'NOT_CONFIGURED';
@@ -148,12 +152,11 @@ const FirebaseSyncService = {
       } catch (e) {}
 
       if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
-        // Auto-heal and filter out any tombstoned / locally deleted tasks
+        // Auto-heal tasks loaded from Firebase
         const remoteTasks = [];
         for (const [key, t] of Object.entries(fbData)) {
           if (!t || typeof t !== 'object') continue;
           if (!t.task_id) t.task_id = key; // Auto-heal missing task_id from Firebase key
-          if (deletedSet.has(t.task_id)) continue;
 
           // Auto-repair supervisor to Kamrul (44819)
           if (!t.supervisor || String(t.supervisor).toLowerCase().includes('sazzad') || String(t.supervisor).includes('50463')) {
@@ -176,28 +179,19 @@ const FirebaseSyncService = {
             this.updateCell(normMonth, t.task_id, 'points', t.points);
           }
 
-          if (t.task_name) {
+          if (t.task_name && String(t.task_name).trim()) {
             remoteTasks.push(t);
           }
         }
 
         remoteTasks.sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
 
-        // Actively purge any zombie tasks found in Firebase that were previously deleted locally
-        Object.entries(fbData).forEach(([key, t]) => {
-          const taskId = (t && t.task_id) ? t.task_id : key;
-          if (taskId && deletedSet.has(taskId)) {
-            console.log(`🔥 [Firebase Hydration] Purging zombie task from cloud: ${taskId}`);
-            this.deleteTask(normMonth, taskId);
-          }
-        });
-
         const changed = wbMgr.mergeFromCloud({ [normMonth]: remoteTasks }, false);
 
         // Check if local has active tasks that Firebase is missing or incomplete
         const localTasks = wbMgr.getTasksForMonth(normMonth);
         const missingOrIncomplete = localTasks.filter(lt => {
-          if (deletedSet.has(lt.task_id)) return false;
+          if (!lt || !lt.task_name) return false;
           const fbItem = fbData[lt.task_id];
           return !fbItem || !fbItem.task_name;
         });
@@ -264,16 +258,6 @@ const FirebaseSyncService = {
         task.supervisor = 'Kamrul (44819)';
       }
 
-      // Check tombstone: if this task was deleted, ignore and purge from Firebase
-      try {
-        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        if (deleted.includes(task.task_id)) {
-          console.log(`🔥 [Firebase child_added] Blocked zombie resurrection of deleted task: ${task.task_id}`);
-          this.deleteTask(normMonth, task.task_id);
-          return;
-        }
-      } catch (e) {}
-
       this._handleRemoteTaskAdded(normMonth, task);
     });
 
@@ -287,16 +271,6 @@ const FirebaseSyncService = {
       if (!task.supervisor || String(task.supervisor).toLowerCase().includes('sazzad') || String(task.supervisor).includes('50463')) {
         task.supervisor = 'Kamrul (44819)';
       }
-
-      // Check tombstone: if deleted, do not update or revive
-      try {
-        const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        if (deleted.includes(task.task_id)) {
-          console.log(`🔥 [Firebase child_changed] Blocked zombie task: ${task.task_id}`);
-          this.deleteTask(normMonth, task.task_id);
-          return;
-        }
-      } catch (e) {}
 
       this._handleRemoteTaskChanged(normMonth, task);
     });
@@ -358,16 +332,6 @@ const FirebaseSyncService = {
   _handleRemoteTaskAdded(month, task) {
     if (!window.appState || !window.appState.workbookMgr) return;
     if (!task || !task.task_id) return;
-
-    // Check tombstone - never add back deleted task
-    try {
-      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      if (deleted.includes(task.task_id)) {
-        console.log(`🔥 [Firebase _handleRemoteTaskAdded] Suppressed deleted task: ${task.task_id}`);
-        this.deleteTask(month, task.task_id);
-        return;
-      }
-    } catch (e) {}
 
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);

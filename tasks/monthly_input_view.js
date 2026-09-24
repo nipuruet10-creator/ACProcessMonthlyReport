@@ -1492,7 +1492,11 @@ const MonthlyInputView = {
     const kpiWbs = document.getElementById('kpi-total-wbs-val');
     if (kpiWbs) kpiWbs.textContent = totalWbsSum;
     const kpiTop = document.getElementById('kpi-top-engineer-val');
-    if (kpiTop && ranking.length > 0) kpiTop.textContent = `${ranking[0].name} (${ranking[0].total_point} pts)`;
+    const kpiTopPts = document.getElementById('kpi-top-points-val');
+    if (ranking.length > 0) {
+      if (kpiTop) kpiTop.textContent = ranking[0].name;
+      if (kpiTopPts) kpiTopPts.innerHTML = `<span>⚡</span> <span>${ranking[0].total_point} Points</span>`;
+    }
   },
 
   renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors, copiedSourceIds = null, copiedNames = null) {
@@ -1893,78 +1897,112 @@ const MonthlyInputView = {
     container.innerHTML = `
       <div class="space-y-4 text-slate-800">
         
-        <!-- 4 TOP KPI CARDS (Matching media_1790166211871.jpg) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Card 1: Total Engineers -->
-          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-[#2563EB] flex items-center justify-center text-white text-xl shadow-md shadow-blue-500/25 flex-shrink-0">
-                📋
-              </div>
-              <div>
-                <div class="text-xs font-semibold text-slate-500">Total Engineers</div>
-                <div class="text-2xl font-black text-slate-900 font-mono tracking-tight" id="kpi-total-engineers-val">${totalEngineersCount}</div>
-                <div class="text-[11px] text-slate-400 font-medium">Active Personnel</div>
-              </div>
+        <!-- EXECUTIVE MONTH SELECTOR & QUICK BAR (Requirement 2: Positioned directly above task points) -->
+        <div class="bg-white rounded-2xl px-5 py-3 border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📅</span> <span>Month:</span>
+            </span>
+            <div class="relative inline-flex items-center">
+              <select onchange="MonthlyInputView.handleMonthSelect(this.value)" class="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold font-mono rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer pr-7 shadow-2xs">
+                ${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${m} ${m === month ? '(Active)' : ''}</option>`).join('')}
+              </select>
+              <span class="absolute right-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
             </div>
-            <div class="text-slate-200 text-3xl font-light">👥</div>
+            <button onclick="MonthlyInputView.openAddMonthModal()" title="Add / Create New Month" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold shadow-xs transition cursor-pointer">
+              <span>➕</span> <span>Add Month</span>
+            </button>
           </div>
-
-          <!-- Card 2: Total Tasks -->
-          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-[#10B981] flex items-center justify-center text-white text-xl shadow-md shadow-emerald-500/25 flex-shrink-0">
-                📑
-              </div>
-              <div>
-                <div class="text-xs font-semibold text-slate-500">Total Tasks</div>
-                <div class="text-2xl font-black text-slate-900 font-mono tracking-tight" id="kpi-total-tasks-val">${allTasks.length}</div>
-                <div class="text-[11px] text-slate-400 font-medium">Assigned for ${month}</div>
-              </div>
-            </div>
-            <div class="text-emerald-300 text-3xl">✔</div>
-          </div>
-
-          <!-- Card 3: Total Actual Points -->
-          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-[#8B5CF6] flex items-center justify-center text-white text-xl shadow-md shadow-purple-500/25 flex-shrink-0">
-                ⭐
-              </div>
-              <div>
-                <div class="text-xs font-semibold text-slate-500">Total Actual Points</div>
-                <div class="text-2xl font-black text-slate-900 font-mono tracking-tight" id="kpi-total-points-val">${totalActualSum}</div>
-                <div class="text-[11px] text-slate-400 font-medium">Out of ${totalWbsSum} WBS Pts</div>
-              </div>
-            </div>
-            <div class="text-purple-300 text-3xl">📊</div>
-          </div>
-
-          <!-- Card 4: Top Performer -->
-          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-2xl bg-[#F97316] flex items-center justify-center text-white text-xl shadow-md shadow-orange-500/25 flex-shrink-0">
-                🏆
-              </div>
-              <div>
-                <div class="text-xs font-semibold text-slate-500">Top Performer</div>
-                <div class="text-base font-black text-slate-900 truncate max-w-[140px]" id="kpi-top-engineer-val" title="${topPerformerName}">${topPerformerName}</div>
-                <div class="text-[11px] text-orange-600 font-bold" id="kpi-top-points-val">${topPerformerPts} Points</div>
-              </div>
-            </div>
-            <div class="text-amber-400 text-3xl">👑</div>
+          <div class="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono text-[11px]">
+              <span>Active:</span> <span class="font-bold text-blue-600">${month}</span>
+            </span>
+            <span class="text-slate-300">|</span>
+            <span class="text-slate-500 text-xs font-mono">${allTasks.length} tasks registered</span>
           </div>
         </div>
 
-        <!-- ENGINEERS FILTER PILLS (Matching media_1790166211871.jpg) -->
-        <div class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin">
-          <span class="text-xs font-bold text-slate-700 whitespace-nowrap pl-1">Engineers:</span>
-          <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
-                  class="px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
-            <span>👥 All Personnel</span>
-            <span class="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}">${allTasks.length}</span>
-          </button>
-          ${engineerTabsHtml}
+        <!-- REDESIGNED EXECUTIVE PERFORMANCE SUMMARY STRIP (Requirement 3: Distinctive, clean, un-truncated layout) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <!-- Card 1: Total Engineers -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-blue-300 shadow-xs transition flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-lg shadow-2xs flex-shrink-0">
+                👥
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Engineers</div>
+                <div class="text-2xl font-black text-slate-900 font-mono leading-none tracking-tight my-0.5" id="kpi-total-engineers-val">${totalEngineersCount}</div>
+                <div class="text-[11px] text-slate-500 font-medium">Active Personnel</div>
+              </div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-100 flex-shrink-0">Staff</span>
+          </div>
+
+          <!-- Card 2: Total Tasks -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-emerald-300 shadow-xs transition flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-lg shadow-2xs flex-shrink-0">
+                📑
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Tasks</div>
+                <div class="text-2xl font-black text-slate-900 font-mono leading-none tracking-tight my-0.5" id="kpi-total-tasks-val">${allTasks.length}</div>
+                <div class="text-[11px] text-slate-500 font-medium">Registered for ${month}</div>
+              </div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-100 flex-shrink-0">Active</span>
+          </div>
+
+          <!-- Card 3: Total Actual Points -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-purple-300 shadow-xs transition flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 text-lg shadow-2xs flex-shrink-0">
+                🎯
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actual Task Points</div>
+                <div class="text-2xl font-black text-purple-700 font-mono leading-none tracking-tight my-0.5" id="kpi-total-points-val">${totalActualSum}</div>
+                <div class="text-[11px] text-slate-500 font-medium">Target: ${totalWbsSum} WBS Pts</div>
+              </div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold border border-purple-100 flex-shrink-0">Points</span>
+          </div>
+
+          <!-- Card 4: Top Performer (Zero Truncation, Full Name & Points Display) -->
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-amber-300 shadow-xs transition flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-lg shadow-2xs flex-shrink-0">
+                👑
+              </div>
+              <div class="min-w-0 flex-1 pr-1">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <span>Top Performer</span>
+                  <span class="text-[10px] text-amber-600">★</span>
+                </div>
+                <div class="text-sm font-black text-slate-900 leading-snug my-0.5 whitespace-normal break-words" id="kpi-top-engineer-val" title="${topPerformerName}">${topPerformerName}</div>
+                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-black border border-amber-200 shadow-2xs" id="kpi-top-points-val">
+                  <span>⚡</span> <span>${topPerformerPts} Points</span>
+                </div>
+              </div>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200 flex-shrink-0">Rank #1</span>
+          </div>
+        </div>
+
+        <!-- ENGINEERS FILTER PILLS (Requirement 4: Wrapped onto 2nd row for complete visibility) -->
+        <div class="bg-white rounded-2xl p-3 border border-slate-200/90 shadow-xs">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-bold text-slate-700 whitespace-nowrap px-1 flex items-center gap-1">
+              <span>👤</span> <span>Engineers:</span>
+            </span>
+            <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
+              <span>👥 All Personnel</span>
+              <span class="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'}">${allTasks.length}</span>
+            </button>
+            ${engineerTabsHtml}
+          </div>
         </div>
 
         <!-- TASK MANAGEMENT ENTRY GRID CARD (Matching media_1790166211871.jpg) -->
@@ -2094,8 +2132,8 @@ const MonthlyInputView = {
               <colgroup>
                 <col style="width: 32px;">   <!-- Checkbox -->
                 <col style="width: 38px;">   <!-- SL (#) -->
-                <col style="width: 28%;">    <!-- Task Name -->
-                <col style="width: 25%;">    <!-- Task Details -->
+                <col style="width: 34%;">    <!-- Task Name (Expanded for readability) -->
+                <col style="width: 18%;">    <!-- Task Details (Requirement 5: Reduced width as requested) -->
                 <col style="width: 130px;">  <!-- Category -->
                 <col style="width: 60px;">   <!-- Point -->
                 <col style="width: 135px;">  <!-- Supervisor -->
