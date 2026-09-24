@@ -258,6 +258,9 @@ const MasterDataManager = {
     } catch (e) {
       console.error("Failed to save master engineers:", e);
     }
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.pushMasterEngineers) {
+      FirebaseSyncService.pushMasterEngineers(MASTER_LISTS.ENGINEERS);
+    }
   },
 
   getCategories() {

@@ -53,18 +53,6 @@ class MonthWorkbookManager {
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        // Filter out legacy dummy mock tasks ("Assembly Line Relocation" or "Compressor Jacket New Die Setup for 18M")
-        const initialCount = this.workbooks[k].length;
-        this.workbooks[k] = this.workbooks[k].filter(t => {
-          if (!t) return false;
-          const nameLower = (t.task_name || '').toLowerCase();
-          if (nameLower.includes("assembly line relocation")) return false;
-          if (nameLower.includes("compressor jacket new die setup")) return false;
-          if (t.task_id === "SEP-2026-001" || t.task_id === "SEP-2026-002-PXV") return false;
-          return true;
-        });
-        if (this.workbooks[k].length !== initialCount) modified = true;
-
         this.workbooks[k].forEach(t => {
           if (!t) return;
           // Auto-repair mistakenly defaulted Sazzad supervisor to Kamrul (44819)

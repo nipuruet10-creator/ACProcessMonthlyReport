@@ -322,9 +322,43 @@ const FirebaseSyncService = {
           }
         }
       });
+    // 5. Real-time Master Engineers & Passwords Sync
+    if (!this._engineersBound) {
+      this._engineersBound = true;
+      this.db.ref('walton_monthly_report/master_engineers').on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (Array.isArray(val) && val.length > 0 && typeof MASTER_LISTS !== 'undefined') {
+          val.forEach(remoteEng => {
+            const local = MASTER_LISTS.ENGINEERS.find(e => String(e.id) === String(remoteEng.id));
+            if (local) {
+              if (remoteEng.tms_password) local.tms_password = remoteEng.tms_password;
+              if (remoteEng.name) local.name = remoteEng.name;
+              if (remoteEng.fullName) local.fullName = remoteEng.fullName;
+              if (remoteEng.display) local.display = remoteEng.display;
+            } else {
+              MASTER_LISTS.ENGINEERS.push(remoteEng);
+            }
+          });
+          try {
+            localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
+          } catch (e) {}
+        }
+      });
     }
 
     console.log(`🔥 Firebase listening to real-time changes for ${normMonth}`);
+  },
+
+  /**
+   * Push master engineers and TMS credentials to Firebase
+   */
+  pushMasterEngineers(engineers) {
+    if (!this.db || !Array.isArray(engineers)) return;
+    try {
+      this.db.ref('walton_monthly_report/master_engineers').set(engineers);
+    } catch (e) {
+      console.warn("Firebase pushMasterEngineers notice:", e);
+    }
   },
 
   /**

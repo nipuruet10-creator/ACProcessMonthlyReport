@@ -1584,7 +1584,7 @@ const MonthlyInputView = {
           <select id="task-category-select-${t.task_id}" 
                   onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
                   class="bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-1 text-[11px] font-medium text-center focus:outline-none cursor-pointer max-w-[125px] truncate">
-            ${categories.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            ${((t.category && !categories.includes(t.category)) ? [t.category, ...categories] : categories).map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
         </td>
 
@@ -1819,24 +1819,10 @@ const MonthlyInputView = {
       return Boolean(vFirst && filterFirst && vFirst === filterFirst);
     };
 
-    // Requirement 1: Separate Projects from Monthly Input
-    // Routine monthly task entry only includes routine engineering tasks.
-    // Strategic projects (Ongoing & Completed Projects) are managed separately in Projects View.
-    const isProjectTask = (t) => {
-      if (!t) return false;
-      if (t.is_project) return true;
-      if (typeof MasterDataManager !== 'undefined' && MasterDataManager.isProjectCategory) {
-        return MasterDataManager.isProjectCategory(t.category);
-      }
-      const c = (t.category || '').toLowerCase().trim();
-      return c === 'project' || c === 'ongoing projects' || c === 'completed projects' || (c.includes('project') && !c.includes('top 5'));
-    };
-
-    const routineTasks = allTasks.filter(t => !isProjectTask(t));
-
+    // Ensure all tasks entered for this month are visible in the Task Management Entry Grid (Never hide tasks!)
     const tasks = this.filterEngineer 
-      ? routineTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
-      : routineTasks;
+      ? allTasks.filter(t => isMatch(t.assignee) || isMatch(t.engineer)) 
+      : allTasks;
 
     // Fetch tasks currently copied to Executive Management Report for this month
     const mgmtMgr = window.managementReportMgr || (typeof ManagementReportManager !== 'undefined' ? new ManagementReportManager() : null);
