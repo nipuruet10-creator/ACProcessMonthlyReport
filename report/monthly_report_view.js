@@ -203,6 +203,15 @@ const MonthlyReportView = {
       const activeSlides = window.appState && window.appState.syncEngine
         ? window.appState.syncEngine.getActiveSlides(month)
         : [];
+      if (typeof photoManager !== 'undefined') {
+        activeSlides.forEach(s => {
+          const p = photoManager.getTaskPhotos(s.task_id, month);
+          s.photo_before = p.before_photo || null;
+          s.photo_after = p.after_photo || null;
+          s.photo = p.before_photo || p.after_photo || null;
+          s.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+        });
+      }
       SlidePreviewModal.openFullDeck({ month, slides: activeSlides });
     } else {
       ExportController.exportHTML(month);
@@ -239,6 +248,17 @@ const MonthlyReportView = {
         photo_after: t.photo_after || null,
         has_manual_override: false
       }));
+    }
+
+    // Dynamic Photo Binding: Always pull 100% current fresh photos from photoManager
+    if (typeof photoManager !== 'undefined') {
+      activeSlides.forEach(s => {
+        const p = photoManager.getTaskPhotos(s.task_id, month);
+        s.photo_before = p.before_photo || null;
+        s.photo_after = p.after_photo || null;
+        s.photo = p.before_photo || p.after_photo || null;
+        s.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+      });
     }
 
     // Filter by engineer if selected

@@ -65,9 +65,9 @@ const PhotoViewModal = {
   },
 
   _renderModalContent(container, task, monthTasks = []) {
-    const photos = (this.activeTaskId && typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(this.activeTaskId) : {};
-    const beforePhoto = photos.before_photo || "";
-    const afterPhoto = photos.after_photo || photos.photo_1 || "";
+    const photos = (this.activeTaskId && typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(this.activeTaskId, this.activeMonth) : {};
+    const beforePhoto = photos.before_photo || photos.photo_1 || "";
+    const afterPhoto = photos.after_photo || photos.photo_2 || "";
 
     container.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-md">
@@ -282,7 +282,7 @@ const PhotoViewModal = {
     }
 
     try {
-      await photoManager.savePhotoFile(this.activeTaskId, slot, file);
+      await photoManager.savePhotoFile(this.activeTaskId, slot, file, this.activeMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated!`, "success");
       }
@@ -297,7 +297,7 @@ const PhotoViewModal = {
     if (!files || files.length === 0) return;
     const file = files[0];
     try {
-      await photoManager.savePhotoFile(this.activeTaskId, slot, file);
+      await photoManager.savePhotoFile(this.activeTaskId, slot, file, this.activeMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated!`, "success");
       }
@@ -309,7 +309,7 @@ const PhotoViewModal = {
 
   async deletePhoto(slot) {
     if (confirm(`Are you sure you want to delete the ${slot === 'before_photo' ? 'Before' : 'After'} photo?`)) {
-      await photoManager.removePhoto(this.activeTaskId, slot);
+      await photoManager.removePhoto(this.activeTaskId, slot, this.activeMonth);
       if (typeof window.showToast === 'function') {
         window.showToast("Photo deleted", "info");
       }
@@ -318,12 +318,15 @@ const PhotoViewModal = {
   },
 
   refreshUI() {
-    this.open(this.activeTaskId);
+    this.open(this.activeTaskId, this.activeMonth);
     if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
       MonthlyInputView.render();
     }
     if (typeof PhotoManagerView !== 'undefined' && PhotoManagerView.render) {
       PhotoManagerView.render();
+    }
+    if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+      MonthlyReportView.render();
     }
   }
 };

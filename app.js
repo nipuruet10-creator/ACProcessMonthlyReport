@@ -64,6 +64,7 @@ const App = {
       syncEngine,
       switchTab: (t) => App.switchTab(t),
       get activeTab() { return App.currentTab; },
+      get currentTab() { return App.currentTab; },
       get monthlyInputView() { return typeof MonthlyInputView !== 'undefined' ? MonthlyInputView : null; },
       get dashboardView() { return typeof DashboardController !== 'undefined' ? DashboardController : null; }
     };

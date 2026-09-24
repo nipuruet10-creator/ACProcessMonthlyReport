@@ -68,12 +68,16 @@ const PhotoManagerView = {
             const ext = imageType.split('/')[1] || 'png';
             const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: imageType });
             await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
+            this.selectedTarget = null;
             
             const slotName = slot === 'before_photo' ? 'Before (Present)' : 'After (Project)';
             if (typeof window.showToast === 'function') {
               window.showToast(`✅ Successfully pasted into ${slotName} for ${taskId}!`, "success");
             }
             await this.render();
+            if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+              MonthlyReportView.render();
+            }
             return;
           }
         }
@@ -111,10 +115,14 @@ const PhotoManagerView = {
 
     try {
       await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
+      this.selectedTarget = null;
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated for ${taskId}!`, "success");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
     } catch (err) {
       alert("Photo upload failed: " + err.message);
     }
@@ -126,10 +134,14 @@ const PhotoManagerView = {
     const file = files[0];
     try {
       await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
+      this.selectedTarget = null;
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 ${slot === 'before_photo' ? 'Before' : 'After'} photo updated for ${taskId}!`, "success");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
     } catch (err) {
       alert("Photo upload failed: " + err.message);
     }
@@ -138,10 +150,14 @@ const PhotoManagerView = {
   async removeSlotPhoto(taskId, slot) {
     if (confirm("Remove this photo?")) {
       await photoManager.removePhoto(taskId, slot, this.selectedMonth);
+      this.selectedTarget = null;
       if (typeof window.showToast === 'function') {
         window.showToast(`Removed photo from ${taskId}`, "info");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
     }
   },
 
@@ -546,7 +562,9 @@ const PhotoManagerView = {
       }
 
       if (!target) {
-        if (typeof window.showToast === 'function') {
+        const isPhotoView = Boolean(document.getElementById('photo-manager-view-container') && !document.getElementById('photo-manager-view-container').classList.contains('hidden'));
+        const isModalOpen = Boolean(window.photoViewModal && photoViewModal.isOpen);
+        if ((isPhotoView || isModalOpen) && typeof window.showToast === 'function') {
           window.showToast("⚠️ Please click on a Before or After photo box first to select where to paste the image!", "warning");
         }
         return;
@@ -556,12 +574,16 @@ const PhotoManagerView = {
         event.preventDefault();
         try {
           await photoManager.savePhotoFile(target.taskId, target.slot, imageFile, this.selectedMonth);
+          this.selectedTarget = null;
           const slotLabel = target.slot === 'before_photo' ? 'Before (Present)' : 'After (Project)';
           if (typeof window.showToast === 'function') {
             window.showToast(`✅ Pasted photo into ${slotLabel} Photo for task ${target.taskId}!`, "success");
           }
           if (document.getElementById('photo-manager-view-container')) {
             await this.render();
+          }
+          if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+            MonthlyReportView.render();
           }
           if (window.photoViewModal && photoViewModal.isOpen) {
             photoViewModal.open(target.taskId);

@@ -136,6 +136,7 @@ class PhotoManager {
   }
 
   async setTaskPhoto(taskId, slot, base64Url, syncThumbnail = null, month = null) {
+    if (!taskId || !base64Url) return null;
     let m = month;
     if (!m && typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
       m = window.appState.workbookMgr.activeMonth;
@@ -144,17 +145,33 @@ class PhotoManager {
       m = MonthlyInputView.selectedMonth;
     }
     const monthKey = m ? `${m}_${taskId}` : null;
+    const isBefore = (slot === 'before_photo' || slot === 'photo_1');
+    const isAfter = (slot === 'after_photo' || slot === 'photo_2');
 
     if (!this.photoMap[taskId]) {
       this.photoMap[taskId] = { photo_1: null, photo_2: null, before_photo: null, after_photo: null };
     }
-    this.photoMap[taskId][slot] = base64Url;
+    if (isBefore) {
+      this.photoMap[taskId].before_photo = base64Url;
+      this.photoMap[taskId].photo_1 = base64Url;
+    }
+    if (isAfter) {
+      this.photoMap[taskId].after_photo = base64Url;
+      this.photoMap[taskId].photo_2 = base64Url;
+    }
 
     if (monthKey) {
       if (!this.photoMap[monthKey]) {
         this.photoMap[monthKey] = { photo_1: null, photo_2: null, before_photo: null, after_photo: null };
       }
-      this.photoMap[monthKey][slot] = base64Url;
+      if (isBefore) {
+        this.photoMap[monthKey].before_photo = base64Url;
+        this.photoMap[monthKey].photo_1 = base64Url;
+      }
+      if (isAfter) {
+        this.photoMap[monthKey].after_photo = base64Url;
+        this.photoMap[monthKey].photo_2 = base64Url;
+      }
     }
 
     // 1. Asynchronously persist to IndexedDB (Gigabytes quota)
@@ -169,33 +186,39 @@ class PhotoManager {
       }
     }
 
-    // 2. Safely update AI Breakdown sheet metadata without saving massive blobs to LocalStorage
+    // 2. Safely update AI Breakdown sheet metadata
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.breakdownSheet) {
         const updates = { task_id: taskId, slide_status: "READY" };
+        if (isBefore) updates.photo_before = base64Url;
+        if (isAfter) updates.photo_after = base64Url;
         window.appState.breakdownSheet.upsertBreakdown(updates);
       }
     } catch (e) {
       console.warn("Breakdown update notice:", e);
     }
 
-    // 3. Update in-memory active presentation slides without crashing LocalStorage
+    // 3. Update in-memory active presentation slides immediately so Monthly Report reflects changes
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.syncEngine) {
         const slideMonth = m || (window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026");
         const slides = window.appState.syncEngine.getActiveSlides(slideMonth);
         const target = slides.find(s => s.task_id === taskId);
         if (target) {
-          if (slot === 'before_photo') target.photo_before = base64Url;
-          else if (slot === 'after_photo') target.photo_after = base64Url;
-          else target.photo = base64Url;
+          if (isBefore) target.photo_before = base64Url;
+          if (isAfter) target.photo_after = base64Url;
+          target.photo = base64Url;
+          target.has_dual_photo = Boolean(target.photo_before && target.photo_after);
+          try {
+            localStorage.setItem(`walton_pd_active_slides_${slideMonth}`, JSON.stringify(slides));
+          } catch (e) {}
         }
       }
     } catch (e) {
       console.warn("Active slides memory update notice:", e);
     }
 
-    // 4. Synchronize thumbnail to MonthWorkbookManager & push to Google Sheets & Firebase!
+    // 4. Synchronize thumbnail to MonthWorkbookManager & broadcast to Firebase & Google Sheets!
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
         const wbMgr = window.appState.workbookMgr;
@@ -212,10 +235,11 @@ class PhotoManager {
         }
 
         if (targetTask) {
-          const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
+          const photoKey = isBefore ? 'photo_1' : 'photo_2';
           
-          // ALWAYS preserve full resolution photo locally in targetTask!
           targetTask[photoKey] = base64Url;
+          if (isBefore) targetTask.before_photo = base64Url;
+          if (isAfter) targetTask.after_photo = base64Url;
           targetTask._lastPhotoEditTime = Date.now();
           delete targetTask.clear_photos;
           targetTask.last_updated = new Date().toISOString();
@@ -223,6 +247,7 @@ class PhotoManager {
 
           // Real-time Firebase Broadcast (syncs uploaded photo immediately to peer laptops!)
           if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+            FirebaseSyncService.updateCell(activeM, taskId, photoKey, base64Url);
             FirebaseSyncService.pushTask(activeM, targetTask);
           }
 
@@ -265,89 +290,156 @@ class PhotoManager {
     if (!m && typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
       m = window.appState.workbookMgr.activeMonth;
     }
+    if (!m && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.selectedMonth) {
+      m = MonthlyInputView.selectedMonth;
+    }
     const monthKey = m ? `${m}_${taskId}` : null;
+    const isBefore = (slot === 'before_photo' || slot === 'photo_1');
+    const isAfter = (slot === 'after_photo' || slot === 'photo_2');
 
+    // 1. Purge In-Memory PhotoMap on BOTH canonical and alias keys!
     if (this.photoMap[taskId]) {
-      this.photoMap[taskId][slot] = null;
-      if (typeof PhotoIndexedDB !== 'undefined') {
-        PhotoIndexedDB.saveTaskPhotos(taskId, this.photoMap[taskId]).catch(() => {});
+      if (isBefore) {
+        this.photoMap[taskId].before_photo = null;
+        this.photoMap[taskId].photo_1 = null;
+      }
+      if (isAfter) {
+        this.photoMap[taskId].after_photo = null;
+        this.photoMap[taskId].photo_2 = null;
       }
     }
     if (monthKey && this.photoMap[monthKey]) {
-      this.photoMap[monthKey][slot] = null;
-      if (typeof PhotoIndexedDB !== 'undefined') {
-        PhotoIndexedDB.saveTaskPhotos(monthKey, this.photoMap[monthKey]).catch(() => {});
+      if (isBefore) {
+        this.photoMap[monthKey].before_photo = null;
+        this.photoMap[monthKey].photo_1 = null;
+      }
+      if (isAfter) {
+        this.photoMap[monthKey].after_photo = null;
+        this.photoMap[monthKey].photo_2 = null;
       }
     }
 
+    // 2. Persist nulls to IndexedDB (or delete record if all null)
+    if (typeof PhotoIndexedDB !== 'undefined') {
+      const remainingGlobal = this.photoMap[taskId];
+      if (remainingGlobal && !remainingGlobal.before_photo && !remainingGlobal.after_photo && !remainingGlobal.photo_1 && !remainingGlobal.photo_2) {
+        PhotoIndexedDB.deleteTaskPhotos(taskId).catch(() => {});
+      } else if (remainingGlobal) {
+        PhotoIndexedDB.saveTaskPhotos(taskId, remainingGlobal).catch(() => {});
+      }
+
+      if (monthKey) {
+        const remainingMonth = this.photoMap[monthKey];
+        if (remainingMonth && !remainingMonth.before_photo && !remainingMonth.after_photo && !remainingMonth.photo_1 && !remainingMonth.photo_2) {
+          PhotoIndexedDB.deleteTaskPhotos(monthKey).catch(() => {});
+        } else if (remainingMonth) {
+          PhotoIndexedDB.saveTaskPhotos(monthKey, remainingMonth).catch(() => {});
+        }
+      }
+    }
+
+    // 3. Clear AI Breakdown Sheet photos so they never resurrect
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.breakdownSheet) {
         const remaining = this.getTaskPhotos(taskId, m);
-        const hasAny = remaining.photo_1 || remaining.photo_2 || remaining.before_photo || remaining.after_photo;
-        window.appState.breakdownSheet.upsertBreakdown({
+        const hasAny = Boolean(remaining.photo_1 || remaining.photo_2 || remaining.before_photo || remaining.after_photo);
+        const updates = {
           task_id: taskId,
-          [slot]: null,
           slide_status: hasAny ? "READY" : "PHOTO PENDING"
-        });
+        };
+        if (isBefore) {
+          updates.photo_before = null;
+          updates.photo = remaining.after_photo || null;
+        }
+        if (isAfter) {
+          updates.photo_after = null;
+          updates.photo = remaining.before_photo || null;
+        }
+        window.appState.breakdownSheet.upsertBreakdown(updates);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Breakdown photo removal notice:", e);
+    }
 
-    // Also remove from MonthWorkbookManager and push deletion to Firebase
+    // 4. Update SyncEngine Manual Overrides and Active Slides immediately
+    try {
+      if (typeof window !== 'undefined' && window.appState && window.appState.syncEngine) {
+        const syncEngine = window.appState.syncEngine;
+        if (syncEngine.manualOverrides && syncEngine.manualOverrides[taskId]) {
+          if (isBefore) {
+            delete syncEngine.manualOverrides[taskId].photo_before;
+            delete syncEngine.manualOverrides[taskId].photo_1;
+          }
+          if (isAfter) {
+            delete syncEngine.manualOverrides[taskId].photo_after;
+            delete syncEngine.manualOverrides[taskId].photo_2;
+          }
+          syncEngine.saveManualOverrides();
+        }
+
+        const activeM = m || (window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026");
+        const slides = syncEngine.getActiveSlides(activeM);
+        const targetSlide = slides.find(s => s.task_id === taskId);
+        if (targetSlide) {
+          if (isBefore) targetSlide.photo_before = null;
+          if (isAfter) targetSlide.photo_after = null;
+          targetSlide.photo = targetSlide.photo_before || targetSlide.photo_after || null;
+          targetSlide.has_dual_photo = Boolean(targetSlide.photo_before && targetSlide.photo_after);
+          try {
+            localStorage.setItem(`walton_pd_active_slides_${activeM}`, JSON.stringify(slides));
+          } catch (e) {}
+        }
+      }
+    } catch (e) {
+      console.warn("Slide photo removal notice:", e);
+    }
+
+    // 5. Update MonthWorkbookManager and push real-time deletion to Firebase & Google Sheets!
     try {
       if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
         const wbMgr = window.appState.workbookMgr;
         const activeM = m || wbMgr.activeMonth || "SEP-2026";
-        let targetTask = wbMgr.getTask(activeM, taskId);
-        if (!targetTask) {
-          const allMonths = (wbMgr.getAllMonths && typeof wbMgr.getAllMonths === 'function')
-            ? wbMgr.getAllMonths()
-            : [activeM];
-          for (const mon of allMonths) {
-            const t = wbMgr.getTask(mon, taskId);
-            if (t) { targetTask = t; break; }
-          }
-        }
-        if (targetTask) {
-          const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
-          targetTask[photoKey] = null;
-          targetTask.last_updated = new Date().toISOString();
-          wbMgr.save();
-
-          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-            FirebaseSyncService.pushTask(activeM, targetTask);
-          }
-        }
-      }
-    } catch (e) {}
-
-    // Also remove from MonthWorkbookManager and push deletion to Google Sheets
-    try {
-      if (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr) {
-        const wbMgr = window.appState.workbookMgr;
-        const activeM = wbMgr.activeMonth || "SEP-2026";
         const allMonths = (wbMgr.getAllMonths && typeof wbMgr.getAllMonths === 'function')
           ? wbMgr.getAllMonths()
           : [activeM];
-        let targetTask = wbMgr.getTask(activeM, taskId);
-        if (!targetTask) {
-          for (const m of allMonths) {
-            const t = wbMgr.getTask(m, taskId);
-            if (t) { targetTask = t; break; }
+
+        for (const mon of allMonths) {
+          const t = wbMgr.getTask(mon, taskId);
+          if (t) {
+            if (isBefore) {
+              t.photo_1 = "";
+              t.before_photo = "";
+            }
+            if (isAfter) {
+              t.photo_2 = "";
+              t.after_photo = "";
+            }
+            t.clear_photos = true;
+            t._lastPhotoEditTime = Date.now();
+            t.last_updated = new Date().toISOString();
           }
         }
+        wbMgr.save();
+
+        const targetTask = wbMgr.getTask(activeM, taskId);
         if (targetTask) {
-          const photoKey = (slot === 'after_photo' || slot === 'photo_2') ? 'photo_2' : 'photo_1';
-          targetTask[photoKey] = "";
-          targetTask.clear_photos = true;
-          targetTask._lastPhotoEditTime = 0;
-          targetTask.last_updated = new Date().toISOString();
-          wbMgr.save();
+          const photoField = isBefore ? 'photo_1' : 'photo_2';
+          
+          // REAL-TIME FIREBASE BROADCAST DELETION:
+          if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+            FirebaseSyncService.updateCell(activeM, taskId, photoField, "");
+            FirebaseSyncService.pushTask(activeM, targetTask);
+          }
+
+          // Push to Google Sheets if configured
           if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
             GoogleSheetsSync.pushTask(targetTask, true);
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Workbook photo removal notice:", e);
+    }
 
     return true;
   }

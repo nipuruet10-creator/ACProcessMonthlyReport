@@ -181,6 +181,20 @@ const FirebaseSyncService = {
 
           if (t.task_name && String(t.task_name).trim()) {
             remoteTasks.push(t);
+
+            // Cross-device photo reconciliation on initial connect
+            if (typeof photoManager !== 'undefined') {
+              if (t.photo_1) {
+                photoManager.setTaskPhoto(t.task_id, 'before_photo', t.photo_1, t.photo_1, normMonth);
+              } else if (t.clear_photos) {
+                photoManager.removePhoto(t.task_id, 'before_photo', normMonth);
+              }
+              if (t.photo_2) {
+                photoManager.setTaskPhoto(t.task_id, 'after_photo', t.photo_2, t.photo_2, normMonth);
+              } else if (t.clear_photos) {
+                photoManager.removePhoto(t.task_id, 'after_photo', normMonth);
+              }
+            }
           }
         }
 
@@ -549,12 +563,33 @@ const FirebaseSyncService = {
         }
       }
 
-      // 9. Photo
+      // 9. Photo real-time cross-device sync (Adds and deletes on all PCs immediately!)
       else if (field === 'photo_1' || field === 'photo_2') {
-        if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
-          // If photo changed, refresh active views smoothly
-          if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync._refreshActiveViews) {
-            GoogleSheetsSync._refreshActiveViews();
+        const val = task[field];
+        const slot = (field === 'photo_1') ? 'before_photo' : 'after_photo';
+        if (!val || val === "" || val === "null") {
+          // Another user deleted this photo: remove it cleanly on this PC!
+          if (typeof photoManager !== 'undefined') {
+            photoManager.removePhoto(taskId, slot, month);
+          }
+        } else {
+          // Another user added/updated this photo: save it into this PC's photoManager!
+          if (typeof photoManager !== 'undefined') {
+            photoManager.setTaskPhoto(taskId, slot, val, val, month);
+          }
+        }
+
+        // Live re-render if user is on Photo Manager, Monthly Report, or Monthly Input
+        if (typeof window !== 'undefined' && window.appState) {
+          const curTab = window.appState.activeTab || window.appState.currentTab || (typeof App !== 'undefined' ? App.currentTab : '');
+          if (curTab === 'photo-manager' && typeof PhotoManagerView !== 'undefined' && PhotoManagerView.render) {
+            PhotoManagerView.render();
+          }
+          if (curTab === 'monthly-report' && typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+            MonthlyReportView.render();
+          }
+          if (curTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+            MonthlyInputView.render();
           }
         }
       }

@@ -44,6 +44,15 @@ const SlidePreviewModal = {
     const ongoingProjectSlides = [];
 
     (reportData.slides || []).forEach(s => {
+      // Re-fetch fresh photos from photoManager so changes are instantly visible!
+      if (typeof photoManager !== 'undefined' && s.task_id) {
+        const p = photoManager.getTaskPhotos(s.task_id, this.currentMonth);
+        s.photo_before = p.before_photo || null;
+        s.photo_after = p.after_photo || null;
+        s.photo = p.before_photo || p.after_photo || null;
+        s.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+      }
+
       const cat = (s.category || '').toLowerCase();
       const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
       const status = (s.status || s.project_status || '').toLowerCase();
@@ -98,6 +107,13 @@ const SlidePreviewModal = {
   openSingle(slideData) {
     if (!slideData) return;
     this.isDeckMode = false;
+    if (typeof photoManager !== 'undefined' && slideData.task_id) {
+      const p = photoManager.getTaskPhotos(slideData.task_id, this.currentMonth || "SEP-2026");
+      slideData.photo_before = p.before_photo || null;
+      slideData.photo_after = p.after_photo || null;
+      slideData.photo = p.before_photo || p.after_photo || null;
+      slideData.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+    }
     this.activeSlides = [slideData];
     this.deckHtmlList = [];
     this.currentSlideIndex = 0;
