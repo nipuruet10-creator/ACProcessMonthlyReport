@@ -4,6 +4,13 @@
  * Identical architecture to Google Docs & Google Sheets Online
  * WALTON Hi-Tech Industries PLC
  */
+const GENUINE_TASK_IDS = new Set([
+  'SEP-2026-001-EE2',
+  'SEP-2026-002-4YT',
+  'SEP-2026-003-SJ2',
+  'SEP-2026-004-C44',
+  'SEP-2026-005-A3D'
+]);
 
 const FirebaseSyncService = {
   STORAGE_KEY_CONFIG: 'walton_pd_firebase_config_v1',
@@ -62,7 +69,9 @@ const FirebaseSyncService = {
    */
   init(forceReinit = false) {
     try {
-      localStorage.removeItem('walton_deleted_task_ids');
+      const raw = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      const cleaned = raw.filter(id => !GENUINE_TASK_IDS.has(id));
+      localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
     } catch (e) {}
 
     const config = this.getConfig();
@@ -138,23 +147,31 @@ const FirebaseSyncService = {
       let deletedSet = new Set();
       try {
         const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        deletedSet = new Set(deletedList);
+        deletedList.filter(id => !GENUINE_TASK_IDS.has(id)).forEach(id => deletedSet.add(id));
       } catch (e) {}
 
-      // Hydrate cloud tombstones from Firebase to guarantee cross-device permanent deletions
+      // Hydrate cloud tombstones from Firebase to guarantee cross-device permanent deletions (excluding protected tasks)
       try {
         const tombSnap = await this.db.ref('walton_monthly_report/deleted_task_ids').once('value');
         const cloudTombs = tombSnap.val();
         if (cloudTombs && typeof cloudTombs === 'object') {
-          Object.keys(cloudTombs).forEach(id => deletedSet.add(id));
+          Object.keys(cloudTombs).forEach(id => {
+            if (!GENUINE_TASK_IDS.has(id)) {
+              deletedSet.add(id);
+            }
+          });
           localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
         }
       } catch (e) {}
 
-      // 🛡️ CRITICAL GUARD: Prune any tombstoned tasks from in-memory workbook BEFORE processing
+      // 🛡️ CRITICAL GUARD: Prune tombstoned tasks from in-memory workbook BEFORE processing, but STRICTLY IMMUNIZE genuine tasks
       if (wbMgr.workbooks && Array.isArray(wbMgr.workbooks[normMonth])) {
         const initCount = wbMgr.workbooks[normMonth].length;
-        wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(t => t && t.task_id && !deletedSet.has(t.task_id));
+        wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(t => {
+          if (!t || !t.task_id) return false;
+          if (GENUINE_TASK_IDS.has(t.task_id)) return true; // IMMUNE
+          return !deletedSet.has(t.task_id);
+        });
         if (wbMgr.workbooks[normMonth].length !== initCount) {
           wbMgr.save();
         }
@@ -344,7 +361,7 @@ const FirebaseSyncService = {
       this._tombstonesBound = true;
       this.db.ref('walton_monthly_report/deleted_task_ids').on('child_added', (snapshot) => {
         const deletedId = snapshot.key;
-        if (!deletedId) return;
+        if (!deletedId || GENUINE_TASK_IDS.has(deletedId)) return;
 
         try {
           const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
@@ -758,6 +775,7 @@ const FirebaseSyncService = {
    * Handle remote task removed
    */
   _handleRemoteTaskRemoved(month, taskId) {
+    if (!taskId || GENUINE_TASK_IDS.has(taskId)) return;
     if (!window.appState || !window.appState.workbookMgr) return;
     const wbMgr = window.appState.workbookMgr;
     const tasks = wbMgr.workbooks[month] || [];
@@ -887,7 +905,7 @@ const FirebaseSyncService = {
    * Delete task from Firebase (atomically with tombstone recording)
    */
   async deleteTask(month, taskId) {
-    if (!taskId) return false;
+    if (!taskId || GENUINE_TASK_IDS.has(taskId)) return false;
 
     // Record tombstone locally first
     try {
@@ -921,6 +939,8 @@ const FirebaseSyncService = {
    */
   async deleteMultipleTasks(month, taskIds = []) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
+    taskIds = taskIds.filter(id => !GENUINE_TASK_IDS.has(id));
+    if (taskIds.length === 0) return false;
 
     // 1. Record tombstones locally first
     try {

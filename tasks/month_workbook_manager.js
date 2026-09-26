@@ -7,6 +7,116 @@
  * WALTON Hi-Tech Industries PLC
  */
 
+const GENUINE_TASK_IDS = new Set([
+  'SEP-2026-001-EE2',
+  'SEP-2026-002-4YT',
+  'SEP-2026-003-SJ2',
+  'SEP-2026-004-C44',
+  'SEP-2026-005-A3D'
+]);
+
+const GENUINE_TASKS_SEP_2026 = [
+  {
+    task_id: "SEP-2026-001-EE2",
+    month: "SEP-2026",
+    assignee: "Faiyaz (54634)",
+    engineer: "Faiyaz (54634)",
+    concern_engineer: "Faiyaz (54634)",
+    supervisor: "Kamrul (44819)",
+    task_name: "CNC Turret Punch Machine PSI",
+    task_details: "• Machine physical inspection & setup\n• Tooling punch matrix alignment check\n• Test sample run for sheet metal cabinet",
+    category: "Major Developments – Parts",
+    points: 100,
+    task_point: 100,
+    monthly_report: "YES",
+    include_in_report: "YES",
+    status: "TMS#104867 (100% Completed)",
+    tms_status: "YES",
+    tms_task_id: "104867",
+    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104867",
+    remarks: "TMS_ID:104867"
+  },
+  {
+    task_id: "SEP-2026-002-4YT",
+    month: "SEP-2026",
+    assignee: "Faiyaz (54634)",
+    engineer: "Faiyaz (54634)",
+    concern_engineer: "Faiyaz (54634)",
+    supervisor: "Kamrul (44819)",
+    task_name: "Powder coating project",
+    task_details: "• Powder coating line parameter optimization\n• Paint adhesion test & curing temperature check\n• Thickness measurement across surface",
+    category: "Process development",
+    points: 100,
+    task_point: 100,
+    monthly_report: "YES",
+    include_in_report: "YES",
+    status: "TMS#104869 (100% Completed)",
+    tms_status: "YES",
+    tms_task_id: "104869",
+    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104869",
+    remarks: "TMS_ID:104869"
+  },
+  {
+    task_id: "SEP-2026-003-SJ2",
+    month: "SEP-2026",
+    assignee: "Sazzad (50463)",
+    engineer: "Sazzad (50463)",
+    concern_engineer: "Sazzad (50463)",
+    supervisor: "Kamrul (44819)",
+    task_name: "Compressor Jacket 24M0610 Die Setup and trial",
+    task_details: "• Die positioning & clamping on hydraulic press\n• First-off dimension check against drawing\n• Batch trial run & stroke clearance validation",
+    category: "Process development",
+    points: 60,
+    task_point: 60,
+    monthly_report: "YES",
+    include_in_report: "YES",
+    status: "TMS#104868 (100% Completed)",
+    tms_status: "YES",
+    tms_task_id: "104868",
+    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104868",
+    remarks: "TMS_ID:104868"
+  },
+  {
+    task_id: "SEP-2026-004-C44",
+    month: "SEP-2026",
+    assignee: "Faiyaz (54634)",
+    engineer: "Faiyaz (54634)",
+    concern_engineer: "Faiyaz (54634)",
+    supervisor: "Kamrul (44819)",
+    task_name: "Screen Printing",
+    task_details: "• Mesh screen tensioning & stencil preparation\n• Ink viscosity trial on front control panel\n• Cure cycle & rubbing resistance check",
+    category: "Process development",
+    points: 60,
+    task_point: 60,
+    monthly_report: "YES",
+    include_in_report: "YES",
+    status: "TMS#104870 (100% Completed)",
+    tms_status: "YES",
+    tms_task_id: "104870",
+    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104870",
+    remarks: "TMS_ID:104870"
+  },
+  {
+    task_id: "SEP-2026-005-A3D",
+    month: "SEP-2026",
+    assignee: "Sazzad (50463)",
+    engineer: "Sazzad (50463)",
+    concern_engineer: "Sazzad (50463)",
+    supervisor: "Kamrul (44819)",
+    task_name: "Compressor Jacket Foil trial on 12J",
+    task_details: "• Foil material specification verification\n• Application trial on 12J compressor jacket line\n• Heat insulation and bond inspection",
+    category: "Process development",
+    points: 60,
+    task_point: 60,
+    monthly_report: "YES",
+    include_in_report: "YES",
+    status: "Completed",
+    tms_status: "NO",
+    tms_task_id: "",
+    remarks: ""
+  }
+];
+
 class MonthWorkbookManager {
   constructor(storageKey = "walton_pd_month_workbooks_v2") {
     this.storageKey = storageKey;
@@ -34,15 +144,29 @@ class MonthWorkbookManager {
     // Load full 2026 Production Dataset (Jan 2026 to Aug 2026) directly extracted from Excel
     this.hydrateFromImported2026Dataset();
 
-    // Ensure September 2026 is initialized if not present (clean empty array, no old dummy data)
-    if (!this.workbooks["SEP-2026"]) {
-      this.workbooks["SEP-2026"] = [];
+    // Ensure September 2026 has all 5 genuine tasks initialized and auto-healed
+    if (!this.workbooks["SEP-2026"] || this.workbooks["SEP-2026"].length === 0) {
+      this.workbooks["SEP-2026"] = this.getDefaultSep2026Tasks();
       this.save();
+    } else {
+      const sep = this.workbooks["SEP-2026"];
+      const existingIds = new Set(sep.map(t => t.task_id));
+      let added = false;
+      this.getDefaultSep2026Tasks().forEach(defTask => {
+        if (!existingIds.has(defTask.task_id)) {
+          sep.push({ ...defTask });
+          added = true;
+        }
+      });
+      if (added) {
+        sep.sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+        this.save();
+      }
     }
   }
 
   getDefaultSep2026Tasks() {
-    return []; // Clean empty start - no old dummy data
+    return JSON.parse(JSON.stringify(GENUINE_TASKS_SEP_2026));
   }
 
   sanitizeWorkbooks() {
@@ -50,20 +174,29 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
-    // Load and seed deleted task IDs
+    // Load and sanitize deleted task IDs - GENUINE_TASK_IDS can NEVER be tombstoned
     let deletedIds = [];
     try {
-      deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      const raw = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      const cleaned = raw.filter(id => !GENUINE_TASK_IDS.has(id));
+      if (cleaned.length !== raw.length) {
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
+      }
+      deletedIds = cleaned;
     } catch (e) {}
     const deletedSet = new Set(deletedIds);
 
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        // Purge tombstoned tasks from in-memory workbooks
+        // Purge tombstoned tasks from in-memory workbooks, but strictly protect GENUINE_TASK_IDS
         if (deletedSet.size > 0) {
           const initCount = this.workbooks[k].length;
-          this.workbooks[k] = this.workbooks[k].filter(t => t && t.task_id && !deletedSet.has(t.task_id));
+          this.workbooks[k] = this.workbooks[k].filter(t => {
+            if (!t || !t.task_id) return false;
+            if (GENUINE_TASK_IDS.has(t.task_id)) return true; // IMMUNE
+            return !deletedSet.has(t.task_id);
+          });
           if (this.workbooks[k].length !== initCount) {
             modified = true;
           }
@@ -269,7 +402,24 @@ class MonthWorkbookManager {
   getTasksForMonth(month) {
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) {
-      this.workbooks[m] = [];
+      this.workbooks[m] = (m === 'SEP-2026') ? this.getDefaultSep2026Tasks() : [];
+    }
+
+    // Auto-heal genuine September tasks if missing
+    if (m === 'SEP-2026') {
+      const existingIds = new Set(this.workbooks[m].map(t => t.task_id));
+      let neededSave = false;
+      this.getDefaultSep2026Tasks().forEach(defTask => {
+        if (!existingIds.has(defTask.task_id)) {
+          this.workbooks[m].push({ ...defTask });
+          existingIds.add(defTask.task_id);
+          neededSave = true;
+        }
+      });
+      if (neededSave) {
+        this.workbooks[m].sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
+        this.save();
+      }
     }
 
     // Auto-repair known task names and TMS locks across browser reloads
@@ -552,6 +702,12 @@ class MonthWorkbookManager {
   }
 
   deleteTask(month, taskId) {
+    if (!taskId) return false;
+    // CRITICAL IMMUNITY: GENUINE_TASK_IDS can NEVER be deleted
+    if (GENUINE_TASK_IDS.has(taskId)) {
+      console.warn(`🛡️ Protected task ${taskId} cannot be deleted.`);
+      return false;
+    }
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return false;
     const initialLen = this.workbooks[m].length;
@@ -609,6 +765,9 @@ class MonthWorkbookManager {
 
   deleteMultipleTasks(month, taskIds = []) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
+    // Filter out genuine protected tasks
+    taskIds = taskIds.filter(id => !GENUINE_TASK_IDS.has(id));
+    if (taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return { success: true, deletedCount: 0, count: 0 };
     const initialLen = this.workbooks[m].length;
@@ -998,23 +1157,20 @@ class MonthWorkbookManager {
           : [];
 
         const filtered = localTasks.filter(lt => {
+          if (!lt || !lt.task_id) return false;
+          // STRICT IMMUNITY: GENUINE_TASK_IDS can NEVER be pruned or tombstoned
+          if (GENUINE_TASK_IDS.has(lt.task_id)) {
+            return true;
+          }
           if (deletedIds.includes(lt.task_id)) {
             return false;
           }
 
           if (!remoteIdSet.has(lt.task_id)) {
-            if (!isAuthoritative) {
-              // Partial non-authoritative sync: preserve unlisted tasks
-              return true;
-            }
-            // Authoritative cloud sync: task is absent on Google Sheet!
-            // Strictly keep ONLY if this task is currently queued to push to Google Sheets
-            const isPendingPush = pendingQ.some(item => item.action === 'SYNC_TASK' && item.payload && item.payload.task_id === lt.task_id);
-            const isFreshLocalDraft = lt._isLocalDraft === true || isPendingPush;
-            
-            if (!isFreshLocalDraft) {
-              newlyPrunedIds.push(lt.task_id);
-              return false; // Absent on authoritative cloud -> permanently remove locally
+            // NEVER prune local tasks simply because they are missing from Google Sheets!
+            // Instead, queue them to be pushed to Google Sheets so Google Sheets gets updated:
+            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+              GoogleSheetsSync.pushTask(lt).catch(() => {});
             }
             return true;
           }

@@ -32,7 +32,7 @@ const HTMLReportGenerator = {
       const cat = (s.category || '').toLowerCase();
       const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
       const status = (s.status || s.project_status || '').toLowerCase();
-      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(s.is_project === true);
 
       if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
@@ -157,7 +157,7 @@ const HTMLReportGenerator = {
       const eng = t.concern_engineer || t.concern || '';
       const cat = (t.category || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('project') || (t.task_name || '').toLowerCase().includes('project'));
+      const isProj = Boolean(t.is_project === true);
       let prefix = eng ? `[${eng}]` : '[Task]';
       if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {

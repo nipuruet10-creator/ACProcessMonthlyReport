@@ -6,6 +6,14 @@
  * ==============================================================================
  */
 
+const GENUINE_TASK_IDS = new Set([
+  'SEP-2026-001-EE2',
+  'SEP-2026-002-4YT',
+  'SEP-2026-003-SJ2',
+  'SEP-2026-004-C44',
+  'SEP-2026-005-A3D'
+]);
+
 const GoogleSheetsSync = {
   STORAGE_KEY_URL: 'walton_gas_webapp_url',
   STORAGE_KEY_LAST_SYNC: 'walton_gas_last_sync_timestamp',
@@ -480,7 +488,7 @@ const GoogleSheetsSync = {
    * Delete a single task from Google Sheets in background
    */
   async deleteTask(taskId, month) {
-    if (!taskId) return false;
+    if (!taskId || GENUINE_TASK_IDS.has(taskId)) return false;
 
     // 1. Immediately record in deleted tombstones
     try {
@@ -536,6 +544,8 @@ const GoogleSheetsSync = {
    */
   async deleteMultipleTasks(taskIds = [], month) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
+    taskIds = taskIds.filter(id => !GENUINE_TASK_IDS.has(id));
+    if (taskIds.length === 0) return false;
 
     // 1. Immediately record in deleted tombstones
     try {

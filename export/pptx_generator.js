@@ -88,7 +88,7 @@ class PPTXGenerator {
       const cat = (s.category || '').toLowerCase();
       const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
       const status = (s.status || s.project_status || '').toLowerCase();
-      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(s.is_project === true);
 
       if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
@@ -328,23 +328,22 @@ class PPTXGenerator {
       if (eng) engineersSet.add(eng);
 
       const cat = (t.category || '').toLowerCase();
-      const title = (t.slide_title || t.task_name || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(t.is_project === true);
 
-      if (isProj || cat.includes('project')) {
+      if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
           completedProjCount++;
         } else {
           ongoingProjCount++;
         }
       } else {
-        if (cat.includes('process') || title.includes('process')) processCount++;
-        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
-        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
-        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
-        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
-        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+        if (cat.includes('process')) processCount++;
+        else if (cat.includes('tool') || cat.includes('die') || cat.includes('fixture')) toolsCount++;
+        else if (cat.includes('part') || cat.includes('component')) partsCount++;
+        else if (cat.includes('cost') || cat.includes('saving')) costCount++;
+        else if (cat.includes('manpower')) manpowerCount++;
+        else if (cat.includes('bom')) bomCount++;
       }
     });
 
@@ -944,7 +943,7 @@ class PPTXGenerator {
     const catLower = category.toLowerCase();
     const titleLower = (title || "").toLowerCase();
     const statusLower = (status || "").toLowerCase();
-    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isProj = Boolean(task.is_project === true);
     const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
 
     let dualBadgeText = "PROCESS IMPROVEMENT";
@@ -1343,7 +1342,7 @@ class PPTXGenerator {
         else if (cat.includes('cost')) key = 'cost';
         else if (cat.includes('tool') || cat.includes('part') || cat.includes('die')) key = 'tools';
         else if (cat.includes('bom')) key = 'bom';
-        else if (task.is_project || cat.includes('project')) key = 'project';
+        else if (task.is_project === true) key = 'project';
         else key = 'process';
 
         if (!catPageMap[key]) {
@@ -2158,23 +2157,22 @@ class PPTXGenerator {
       if (eng) engineersSet.add(eng);
 
       const cat = (t.category || '').toLowerCase();
-      const title = (t.slide_title || t.task_name || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(t.is_project === true);
 
-      if (isProj || cat.includes('project')) {
+      if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
           completedProjCount++;
         } else {
           ongoingProjCount++;
         }
       } else {
-        if (cat.includes('process') || title.includes('process')) processCount++;
-        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
-        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
-        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
-        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
-        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+        if (cat.includes('process')) processCount++;
+        else if (cat.includes('tool') || cat.includes('die') || cat.includes('fixture')) toolsCount++;
+        else if (cat.includes('part') || cat.includes('component')) partsCount++;
+        else if (cat.includes('cost') || cat.includes('saving')) costCount++;
+        else if (cat.includes('manpower')) manpowerCount++;
+        else if (cat.includes('bom')) bomCount++;
       }
     });
 
@@ -2487,7 +2485,7 @@ class PPTXGenerator {
     const catLower = category.toLowerCase();
     const titleLower = (rawTitle || "").toLowerCase();
     const statusLower = (status || "").toLowerCase();
-    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isProj = Boolean(task.is_project === true);
     const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
 
     let badgeText = (task.category || "PROCESS DEVELOPMENT").toUpperCase();
@@ -2773,7 +2771,7 @@ class PPTXGenerator {
     const catLower = category.toLowerCase();
     const titleLower = (title || "").toLowerCase();
     const statusLower = ((task.status || task.project_status || "")).toLowerCase();
-    const isProj = Boolean(task.is_project || catLower.includes('project') || titleLower.includes('project'));
+    const isProj = Boolean(task.is_project === true);
     const isCompletedProj = isProj && (statusLower.includes('complete') || catLower.includes('completed'));
 
     let badgeText = category.toUpperCase();
@@ -3296,20 +3294,19 @@ class PPTXGenerator {
     tasksList.forEach(t => {
       totalPoints += (t.task_point || 0);
       const cat = (t.category || '').toLowerCase();
-      const title = (t.slide_title || t.task_name || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(t.is_project === true);
 
-      if (isProj || cat.includes('project')) {
+      if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
         else ongoingProjCount++;
       } else {
-        if (cat.includes('process') || title.includes('process')) processCount++;
-        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
-        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
-        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
-        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
-        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+        if (cat.includes('process')) processCount++;
+        else if (cat.includes('tool') || cat.includes('die') || cat.includes('fixture')) toolsCount++;
+        else if (cat.includes('part') || cat.includes('component')) partsCount++;
+        else if (cat.includes('cost') || cat.includes('saving')) costCount++;
+        else if (cat.includes('manpower')) manpowerCount++;
+        else if (cat.includes('bom')) bomCount++;
       }
     });
 
@@ -3411,18 +3408,18 @@ class PPTXGenerator {
       const cat = (t.category || '').toLowerCase();
       const title = (t.slide_title || t.task_name || '').toLowerCase();
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(t.is_project === true);
 
-      if (isProj || cat.includes('project')) {
+      if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) completedProjCount++;
         else ongoingProjCount++;
       } else {
-        if (cat.includes('process') || title.includes('process')) processCount++;
-        if (cat.includes('tool') || title.includes('tool') || title.includes('die') || title.includes('fixture')) toolsCount++;
-        if (cat.includes('part') || cat.includes('component') || title.includes('part')) partsCount++;
-        if (cat.includes('cost') || cat.includes('saving') || title.includes('cost') || title.includes('saving')) costCount++;
-        if (cat.includes('manpower') || title.includes('manpower')) manpowerCount++;
-        if (cat.includes('bom') || title.includes('bom')) bomCount++;
+        if (cat.includes('process')) processCount++;
+        else if (cat.includes('tool') || cat.includes('die') || cat.includes('fixture')) toolsCount++;
+        else if (cat.includes('part') || cat.includes('component')) partsCount++;
+        else if (cat.includes('cost') || cat.includes('saving')) costCount++;
+        else if (cat.includes('manpower')) manpowerCount++;
+        else if (cat.includes('bom')) bomCount++;
       }
     });
 

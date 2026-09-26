@@ -428,12 +428,8 @@ const ProjectsView = {
     const months = workbookMgr.getAllMonths();
     const allTasks = workbookMgr.getTasksForMonth(month);
 
-    // Extract project tasks
-    const projectTasks = allTasks.filter(t => {
-      const cat = (t.category || '').toLowerCase();
-      const name = (t.task_name || '').toLowerCase();
-      return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
-    });
+    // Extract project tasks (strictly from dedicated Projects section)
+    const projectTasks = allTasks.filter(t => Boolean(t.is_project === true));
 
     const ongoingProjects = projectTasks.filter(t => {
       const status = (t.status || t.project_status || '').toLowerCase();

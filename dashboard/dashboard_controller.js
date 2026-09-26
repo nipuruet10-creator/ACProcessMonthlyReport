@@ -108,12 +108,8 @@ const DashboardController = {
     const bomData = BOMTracker.calculate(filteredTasks);
     const projectData = ProjectTracker.calculate(filteredTasks);
 
-    // 2b. Canonical Projects from the "Projects" section
-    const projectTasks = allMonthTasks.filter(t => {
-      const cat = (t.category || '').toLowerCase();
-      const name = (t.task_name || '').toLowerCase();
-      return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
-    });
+    // 2b. Canonical Projects strictly from the dedicated "Projects" section
+    const projectTasks = allMonthTasks.filter(t => Boolean(t.is_project === true));
 
     const ongoingProjects = projectTasks.filter(t => {
       const status = (t.status || t.project_status || '').toLowerCase();
@@ -127,23 +123,16 @@ const DashboardController = {
       return status.includes('complete') || cat.includes('completed project');
     });
 
-    let ongoingProjCount = ongoingProjects.length;
-    let completedProjCount = completedProjects.length;
-
-    // Check top works manager for ongoing if needed
-    if (ongoingProjCount === 0 && typeof TopWorksManager !== 'undefined') {
-      const tw = TopWorksManager.getTopWorksForMonth(this.currentFilters.month);
-      if (tw && tw.ongoingTop5) {
-        ongoingProjCount = tw.ongoingTop5.filter(p => p.name && p.name.trim()).length;
-      }
-    }
+    const ongoingProjCount = ongoingProjects.length;
+    const completedProjCount = completedProjects.length;
 
     // 3. Category Distribution breakdown from Task Entry
     const categoryCounts = {};
     filteredTasks.forEach(t => {
+      // Dedicated projects are counted in the dedicated project cards, not here
+      if (t.is_project === true) return;
       const cat = (t.category && t.category.trim()) || "Process development";
       const catLower = cat.toLowerCase();
-      // Projects are counted in the dedicated project cards below
       if (catLower.includes('ongoing project') || catLower.includes('completed project')) {
         return;
       }

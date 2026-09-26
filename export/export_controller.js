@@ -217,11 +217,7 @@ const ExportController = {
       ? syncEngine.workbookMgr.getTasksForMonth(selectedMonth)
       : [];
 
-    const projectTasks = allRawTasks.filter(t => {
-      const cat = (t.category || '').toLowerCase();
-      const name = (t.task_name || '').toLowerCase();
-      return Boolean(t.is_project || cat.includes('project') || name.includes('project'));
-    });
+    const projectTasks = allRawTasks.filter(t => Boolean(t.is_project === true));
 
     const ongoingProjList = projectTasks.filter(t => {
       const status = (t.status || t.project_status || '').toLowerCase();
@@ -268,7 +264,7 @@ const ExportController = {
       const cat = (s.category || '').toLowerCase();
       const title = (s.slide_title || s.raw_task_name || s.task_name || '').toLowerCase();
       const status = (s.status || s.project_status || '').toLowerCase();
-      const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+      const isProj = Boolean(s.is_project === true);
 
       if (isProj) {
         if (status.includes('complete') || cat.includes('completed project')) {
