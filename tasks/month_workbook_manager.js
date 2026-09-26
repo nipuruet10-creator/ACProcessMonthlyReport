@@ -12,7 +12,8 @@ const GENUINE_TASK_IDS = new Set([
   'SEP-2026-002-4YT',
   'SEP-2026-003-SJ2',
   'SEP-2026-004-C44',
-  'SEP-2026-005-A3D'
+  'SEP-2026-005-A3D',
+  'SEP-2026-005-FR5'
 ]);
 
 const GENUINE_TASKS_SEP_2026 = [
@@ -401,7 +402,7 @@ class MonthWorkbookManager {
 
   getTasksForMonth(month) {
     const m = this.normalizeMonth(month);
-    if (!this.workbooks[m]) {
+    if (!this.workbooks[m] || (m === 'SEP-2026' && this.workbooks[m].length === 0)) {
       this.workbooks[m] = (m === 'SEP-2026') ? this.getDefaultSep2026Tasks() : [];
     }
 

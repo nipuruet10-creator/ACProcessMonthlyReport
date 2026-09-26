@@ -11,7 +11,8 @@ const GENUINE_TASK_IDS = new Set([
   'SEP-2026-002-4YT',
   'SEP-2026-003-SJ2',
   'SEP-2026-004-C44',
-  'SEP-2026-005-A3D'
+  'SEP-2026-005-A3D',
+  'SEP-2026-005-FR5'
 ]);
 
 const GoogleSheetsSync = {

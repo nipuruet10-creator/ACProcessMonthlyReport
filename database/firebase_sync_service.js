@@ -9,7 +9,8 @@ const GENUINE_TASK_IDS = new Set([
   'SEP-2026-002-4YT',
   'SEP-2026-003-SJ2',
   'SEP-2026-004-C44',
-  'SEP-2026-005-A3D'
+  'SEP-2026-005-A3D',
+  'SEP-2026-005-FR5'
 ]);
 
 const FirebaseSyncService = {
@@ -277,6 +278,9 @@ const FirebaseSyncService = {
           if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
             MonthlyInputView.render();
           }
+          if (window.appState.activeTab === 'dashboard' && typeof DashboardController !== 'undefined' && DashboardController.render) {
+            DashboardController.render();
+          }
         }
         return true;
       } else {
@@ -501,6 +505,9 @@ const FirebaseSyncService = {
       } else {
         MonthlyInputView.render();
       }
+    }
+    if (window.appState && window.appState.activeTab === 'dashboard' && typeof DashboardController !== 'undefined' && DashboardController.render) {
+      DashboardController.render();
     }
   },
 
@@ -769,6 +776,9 @@ const FirebaseSyncService = {
     if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.updateEngineerSummary) {
       MonthlyInputView.updateEngineerSummary();
     }
+    if (window.appState && window.appState.activeTab === 'dashboard' && typeof DashboardController !== 'undefined' && DashboardController.render) {
+      DashboardController.render();
+    }
   },
 
   /**
@@ -806,7 +816,14 @@ const FirebaseSyncService = {
           if (typeof MonthlyInputView.updateEngineerSummary === 'function') MonthlyInputView.updateEngineerSummary();
           if (typeof MonthlyInputView.updateRankingTable === 'function') MonthlyInputView.updateRankingTable();
         }
+        if (window.appState && window.appState.activeTab === 'dashboard' && typeof DashboardController !== 'undefined' && DashboardController.render) {
+          DashboardController.render();
+        }
       }, 250);
+    } else {
+      if (window.appState && window.appState.activeTab === 'dashboard' && typeof DashboardController !== 'undefined' && DashboardController.render) {
+        DashboardController.render();
+      }
     }
   },
 

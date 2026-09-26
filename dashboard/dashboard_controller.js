@@ -40,6 +40,19 @@ const DashboardController = {
       rawTasks = workbookMgr.getTasksForMonth(normMonth);
     }
 
+    // Auto-heal September 2026 genuine tasks if missing or empty
+    if ((!rawTasks || rawTasks.length === 0) && (normMonth === "SEP-2026" || normMonth === "2026-09")) {
+      if (workbookMgr && typeof workbookMgr.getDefaultSep2026Tasks === 'function') {
+        rawTasks = workbookMgr.getDefaultSep2026Tasks();
+        if (workbookMgr.workbooks) {
+          workbookMgr.workbooks["SEP-2026"] = rawTasks;
+          workbookMgr.save();
+        }
+      } else if (typeof GENUINE_TASKS_SEP_2026 !== 'undefined') {
+        rawTasks = JSON.parse(JSON.stringify(GENUINE_TASKS_SEP_2026));
+      }
+    }
+
     // If workbookMgr has real tasks, map them
     if (rawTasks && rawTasks.length > 0) {
       return rawTasks.map(t => ({
@@ -54,7 +67,8 @@ const DashboardController = {
         raw_status: t.status || "",
         monthly_report: t.include_in_report || "YES",
         report_ready: "READY",
-        task_month: monthFilter
+        task_month: monthFilter,
+        is_project: Boolean(t.is_project === true)
       }));
     }
 

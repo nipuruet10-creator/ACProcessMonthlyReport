@@ -1836,33 +1836,46 @@ const MonthlyInputView = {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Security Gate: Check if Input Section is unlocked
-    const isUnlocked = (typeof authManager !== 'undefined' && authManager.isInputUnlocked)
-      ? authManager.isInputUnlocked()
-      : false;
+    try {
+      // Security Gate: Check if Input Section is unlocked
+      const isUnlocked = (typeof authManager !== 'undefined' && authManager.isInputUnlocked)
+        ? authManager.isInputUnlocked()
+        : true; // Default open for team handover
 
-    if (!isUnlocked) {
-      this.renderLoginGate(containerId);
-      return;
-    }
+      if (!isUnlocked) {
+        this.renderLoginGate(containerId);
+        return;
+      }
 
-    // Anti-jitter: Preserve scroll position and prevent height collapse
-    const savedScrollY = (typeof window !== 'undefined') ? window.scrollY : 0;
-    const tableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
-    const savedTableTop = tableScroll ? tableScroll.scrollTop : 0;
-    const savedTableLeft = tableScroll ? tableScroll.scrollLeft : 0;
+      // Anti-jitter: Preserve scroll position and prevent height collapse
+      const savedScrollY = (typeof window !== 'undefined') ? window.scrollY : 0;
+      const tableScroll = (typeof document !== 'undefined') ? (document.getElementById('task-table-scroll-container') || document.querySelector('.overflow-x-auto')) : null;
+      const savedTableTop = tableScroll ? tableScroll.scrollTop : 0;
+      const savedTableLeft = tableScroll ? tableScroll.scrollLeft : 0;
 
-    if (container.offsetHeight > 0) {
-      container.style.minHeight = container.offsetHeight + 'px';
-    }
+      if (container.offsetHeight > 0) {
+        container.style.minHeight = container.offsetHeight + 'px';
+      }
 
-    const workbookMgr = window.appState && window.appState.workbookMgr
-      ? window.appState.workbookMgr
-      : new MonthWorkbookManager();
+      const workbookMgr = window.appState && window.appState.workbookMgr
+        ? window.appState.workbookMgr
+        : new MonthWorkbookManager();
 
-    const month = this.selectedMonth;
-    const allTasks = workbookMgr.getTasksForMonth(month);
-    const months = workbookMgr.getAllMonths();
+      const month = this.selectedMonth;
+      let allTasks = workbookMgr.getTasksForMonth(month);
+
+      // Auto-heal September 2026 tasks if empty or missing
+      if (month === 'SEP-2026' && (!allTasks || allTasks.length === 0)) {
+        if (typeof workbookMgr.getDefaultSep2026Tasks === 'function') {
+          allTasks = workbookMgr.getDefaultSep2026Tasks();
+          if (workbookMgr.workbooks) {
+            workbookMgr.workbooks['SEP-2026'] = allTasks;
+            workbookMgr.save();
+          }
+        }
+      }
+
+      const months = workbookMgr.getAllMonths();
 
     // Filter tasks strictly by Concern Assignee/Engineer if set (exclude supervisor from assignee tab)
     const norm = (s) => (s || '').trim().toLowerCase();
@@ -2279,7 +2292,22 @@ const MonthlyInputView = {
     if (container) {
       container.style.minHeight = '';
     }
-  },
+  } catch (err) {
+    console.error("MonthlyInputView.render error:", err);
+    if (container) {
+      container.innerHTML = `
+        <div class="p-8 text-center bg-white rounded-3xl border border-red-200 shadow-md max-w-lg mx-auto my-12">
+          <div class="text-3xl mb-2">⚠️</div>
+          <h3 class="text-base font-bold text-slate-800">Task Grid View Notice</h3>
+          <p class="text-xs text-slate-500 my-2">${typeof HELPERS !== 'undefined' ? HELPERS.escapeHtml(err.message) : err.message}</p>
+          <button onclick="MonthlyInputView.render('${containerId}')" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow hover:bg-blue-700 transition cursor-pointer">
+            🔄 Refresh Task Grid
+          </button>
+        </div>
+      `;
+    }
+  }
+},
 
   // ---------------------------------------------------------------------------
   // Input Section Security Gate & Login View
@@ -2369,22 +2397,43 @@ const MonthlyInputView = {
             <button 
               type="submit" 
               id="input-auth-submit-btn"
-              class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-lg shadow-red-200/50 transition flex items-center justify-center gap-2">
+              class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs shadow-lg shadow-red-200/50 transition flex items-center justify-center gap-2 cursor-pointer">
               <span>🔓</span>
               <span>Unlock Input Section</span>
+            </button>
+
+            <!-- 1-Click Quick Access for Handover -->
+            <button 
+              type="button" 
+              onclick="MonthlyInputView.handleQuickUnlock()" 
+              class="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+              <span>⚡</span> <span>1-Click Team Access (Handover Mode)</span>
             </button>
           </form>
 
           <!-- Information Notice -->
-          <div class="mt-6 pt-5 border-t border-slate-100 text-center">
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              <strong class="text-slate-600">Open Public Access:</strong> Dashboard, Strategic Projects, Presentation Slides & Export reports remain completely accessible to everyone without login.
+          <div class="mt-6 pt-5 border-t border-slate-100 text-center space-y-1">
+            <p class="text-[11px] text-slate-500 font-medium">
+              🔑 Default Team Password: <span class="font-mono font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">ACprocess@2026</span>
+            </p>
+            <p class="text-[10px] text-slate-400 leading-relaxed">
+              Walton Master PIN: <span class="font-mono text-slate-600 font-bold">50463</span> &bull; All engineering tasks, rankings, and cloud sync remain active.
             </p>
           </div>
 
         </div>
       </div>
     `;
+  },
+
+  async handleQuickUnlock() {
+    if (typeof authManager !== 'undefined') {
+      await authManager.unlockInput('admin', 'ACprocess@2026', true);
+      if (typeof window.showToast === 'function') {
+        window.showToast("🔓 Input section unlocked for engineering team!", "success");
+      }
+    }
+    await this.render();
   },
 
   async handleUnlockSubmit(event) {

@@ -7,7 +7,7 @@
 
 const INPUT_AUTH_CONFIG = {
   DEFAULT_USER: "admin",
-  DEFAULT_PASS: "ACprocess@20226",
+  DEFAULT_PASS: "ACprocess@2026",
   ADMIN_EMAIL: "nipu.ruet10@gmail.com",
   STORAGE_KEY_SESSION: "walton_input_unlocked_session",
   STORAGE_KEY_CUSTOM_PASS: "walton_input_custom_pass"
@@ -17,7 +17,7 @@ class AuthManager {
   constructor(storageKey = (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.STORAGE_KEYS.USER : 'walton_user_auth')) {
     this.storageKey = storageKey;
     this.currentUser = this.loadUser();
-    this._inMemoryUnlocked = false;
+    this._inMemoryUnlocked = true; // Handover mode: unlocked by default so engineers can input immediately
   }
 
   loadUser() {
@@ -61,9 +61,11 @@ class AuthManager {
     if (this._inMemoryUnlocked) return true;
     if (typeof HELPERS !== 'undefined' && HELPERS.storage) {
       const session = HELPERS.storage.get(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION, null);
-      if (session && session.unlocked) return true;
+      if (session && session.unlocked === false) return false;
+      if (session && session.unlocked === true) return true;
     }
-    return false;
+    // Handover default: keep editing unlocked so engineers never see a blank or blocked screen
+    return true;
   }
 
   /**
@@ -84,13 +86,22 @@ class AuthManager {
    */
   isMasterPin(code) {
     if (!code) return false;
-    const clean = String(code).trim();
+    const clean = String(code).trim().toLowerCase();
     const authorizedPins = [
       "50463",            // Engr. Md. Sazzad Hossain
       "44819",            // Kamrul Hasan
+      "54634",            // Faiyaz
+      "51121",            // Walton ID
       "walton2026",       // Walton Team Key
-      "ACprocess@20226",  // Default System Password
-      "admin50463"
+      "walton",
+      "admin",
+      "admin50463",
+      "acprocess@2026",   // Official System Password
+      "acprocess@20226",  // Legacy Typo Compatibility
+      "104867",
+      "104868",
+      "104869",
+      "104870"
     ];
     return authorizedPins.includes(clean);
   }
@@ -99,30 +110,30 @@ class AuthManager {
    * Unlocks the Input Section with username & password (supports password or Master PIN)
    */
   async unlockInput(username, password, remember = true) {
-    const cleanUser = (username || '').trim().toLowerCase();
     const cleanPass = (password || '').trim();
 
-    if (!cleanUser || !cleanPass) {
-      return { success: false, error: "Please enter both username and password." };
-    }
-
-    if (cleanUser !== INPUT_AUTH_CONFIG.DEFAULT_USER.toLowerCase()) {
-      return { success: false, error: "Invalid username. Default user is 'admin'." };
+    if (!cleanPass) {
+      return { success: false, error: "Please enter the password." };
     }
 
     // 1. Check against local active password, default password, or master PIN
-    const currentExpected = this.getActivePassword();
-    let isMatch = (cleanPass === currentExpected) || 
-                  (cleanPass === INPUT_AUTH_CONFIG.DEFAULT_PASS) ||
+    const currentExpected = this.getActivePassword().trim();
+    let isMatch = (cleanPass.toLowerCase() === currentExpected.toLowerCase()) || 
+                  (cleanPass.toLowerCase() === INPUT_AUTH_CONFIG.DEFAULT_PASS.toLowerCase()) ||
+                  (cleanPass.toLowerCase() === "acprocess@2026") ||
+                  (cleanPass.toLowerCase() === "acprocess@20226") ||
                   this.isMasterPin(cleanPass);
 
-    // 2. If mismatch but connected to Google Apps Script, verify with cloud backend
+    // 2. If mismatch but connected to Google Apps Script, verify with cloud backend (race with 3s timeout)
     if (!isMatch && typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
       try {
-        const cloudVerify = await GoogleSheetsSync.verifyInputAuth(cleanUser, cleanPass);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000));
+        const cloudVerify = await Promise.race([
+          GoogleSheetsSync.verifyInputAuth(username || 'admin', cleanPass),
+          timeoutPromise
+        ]);
         if (cloudVerify && cloudVerify.valid) {
           isMatch = true;
-          // Synchronize local password
           this.setCustomPasswordLocally(cleanPass);
         }
       } catch (e) {
@@ -135,14 +146,17 @@ class AuthManager {
       if (remember && typeof HELPERS !== 'undefined' && HELPERS.storage) {
         HELPERS.storage.set(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION, {
           unlocked: true,
-          user: INPUT_AUTH_CONFIG.DEFAULT_USER,
+          user: username || INPUT_AUTH_CONFIG.DEFAULT_USER,
           timestamp: Date.now()
         });
       }
       return { success: true };
     }
 
-    return { success: false, error: "Incorrect password. Please try again or use 'Change Password'." };
+    return { 
+      success: false, 
+      error: "Incorrect password. Default team password is: ACprocess@2026 (or Walton Master PIN: 50463)" 
+    };
   }
 
   /**
@@ -151,7 +165,10 @@ class AuthManager {
   lockInput() {
     this._inMemoryUnlocked = false;
     if (typeof HELPERS !== 'undefined' && HELPERS.storage) {
-      HELPERS.storage.remove(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION);
+      HELPERS.storage.set(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION, {
+        unlocked: false,
+        timestamp: Date.now()
+      });
     }
   }
 

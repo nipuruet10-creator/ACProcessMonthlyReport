@@ -139,9 +139,13 @@ const App = {
 
     await this.refreshCurrentTab();
 
-    // Rapid sync whenever user navigates tabs to ensure fresh data across devices
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud && !GoogleSheetsSync.isSyncing) {
-      GoogleSheetsSync.pullFromCloud(true);
+    // Non-blocking background sync whenever user navigates tabs to ensure fresh data across devices
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud) {
+      setTimeout(() => {
+        if (!GoogleSheetsSync.isSyncing) {
+          GoogleSheetsSync.pullFromCloud(true);
+        }
+      }, 100);
     }
   },
 
