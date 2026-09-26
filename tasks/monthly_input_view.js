@@ -1577,13 +1577,30 @@ const MonthlyInputView = {
   },
 
   renderTaskRowHtml(t, idx, totalCount, categories, engineers, supervisors, copiedSourceIds = null, copiedNames = null) {
-    const photos = (typeof photoManager !== 'undefined') ? photoManager.getTaskPhotos(t.task_id, this.selectedMonth) : {};
-    const rawThumb = (photos && (photos.before_photo || photos.photo_1 || photos.after_photo)) || t.photo_1 || t.photo_2;
-    const hasPhoto = Boolean(rawThumb);
-    const thumb = rawThumb;
     const currentSup = HELPERS.formatPersonnelName(t.supervisor || "Kamrul (44819)");
     const currentAssignee = HELPERS.formatPersonnelName(t.assignee || t.engineer || (engineers[0] ? engineers[0].display : "Sazzad (50463)"));
     const isLastRow = (idx === totalCount - 1);
+
+    // Format compact entry date & time for the last column (Requirement 6)
+    let timeLabel = "";
+    const rawTs = t.created_at || t.start_date || t.last_updated;
+    if (rawTs) {
+      try {
+        const d = new Date(rawTs);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getDate()).padStart(2, '0');
+          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const mon = monthNames[d.getMonth()];
+          const hours = String(d.getHours()).padStart(2, '0');
+          const mins = String(d.getMinutes()).padStart(2, '0');
+          timeLabel = `${day} ${mon} ${hours}:${mins}`;
+        } else {
+          timeLabel = String(rawTs).slice(0, 16);
+        }
+      } catch (e) {
+        timeLabel = "";
+      }
+    }
 
     // Determine whether task is in Executive Management Report
     let isCopied = false;
@@ -1682,19 +1699,6 @@ const MonthlyInputView = {
           </select>
         </td>
 
-        <!-- Photo Attachment Button -->
-        <td class="py-1.5 px-1 text-center border-r border-slate-200 align-middle">
-          ${hasPhoto ? `
-            <div class="inline-flex items-center justify-center cursor-pointer" onclick="photoViewModal.open('${t.task_id}')" title="View attached photo">
-              <img src="${thumb}" class="w-7 h-7 rounded-lg object-cover border border-emerald-300 shadow-xs">
-            </div>
-          ` : `
-            <button onclick="photoViewModal.open('${t.task_id}')" title="Upload or attach photo" class="p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 text-xs cursor-pointer">
-              🖼️
-            </button>
-          `}
-        </td>
-
         <!-- Report Inclusion Toggle (Green Pill) -->
         <td class="py-1.5 px-1 text-center border-r border-slate-200 align-middle">
           <button id="report-toggle-btn-${t.task_id}" onclick="MonthlyInputView.toggleInclude('${t.task_id}')" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold transition ${
@@ -1706,7 +1710,7 @@ const MonthlyInputView = {
           </button>
         </td>
 
-        <!-- Actions -->
+        <!-- Actions & Compact Entry Date/Time -->
         <td class="py-1.5 px-2 text-center align-middle whitespace-nowrap">
           <div id="mgmt-action-cell-${t.task_id}" class="flex items-center justify-center gap-1">
             <button onclick="MonthlyInputView.toggleManagementReportCopy('${t.task_id}')" title="Copy to Management Report" class="p-1 text-slate-400 hover:text-indigo-600 rounded text-xs transition cursor-pointer">
@@ -1722,6 +1726,7 @@ const MonthlyInputView = {
               🗑️
             </button>
           </div>
+          ${timeLabel ? `<div class="text-[9px] text-slate-400 font-mono tracking-tight mt-0.5 leading-none select-none" title="Task Entry: ${HELPERS.escapeHtml(rawTs)}">${timeLabel}</div>` : ''}
         </td>
       </tr>
     `;
@@ -1796,7 +1801,7 @@ const MonthlyInputView = {
   _renderEmptyStateHtml(month) {
     return (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl()) ? `
       <tr>
-        <td colspan="11" class="py-14 text-center">
+        <td colspan="10" class="py-14 text-center">
           <div class="max-w-md mx-auto space-y-3">
             <div class="inline-block animate-spin text-3xl">🔄</div>
             <div class="text-sm font-bold text-slate-700">Connecting to Cloud &amp; Syncing ${month} Tasks...</div>
@@ -1808,7 +1813,7 @@ const MonthlyInputView = {
       </tr>
     ` : `
       <tr>
-        <td colspan="11" class="py-14 text-center">
+        <td colspan="10" class="py-14 text-center">
           <div class="max-w-md mx-auto space-y-3">
             <div class="text-3xl">📋</div>
             <div class="text-sm font-bold text-slate-700">No tasks currently entered for ${month}${this.filterEngineer ? ` for ${this.filterEngineer}` : ''}</div>
@@ -2195,17 +2200,16 @@ const MonthlyInputView = {
 
           <!-- Table Container (Horizontal Scrollable, Full Responsive Width) -->
           <div class="overflow-x-auto -webkit-overflow-scrolling-touch w-full">
-            <table class="w-full text-left text-xs border-collapse" style="table-layout: fixed; width: 100%; min-width: 1100px;">
+            <table class="w-full text-left text-xs border-collapse" style="table-layout: fixed; width: 100%; min-width: 1050px;">
               <colgroup>
                 <col style="width: 32px;">   <!-- Checkbox -->
                 <col style="width: 38px;">   <!-- SL (#) -->
-                <col style="width: 34%;">    <!-- Task Name (Expanded for readability) -->
-                <col style="width: 18%;">    <!-- Task Details (Requirement 5: Reduced width as requested) -->
+                <col style="width: 35%;">    <!-- Task Name (Expanded for readability) -->
+                <col style="width: 19%;">    <!-- Task Details (Reduced width as requested) -->
                 <col style="width: 130px;">  <!-- Category -->
                 <col style="width: 60px;">   <!-- Point -->
                 <col style="width: 135px;">  <!-- Supervisor -->
                 <col style="width: 135px;">  <!-- Assignee -->
-                <col style="width: 50px;">   <!-- Photo -->
                 <col style="width: 58px;">   <!-- Report -->
                 <col style="width: 110px;">  <!-- Actions -->
               </colgroup>
@@ -2222,7 +2226,6 @@ const MonthlyInputView = {
                   <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">Point ↕</th>
                   <th class="py-3 px-2 border-r border-slate-100 text-[11px]">Supervisor ↕</th>
                   <th class="py-3 px-2 border-r border-slate-100 text-[11px]">Assignee ↕</th>
-                  <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">Photo</th>
                   <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">Report</th>
                   <th class="py-3 px-2 text-center text-[11px]">Actions</th>
                 </tr>
@@ -2232,7 +2235,7 @@ const MonthlyInputView = {
               </tbody>
               <tfoot class="bg-slate-50/95 border-t-2 border-slate-200">
                 <tr>
-                  <td colspan="11" class="py-2.5 px-4 text-left">
+                  <td colspan="10" class="py-2.5 px-4 text-left">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-3">
                         <button type="button" onclick="MonthlyInputView.addNewRow(true)" 

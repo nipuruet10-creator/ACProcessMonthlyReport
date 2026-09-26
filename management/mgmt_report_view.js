@@ -393,10 +393,20 @@ const ManagementReportView = {
                   <!-- Col 3: Visual Container -->
                   <div class="bg-slate-100 border border-slate-200 rounded-2xl p-3 flex flex-col items-center justify-center relative min-h-[140px]">
                     <img src="${photoSrc}" alt="Task Visual" class="max-h-28 w-auto object-contain rounded-lg drop-shadow-sm mb-2">
-                    <label class="cursor-pointer px-3 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-700 shadow-xs transition inline-flex items-center gap-1">
-                      <span>📸</span> <span>${hasPhoto ? 'Change Photo' : 'Upload Photo'}</span>
-                      <input type="file" accept="image/*" class="hidden" onchange="ManagementReportView.handlePhotoUpload(event, '${t.task_id}')">
-                    </label>
+                    <div class="flex items-center gap-1.5 flex-wrap justify-center mt-1">
+                      <label class="cursor-pointer px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700 shadow-xs transition inline-flex items-center gap-1">
+                        <span>📷</span> <span>${hasPhoto ? 'Change' : 'Upload'}</span>
+                        <input type="file" accept="image/*" class="hidden" onchange="ManagementReportView.handlePhotoUpload(event, '${t.task_id}')">
+                      </label>
+                      ${hasPhoto ? `
+                        <button type="button" onclick="ManagementReportView.openPhotoAdjustModal('${t.task_id}')" class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-[10px] font-bold text-indigo-700 shadow-xs transition inline-flex items-center gap-1 cursor-pointer">
+                          <span>✂️</span> <span>Crop &amp; Adjust</span>
+                        </button>
+                        <button type="button" onclick="ManagementReportView.removePhoto('${t.task_id}')" title="Remove Photo" class="p-1 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-[10px] font-bold text-red-600 shadow-xs transition cursor-pointer">
+                          🗑️
+                        </button>
+                      ` : ''}
+                    </div>
                   </div>
 
                 </div>
@@ -627,6 +637,218 @@ const ManagementReportView = {
       this.render();
     };
     reader.readAsDataURL(file);
+  },
+
+  removePhoto(taskId) {
+    if (!confirm("Remove photo from this management report task?")) return;
+    window.managementReportMgr.updateTask(this.selectedMonth, taskId, { photo: null, photo_after: null, photo_before: null });
+    if (typeof window.showToast === 'function') window.showToast("Photo removed from management task.", "info");
+    this.render();
+  },
+
+  _activeAdjustTaskId: null,
+  _adjustState: {
+    rotation: 0,
+    zoom: 1,
+    brightness: 0,
+    contrast: 0,
+    aspectRatio: '16:9',
+    img: null
+  },
+
+  openPhotoAdjustModal(taskId) {
+    const task = window.managementReportMgr.getTasks(this.selectedMonth).find(t => t.task_id === taskId);
+    if (!task) return;
+    const photoSrc = task.photo || task.photo_after || task.photo_before;
+    if (!photoSrc) {
+      alert("No photo found on this task to adjust.");
+      return;
+    }
+
+    this._activeAdjustTaskId = taskId;
+    this._adjustState = {
+      rotation: 0,
+      zoom: 1,
+      brightness: 0,
+      contrast: 0,
+      aspectRatio: '16:9',
+      img: new Image()
+    };
+
+    let container = document.getElementById('mgmt-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'mgmt-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800 flex flex-col max-h-[92vh]">
+          
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">✂️</span>
+              <h3 class="text-base font-black text-slate-900">Crop, Edit &amp; Adjust Photo</h3>
+            </div>
+            <button onclick="ManagementReportView.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 text-sm flex items-center justify-center transition">&times;</button>
+          </div>
+
+          <div class="my-4 flex-1 flex flex-col items-center justify-center bg-slate-900/90 rounded-2xl p-3 overflow-hidden min-h-[260px] relative">
+            <canvas id="mgmt-adjust-canvas" class="max-w-full max-h-[280px] object-contain rounded-lg shadow-lg border border-slate-700"></canvas>
+          </div>
+
+          <!-- Controls Bar -->
+          <div class="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-1.5 font-bold text-slate-700 flex-wrap">
+                <span>Aspect Ratio:</span>
+                <button type="button" onclick="ManagementReportView.setAdjustAspect('16:9')" class="px-2 py-1 rounded bg-white hover:bg-indigo-50 border border-slate-200 font-mono text-[11px] font-bold">16:9 Slide</button>
+                <button type="button" onclick="ManagementReportView.setAdjustAspect('4:3')" class="px-2 py-1 rounded bg-white hover:bg-indigo-50 border border-slate-200 font-mono text-[11px] font-bold">4:3 Standard</button>
+                <button type="button" onclick="ManagementReportView.setAdjustAspect('1:1')" class="px-2 py-1 rounded bg-white hover:bg-indigo-50 border border-slate-200 font-mono text-[11px] font-bold">1:1 Square</button>
+                <button type="button" onclick="ManagementReportView.setAdjustAspect('orig')" class="px-2 py-1 rounded bg-white hover:bg-indigo-50 border border-slate-200 font-mono text-[11px] font-bold">Original</button>
+              </div>
+
+              <div class="flex items-center gap-1.5 font-bold text-slate-700">
+                <span>Rotate:</span>
+                <button type="button" onclick="ManagementReportView.rotateAdjust(90)" class="px-2.5 py-1 rounded bg-white hover:bg-slate-100 border border-slate-200 text-xs font-bold">↻ 90°</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Zoom: <span id="val-zoom">1.0x</span></label>
+                <input type="range" min="0.5" max="2.0" step="0.05" value="1.0" oninput="ManagementReportView.updateAdjust('zoom', parseFloat(this.value))" class="w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Brightness: <span id="val-bright">0</span></label>
+                <input type="range" min="-50" max="50" step="1" value="0" oninput="ManagementReportView.updateAdjust('brightness', parseInt(this.value, 10))" class="w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contrast: <span id="val-contrast">0</span></label>
+                <input type="range" min="-50" max="50" step="1" value="0" oninput="ManagementReportView.updateAdjust('contrast', parseInt(this.value, 10))" class="w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer">
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Actions -->
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between mt-3">
+            <button type="button" onclick="ManagementReportView.resetAdjust()" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition">
+              Reset
+            </button>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="ManagementReportView.closeModal()" class="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button type="button" onclick="ManagementReportView.saveAdjustedPhoto()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                <span>💾</span> <span>Apply &amp; Save Photo</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    this._adjustState.img.onload = () => {
+      this.renderAdjustCanvas();
+    };
+    this._adjustState.img.src = photoSrc;
+  },
+
+  setAdjustAspect(aspect) {
+    this._adjustState.aspectRatio = aspect;
+    this.renderAdjustCanvas();
+  },
+
+  rotateAdjust(deg) {
+    this._adjustState.rotation = (this._adjustState.rotation + deg) % 360;
+    this.renderAdjustCanvas();
+  },
+
+  updateAdjust(prop, val) {
+    this._adjustState[prop] = val;
+    if (prop === 'zoom') {
+      const zEl = document.getElementById('val-zoom');
+      if (zEl) zEl.textContent = val.toFixed(2) + 'x';
+    } else if (prop === 'brightness') {
+      const bEl = document.getElementById('val-bright');
+      if (bEl) bEl.textContent = val > 0 ? `+${val}` : `${val}`;
+    } else if (prop === 'contrast') {
+      const cEl = document.getElementById('val-contrast');
+      if (cEl) cEl.textContent = val > 0 ? `+${val}` : `${val}`;
+    }
+    this.renderAdjustCanvas();
+  },
+
+  resetAdjust() {
+    this._adjustState.rotation = 0;
+    this._adjustState.zoom = 1;
+    this._adjustState.brightness = 0;
+    this._adjustState.contrast = 0;
+    this._adjustState.aspectRatio = '16:9';
+    const zEl = document.getElementById('val-zoom');
+    const bEl = document.getElementById('val-bright');
+    const cEl = document.getElementById('val-contrast');
+    if (zEl) zEl.textContent = '1.0x';
+    if (bEl) bEl.textContent = '0';
+    if (cEl) cEl.textContent = '0';
+    this.renderAdjustCanvas();
+  },
+
+  renderAdjustCanvas() {
+    const canvas = document.getElementById('mgmt-adjust-canvas');
+    if (!canvas || !this._adjustState.img) return;
+    const ctx = canvas.getContext('2d');
+    const img = this._adjustState.img;
+
+    let targetW = 960;
+    let targetH = 540;
+    if (this._adjustState.aspectRatio === '4:3') {
+      targetW = 800; targetH = 600;
+    } else if (this._adjustState.aspectRatio === '1:1') {
+      targetW = 600; targetH = 600;
+    } else if (this._adjustState.aspectRatio === 'orig') {
+      targetW = img.width || 800; targetH = img.height || 600;
+    }
+
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    ctx.clearRect(0, 0, targetW, targetH);
+    ctx.save();
+
+    const brightPct = 100 + this._adjustState.brightness;
+    const contrastPct = 100 + this._adjustState.contrast;
+    ctx.filter = `brightness(${brightPct}%) contrast(${contrastPct}%)`;
+
+    ctx.translate(targetW / 2, targetH / 2);
+    ctx.rotate((this._adjustState.rotation * Math.PI) / 180);
+    ctx.scale(this._adjustState.zoom, this._adjustState.zoom);
+
+    const imgRatio = img.width / img.height;
+    const targetRatio = targetW / targetH;
+    let drawW, drawH;
+    if (imgRatio > targetRatio) {
+      drawW = targetW;
+      drawH = targetW / imgRatio;
+    } else {
+      drawH = targetH;
+      drawW = targetH * imgRatio;
+    }
+
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.restore();
+  },
+
+  saveAdjustedPhoto() {
+    const canvas = document.getElementById('mgmt-adjust-canvas');
+    if (!canvas || !this._activeAdjustTaskId) return;
+    const base64 = canvas.toDataURL('image/jpeg', 0.92);
+    window.managementReportMgr.updateTask(this.selectedMonth, this._activeAdjustTaskId, { photo: base64 });
+    this.closeModal();
+    if (typeof window.showToast === 'function') window.showToast("✨ Photo edited, cropped & saved!", "success");
+    this.render();
   },
 
   // --------------------------------------------------------------------------

@@ -457,18 +457,46 @@ const TmsSyncService = {
               </div>
               <div>
                 <h3 class="text-base font-black text-slate-800">Walton TMS Bridge Connection</h3>
-                <p class="text-xs text-slate-500">To sync tasks directly to Walton Intranet (192.168.118.138), connect to a local or team bridge.</p>
+                <p class="text-xs text-slate-500">Connect Walton Intranet (192.168.118.138) or link TMS Task ID directly.</p>
               </div>
             </div>
             <button onclick="TmsSyncService.closeBridgeModal()" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition">✕</button>
           </div>
 
-          <div class="my-4 space-y-3 text-xs text-slate-600">
+          <div class="my-4 space-y-3.5 text-xs text-slate-600">
             
+            <!-- Recommended Solution: Instant Direct TMS ID Link (Zero Network Dependency) -->
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2.5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
+                  <span>🚀</span> <span>Best &amp; Instant Solution: Enter TMS Task ID</span>
+                </span>
+                <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Recommended</span>
+              </div>
+              <p class="text-slate-600 text-[11px] leading-relaxed">
+                Browser security blocks cloud HTTPS apps from connecting to local HTTP bridges. To link your Walton TMS task in 0ms without running any bridge:
+              </p>
+              <div class="flex items-center gap-2">
+                <input type="text" id="manual-tms-input" placeholder="e.g. 104868 or paste TMS link..." 
+                       class="flex-1 bg-white border border-emerald-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none shadow-xs" 
+                       onkeydown="if(event.key==='Enter') TmsSyncService.linkManualTmsId('${month}', '${task.task_id}', this.value)" />
+                <button type="button" onclick="TmsSyncService.linkManualTmsId('${month}', '${task.task_id}', document.getElementById('manual-tms-input').value)"
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer">
+                  Link TMS ✔
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-[11px] pt-0.5 text-slate-500">
+                <span>View task on Walton Intranet:</span>
+                <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-blue-700 underline font-bold flex items-center gap-1">
+                  <span>Open Walton TMS</span> <span>↗</span>
+                </a>
+              </div>
+            </div>
+
             <!-- Option 1: Team Shared Bridge (Zero installation for colleagues!) -->
             <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-2">
               <div class="font-bold text-blue-900 flex items-center justify-between">
-                <span class="flex items-center gap-1.5"><span>🌐</span> <span>Option 1: Connect to Team Bridge (Sazzad's PC)</span></span>
+                <span class="flex items-center gap-1.5"><span>🌐</span> <span>Option 2: Connect to Team Bridge (Sazzad's PC)</span></span>
                 <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-sans font-bold">Fastest</span>
               </div>
               <p class="text-slate-600 text-[11px]">
@@ -486,10 +514,10 @@ const TmsSyncService = {
               </div>
             </div>
 
-            <!-- Option 2: Local 1-Click Bridge -->
+            <!-- Option 3: Local 1-Click Bridge -->
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
               <div class="font-bold text-slate-800 flex items-center gap-1.5">
-                <span>💻</span> <span>Option 2: Run Local Bridge on this PC</span>
+                <span>💻</span> <span>Option 3: Run Local Bridge on this PC</span>
               </div>
               <p class="text-slate-600 text-[11px]">
                 Go to the project folder and double-click either:
@@ -506,10 +534,10 @@ const TmsSyncService = {
               </div>
             </div>
 
-            <!-- Option 3: Manual Task & Credentials -->
+            <!-- Option 4: Manual Task & Credentials -->
             <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-1.5">
               <div class="font-bold text-amber-900 flex items-center justify-between">
-                <span class="flex items-center gap-1.5"><span>🔑</span> <span>Option 3: Manual Login Details</span></span>
+                <span class="flex items-center gap-1.5"><span>🔑</span> <span>Manual TMS Login Details</span></span>
                 <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-[11px] text-blue-700 underline font-bold">Open Walton TMS ↗</a>
               </div>
               <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-700">
@@ -535,6 +563,40 @@ const TmsSyncService = {
         </div>
       </div>
     `;
+  },
+
+  linkManualTmsId(month, taskId, inputVal) {
+    if (!inputVal) {
+      alert("Please enter a Walton TMS Task ID or paste the TMS link.");
+      return;
+    }
+    let codeMatch = String(inputVal).match(/code=(\d+)/i) || String(inputVal).match(/\b(\d{5,7})\b/);
+    const tmsCode = codeMatch ? codeMatch[1] : String(inputVal).trim();
+    if (!tmsCode) {
+      alert("Invalid TMS Task ID format. Example: 104868");
+      return;
+    }
+    const tmsUrl = `http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=${tmsCode}`;
+    if (window.appState && window.appState.workbookMgr) {
+      window.appState.workbookMgr.updateTask(month, taskId, {
+        tms_task_id: tmsCode,
+        tms_url: tmsUrl,
+        tms_status: '100% Completed',
+        status: `TMS#${tmsCode} (100% Completed)`,
+        remarks: `TMS_ID:${tmsCode}`,
+        tms_synced_at: new Date().toISOString()
+      });
+      if (window.appState.syncEngine) {
+        window.appState.syncEngine.syncMonth(month);
+      }
+    }
+    this.closeBridgeModal();
+    if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+      MonthlyInputView.render();
+    }
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✅ Walton TMS #${tmsCode} linked & marked 100% Completed!`, "success");
+    }
   },
 
   closeBridgeModal() {

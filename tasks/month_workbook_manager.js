@@ -154,8 +154,14 @@ class MonthWorkbookManager {
     // Sanitize any malformed month keys loaded from storage
     this.sanitizeWorkbooks();
 
-    // Load full 2026 Production Dataset (Jan 2026 to Aug 2026) directly extracted from Excel
+    // Enforce 2-month retention policy immediately: Purge Jan-Jul and any month older than previous month
+    this.enforceTwoMonthRetention();
+
+    // Load full 2026 Production Dataset (Aug 2026 only, Jan-Jul purged)
     this.hydrateFromImported2026Dataset();
+
+    // Re-enforce retention after hydration to ensure Jan-Jul never persists
+    this.enforceTwoMonthRetention();
 
     // Ensure September 2026 has all 5 genuine tasks initialized and auto-healed
     if (!this.workbooks["SEP-2026"] || this.workbooks["SEP-2026"].length === 0) {
@@ -370,36 +376,95 @@ class MonthWorkbookManager {
     return upper;
   }
 
-  getAllMonths() {
-    const monthOrder = { "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12 };
-    const defaultMonths = [
-      // 2026 Months (Starts from January 2026 as required)
-      "JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026",
-      "JUL-2026", "AUG-2026", "SEP-2026", "OCT-2026", "NOV-2026", "DEC-2026",
-      // 2027 Months
-      "JAN-2027", "FEB-2027", "MAR-2027", "APR-2027", "MAY-2027", "JUN-2027",
-      "JUL-2027", "AUG-2027", "SEP-2027", "OCT-2027", "NOV-2027", "DEC-2027"
-    ];
-    const existing = Object.keys(this.workbooks).map(k => this.normalizeMonth(k));
-    const combined = Array.from(new Set([...defaultMonths, ...existing])).filter(m => /^[A-Z]{3}-\d{4}$/.test(m));
+  calculatePreviousMonthCode(monthCode) {
+    const norm = this.normalizeMonth(monthCode);
+    const parts = norm.split("-");
+    if (parts.length !== 2) return null;
+    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const mIdx = monthNames.indexOf(parts[0].toUpperCase());
+    let year = parseInt(parts[1], 10);
+    if (mIdx === -1 || isNaN(year)) return null;
 
-    // Sort chronologically (Year then Month)
-    combined.sort((a, b) => {
-      const getScore = (str) => {
-        const parts = String(str).toUpperCase().split("-");
-        if (parts.length === 2) {
-          const mon = parts[0];
-          const yr = parseInt(parts[1], 10);
-          if (monthOrder[mon] && !isNaN(yr)) {
-            return yr * 100 + monthOrder[mon];
-          }
-        }
-        return 999999;
-      };
-      return getScore(a) - getScore(b);
+    if (mIdx === 0) {
+      return `DEC-${year - 1}`;
+    } else {
+      return `${monthNames[mIdx - 1]}-${year}`;
+    }
+  }
+
+  enforceTwoMonthRetention(activeMonth = null) {
+    const running = this.normalizeMonth(activeMonth || this.activeMonth || "SEP-2026");
+    const prev = this.calculatePreviousMonthCode(running);
+
+    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const getScore = (mCode) => {
+      const p = String(mCode || "").toUpperCase().split("-");
+      if (p.length === 2) {
+        const idx = monthNames.indexOf(p[0]);
+        const yr = parseInt(p[1], 10);
+        if (idx !== -1 && !isNaN(yr)) return yr * 12 + idx;
+      }
+      return -1;
+    };
+
+    const minScore = prev ? getScore(prev) : getScore(running);
+    let purgedAny = false;
+
+    // Purge older months from workbooks (strictly no Jan 2026 through Jul 2026)
+    Object.keys(this.workbooks).forEach(k => {
+      const norm = this.normalizeMonth(k);
+      const score = getScore(norm);
+      if (score < minScore || ["JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026", "JUL-2026"].includes(norm)) {
+        delete this.workbooks[k];
+        delete this.workbooks[norm];
+        purgedAny = true;
+      }
     });
 
-    return combined;
+    // Clean up older localStorage keys
+    try {
+      const obsoleteKeys = [
+        "walton_pd_month_workbooks_v1",
+        "walton_pd_tasks_JAN-2026", "walton_pd_tasks_FEB-2026", "walton_pd_tasks_MAR-2026",
+        "walton_pd_tasks_APR-2026", "walton_pd_tasks_MAY-2026", "walton_pd_tasks_JUN-2026",
+        "walton_pd_tasks_JUL-2026"
+      ];
+      obsoleteKeys.forEach(key => localStorage.removeItem(key));
+    } catch (e) {}
+
+    if (purgedAny) {
+      this.save();
+    }
+  }
+
+  getAllMonths() {
+    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const getScore = (mCode) => {
+      const p = String(mCode || "").toUpperCase().split("-");
+      if (p.length === 2) {
+        const idx = monthNames.indexOf(p[0]);
+        const yr = parseInt(p[1], 10);
+        if (idx !== -1 && !isNaN(yr)) return yr * 12 + idx;
+      }
+      return -1;
+    };
+
+    const running = this.normalizeMonth(this.activeMonth || "SEP-2026");
+    const prev = this.calculatePreviousMonthCode(running);
+    const baseRetained = [prev, running].filter(Boolean);
+
+    // Also include any future months created by user
+    const existing = Object.keys(this.workbooks).map(k => this.normalizeMonth(k));
+    const minScore = prev ? getScore(prev) : getScore(running);
+
+    const validMonths = Array.from(new Set([...baseRetained, ...existing])).filter(m => {
+      if (!/^[A-Z]{3}-\d{4}$/.test(m)) return false;
+      if (["JAN-2026", "FEB-2026", "MAR-2026", "APR-2026", "MAY-2026", "JUN-2026", "JUL-2026"].includes(m)) return false;
+      return getScore(m) >= minScore;
+    });
+
+    validMonths.sort((a, b) => getScore(a) - getScore(b));
+    return validMonths;
   }
 
   createMonth(monthCode) {
@@ -852,13 +917,8 @@ class MonthWorkbookManager {
   }
 
   getPreviousMonth(month) {
-    const all = this.getAllMonths();
     const m = this.normalizeMonth(month);
-    const idx = all.indexOf(m);
-    if (idx > 0) {
-      return all[idx - 1];
-    }
-    return null;
+    return this.calculatePreviousMonthCode(m);
   }
 
   syncOngoingProjectsFromPreviousMonth(targetMonth) {

@@ -24,13 +24,6 @@ const APP_CONFIG = {
   // Current Active Operating Month
   DEFAULT_MONTH: "2026-09",
   SUPPORTED_MONTHS: [
-    { id: "2026-01", label: "January 2026", status: "Closed", code: "JAN-2026" },
-    { id: "2026-02", label: "February 2026", status: "Closed", code: "FEB-2026" },
-    { id: "2026-03", label: "March 2026", status: "Closed", code: "MAR-2026" },
-    { id: "2026-04", label: "April 2026", status: "Closed", code: "APR-2026" },
-    { id: "2026-05", label: "May 2026", status: "Closed", code: "MAY-2026" },
-    { id: "2026-06", label: "June 2026", status: "Closed", code: "JUN-2026" },
-    { id: "2026-07", label: "July 2026", status: "Closed", code: "JUL-2026" },
     { id: "2026-08", label: "August 2026", status: "Closed", code: "AUG-2026" },
     { id: "2026-09", label: "September 2026", status: "Active", code: "SEP-2026" }
   ],
