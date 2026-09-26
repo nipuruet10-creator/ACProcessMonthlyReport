@@ -225,6 +225,15 @@ Return ONLY a JSON object matching this exact schema:
    * @returns {string} Numbered milestone string: "1. ... 2. ... 3. ... 4. ... 5. ..."
    */
   generateEngineeringSteps(taskName = "", category = "") {
+    let result = this._generateRawEngineeringSteps(taskName, category);
+    const helpers = (typeof HELPERS !== 'undefined') ? HELPERS : (typeof require !== 'undefined' ? require('../utils/helpers') : null);
+    if (helpers && helpers.formatDetailsAsShortBullets) {
+      return helpers.formatDetailsAsShortBullets(result);
+    }
+    return result;
+  },
+
+  _generateRawEngineeringSteps(taskName = "", category = "") {
     const raw = (taskName || "").trim();
     if (!raw) {
       return "1. Process requirement study & CAD modeling 2. Tooling fabrication, component assembly & wiring 3. Sensor calibration & pneumatic testing 4. Production trial run & cycle time check 5. Final handover to production with work instruction SOP";

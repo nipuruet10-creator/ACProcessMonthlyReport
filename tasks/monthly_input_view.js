@@ -188,6 +188,41 @@ const MonthlyInputView = {
     }
   },
 
+  /**
+   * High-speed keystroke input handler:
+   * 1. 0ms instant local in-memory & localStorage save (zero data loss on reload)
+   * 2. Echo suppression lock (5000ms)
+   * 3. Sub-250ms debounced cloud broadcast to Firebase for multi-PC live collaboration
+   */
+  handleFieldInput(taskId, field, value) {
+    if (!window.appState || !window.appState.workbookMgr) return;
+    try {
+      const month = this.selectedMonth;
+      const task = window.appState.workbookMgr.getTask(month, taskId);
+      if (task) {
+        task[field] = value;
+        task._lastFieldEditTime = Date.now();
+        task.last_updated = new Date().toISOString();
+        window.appState.workbookMgr.save();
+      }
+
+      if (typeof FirebaseSyncService !== 'undefined') {
+        FirebaseSyncService._suppressLocalEchoUntil[`${taskId}:${field}`] = Date.now() + 5000;
+      }
+
+      if (!this._inputDebounceTimers) this._inputDebounceTimers = {};
+      const debounceKey = `${taskId}:${field}`;
+      clearTimeout(this._inputDebounceTimers[debounceKey]);
+      this._inputDebounceTimers[debounceKey] = setTimeout(() => {
+        if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+          FirebaseSyncService.updateCell(month, taskId, field, value);
+        }
+      }, 250);
+    } catch (e) {
+      console.warn("handleFieldInput notice:", e);
+    }
+  },
+
   async handlePhotoDrop(event, taskId) {
     event.preventDefault();
     event.stopPropagation();
@@ -256,7 +291,7 @@ const MonthlyInputView = {
     const newTask = window.appState.workbookMgr.addTask(
       this.selectedMonth,
       defaultEng,
-      "New Engineering Task",
+      "",
       "YES",
       "",
       "Process development",
@@ -812,7 +847,12 @@ const MonthlyInputView = {
         steps = PROMPT_TEMPLATES.generateEngineeringSteps(taskName, category);
       }
       if (!steps) {
-        steps = "1. Process requirement study & CAD modeling 2. Tooling fabrication, component assembly & wiring 3. Sensor calibration & pneumatic testing 4. Production trial run & cycle time check 5. Final handover to production with work instruction SOP";
+        steps = "1. Process requirement study & CAD modeling • 2. Tooling fabrication & assembly • 3. Sensor calibration & testing • 4. Production trial run • 5. Final SOP handover";
+      }
+
+      // Requirement 3: Ensure task details are concise short bullet points
+      if (typeof HELPERS !== 'undefined' && HELPERS.formatDetailsAsShortBullets) {
+        steps = HELPERS.formatDetailsAsShortBullets(steps);
       }
 
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { task_details: steps });
@@ -898,6 +938,9 @@ const MonthlyInputView = {
         steps = PROMPT_TEMPLATES.generateEngineeringSteps(t.task_name, t.category);
       }
       if (steps) {
+        if (typeof HELPERS !== 'undefined' && HELPERS.formatDetailsAsShortBullets) {
+          steps = HELPERS.formatDetailsAsShortBullets(steps);
+        }
         window.appState.workbookMgr.updateTask(this.selectedMonth, t.task_id, { task_details: steps });
         if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
           FirebaseSyncService.updateCell(this.selectedMonth, t.task_id, 'task_details', steps);
@@ -1569,8 +1612,8 @@ const MonthlyInputView = {
         <td class="py-1.5 px-2.5 border-r border-slate-200 align-middle">
           <div class="flex items-center justify-between gap-1.5 w-full">
             <textarea id="task-name-input-${t.task_id}" rows="1"
+                      oninput="MonthlyInputView.handleFieldInput('${t.task_id}', 'task_name', this.value); this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
                       onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
-                      oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
                       class="flex-1 min-h-[36px] bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-blue-100 resize-none overflow-hidden leading-snug block transition"
                       placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
             ${(typeof TmsSyncService !== 'undefined') ? TmsSyncService.renderTmsActionHtml(this.selectedMonth, t) : ''}
@@ -1583,6 +1626,7 @@ const MonthlyInputView = {
             <input type="text" id="task-details-input-${t.task_id}" value="${HELPERS.escapeHtml(t.task_details || '')}"
                    placeholder="1. Concept design & layout analysis..."
                    title="${HELPERS.escapeHtml(t.task_details || '')}"
+                   oninput="MonthlyInputView.handleFieldInput('${t.task_id}', 'task_details', this.value)"
                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_details', this.value)"
                    class="w-full h-[34px] bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg pl-2 pr-9 py-1 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-100 transition truncate" />
             <button id="ai-btn-${t.task_id}" type="button" onclick="MonthlyInputView.generateTaskDetails('${t.task_id}')"

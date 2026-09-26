@@ -525,9 +525,46 @@ const FirebaseSyncService = {
       }
     }
 
-    // Update in-memory workbook safely: NEVER let empty remote points wipe local points
+    // Cell-level Micro-Patching (Google Docs style: patch only changed DOM element!)
+    const activeEl = document.activeElement;
+    const activeId = activeEl ? activeEl.id : '';
+
+    // Update in-memory workbook safely: NEVER let remote wipe user edits, valid points, or TMS badges
     const mergedTask = { ...localTask };
     for (const [k, v] of Object.entries(task)) {
+      // Never overwrite field if user is actively focused on it in DOM!
+      if (k === 'task_name' && activeId === `task-name-input-${taskId}`) {
+        continue;
+      }
+      if (k === 'task_details' && activeId === `task-details-input-${taskId}`) {
+        continue;
+      }
+      if (k === 'points' && activeId === `task-point-${taskId}`) {
+        continue;
+      }
+
+      // Local edit recent guard (15s)
+      if ((k === 'task_name' || k === 'task_details' || k === 'points') &&
+          localTask._lastFieldEditTime && (Date.now() - localTask._lastFieldEditTime < 15000)) {
+        continue;
+      }
+
+      // Never let placeholder overwrite real name
+      if (k === 'task_name') {
+        const vStr = String(v ?? '').trim();
+        const lStr = String(localTask.task_name ?? '').trim();
+        if (vStr === 'New Engineering Task' && lStr !== '' && lStr !== 'New Engineering Task') {
+          continue;
+        }
+      }
+
+      // TMS IMMUTABILITY: Never let empty/null wipe local TMS ID!
+      if (k === 'tms_task_id' || k === 'tms_url' || k === 'tms_synced_at') {
+        if (!v && localTask[k]) {
+          continue;
+        }
+      }
+
       if (k === 'points') {
         const rPts = (v !== undefined && v !== null) ? String(v).trim() : '';
         const lPts = (localTask.points !== undefined && localTask.points !== null) ? String(localTask.points).trim() : '';
@@ -540,15 +577,25 @@ const FirebaseSyncService = {
       }
       mergedTask[k] = v;
     }
+
+    // If remote has TMS info, adopt it
+    if (task.tms_task_id && !mergedTask.tms_task_id) {
+      mergedTask.tms_task_id = String(task.tms_task_id);
+    }
+    // Also if local has TMS info from known tasks or remarks, keep it
+    if (!mergedTask.tms_task_id && typeof TmsSyncService !== 'undefined') {
+      const info = TmsSyncService.getTmsInfo(mergedTask);
+      if (info && info.tms_task_id) {
+        mergedTask.tms_task_id = info.tms_task_id;
+        mergedTask.tms_url = info.tms_url;
+      }
+    }
+
     tasks[idx] = mergedTask;
     wbMgr.save();
 
-    // Cell-level Micro-Patching (Google Docs style: patch only changed DOM element!)
-    const activeEl = document.activeElement;
-    const activeId = activeEl ? activeEl.id : '';
-
     changedKeys.forEach(field => {
-      // Ignore local echo if user just typed this field locally in last 400ms
+      // Ignore local echo if user just typed this field locally
       const echoKey = `${taskId}:${field}`;
       if (this._suppressLocalEchoUntil[echoKey] && Date.now() < this._suppressLocalEchoUntil[echoKey]) {
         return;
@@ -558,7 +605,13 @@ const FirebaseSyncService = {
       if (field === 'task_name') {
         const input = document.getElementById(`task-name-input-${taskId}`);
         if (input && activeId !== `task-name-input-${taskId}`) {
-          input.value = task.task_name || '';
+          const currentVal = input.value.trim();
+          const incomingVal = String(task.task_name || '').trim();
+          // Never overwrite genuine local name with default placeholder!
+          if (incomingVal === 'New Engineering Task' && currentVal && currentVal !== 'New Engineering Task') {
+            return;
+          }
+          input.value = incomingVal;
           input.style.height = 'auto';
           input.style.height = input.scrollHeight + 'px';
           this._flashCell(input);
@@ -769,8 +822,8 @@ const FirebaseSyncService = {
       ? window.appState.workbookMgr.normalizeMonth(month)
       : month;
 
-    // Suppress local echo for 400ms
-    this._suppressLocalEchoUntil[`${taskId}:${field}`] = Date.now() + 400;
+    // Suppress local echo for 3000ms to allow multi-PC real-time smooth collaboration
+    this._suppressLocalEchoUntil[`${taskId}:${field}`] = Date.now() + 3000;
 
     try {
       const taskRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${taskId}`);

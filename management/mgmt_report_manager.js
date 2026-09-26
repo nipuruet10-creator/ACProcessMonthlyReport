@@ -304,12 +304,8 @@ class ManagementReportManager {
       const c = t.concern || t.assignee || "General";
       concernCounts[c] = (concernCounts[c] || 0) + 1;
 
-      const status = (t.status || "").toLowerCase();
-      if (status.includes("complete")) {
-        completedCount++;
-      } else {
-        inProgressCount++;
-      }
+      // Requirement 2: All registered tasks count as completed monthly execution
+      completedCount++;
     });
 
     return {

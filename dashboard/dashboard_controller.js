@@ -42,27 +42,20 @@ const DashboardController = {
 
     // If workbookMgr has real tasks, map them
     if (rawTasks && rawTasks.length > 0) {
-      return rawTasks.map(t => {
-        const isDone = t.status && (
-          t.status.toLowerCase().includes("complete") || 
-          t.status.toLowerCase().includes("done") ||
-          t.status.toLowerCase().includes("entry completed")
-        );
-        return {
-          task_id: t.task_id,
-          task_name: t.task_name || "",
-          task_details: t.task_details || "",
-          category: t.category || "Process development",
-          task_point: (t.points !== "" && !isNaN(parseFloat(t.points))) ? parseFloat(t.points) : 0,
-          concern_engineer: t.assignee || t.engineer || "",
-          supervisor: t.supervisor || "",
-          status: isDone ? "Completed" : "Ongoing",
-          raw_status: t.status || "",
-          monthly_report: t.include_in_report || "YES",
-          report_ready: "READY",
-          task_month: monthFilter
-        };
-      });
+      return rawTasks.map(t => ({
+        task_id: t.task_id,
+        task_name: t.task_name || "",
+        task_details: t.task_details || "",
+        category: t.category || "Process development",
+        task_point: (t.points !== "" && !isNaN(parseFloat(t.points))) ? parseFloat(t.points) : 0,
+        concern_engineer: t.assignee || t.engineer || "",
+        supervisor: t.supervisor || "",
+        status: "Completed",
+        raw_status: t.status || "",
+        monthly_report: t.include_in_report || "YES",
+        report_ready: "READY",
+        task_month: monthFilter
+      }));
     }
 
     // Fallback to db adapter
@@ -97,14 +90,14 @@ const DashboardController = {
       filteredTasks = filteredTasks.filter(t => t.monthly_report === this.currentFilters.monthly_report);
     }
 
-    // 2. High-Level Metrics
+    // 2. High-Level Metrics: Completed Task count equals Total Tasks in view (Not dependent on TMS status)
     const totalTasks = filteredTasks.length;
-    const completedTasks = filteredTasks.filter(t => t.status === "Completed").length;
-    const ongoingTasks = totalTasks - completedTasks;
+    const completedTasks = totalTasks;
+    const ongoingTasks = 0;
     const selectedForReport = filteredTasks.filter(t => t.monthly_report === "YES").length;
     const reportReady = filteredTasks.filter(t => t.monthly_report === "YES" && (t.report_ready === "READY" || t.task_name)).length;
     const photoPending = filteredTasks.filter(t => t.monthly_report === "YES" && t.report_ready === "PHOTO PENDING").length;
-    const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const completionPercent = totalTasks > 0 ? 100 : 0;
 
     // Ensure production defaults are initialized
     if (typeof CostSavingTracker !== 'undefined' && CostSavingTracker.ensureProductionDefaults) {

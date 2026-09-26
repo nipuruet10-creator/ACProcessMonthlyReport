@@ -244,6 +244,32 @@ const HELPERS = {
       return MasterDataManager.formatNameWithId(raw);
     }
     return raw.trim();
+  },
+
+  /**
+   * Formats task details into clean, concise short bullet points
+   * @param {string} text
+   * @returns {string} Short bullet points e.g. "1. Step • 2. Step • 3. Step"
+   */
+  formatDetailsAsShortBullets(text) {
+    if (!text || typeof text !== 'string') return '';
+    const rawParts = text.split(/(?:\r?\n|\s*\b\d+[\.\)]\s*|[•*]|\s*;\s*)/).map(s => s.trim()).filter(Boolean);
+    if (rawParts.length === 0) return text.trim();
+    const bullets = rawParts.map(p => {
+      let clean = p.replace(/^[•\-\*0-9\.\)\s]+/, '').trim();
+      if (clean.length > 70) {
+        const commaIdx = clean.indexOf(',');
+        if (commaIdx > 20 && commaIdx < 70) {
+          clean = clean.substring(0, commaIdx).trim();
+        } else {
+          const words = clean.split(/\s+/);
+          if (words.length > 8) clean = words.slice(0, 8).join(' ') + '...';
+        }
+      }
+      return clean;
+    }).filter(b => b.length > 0);
+    if (bullets.length === 0) return text.trim();
+    return bullets.map((b, i) => `${i + 1}. ${b}`).join(' • ');
   }
 };
 

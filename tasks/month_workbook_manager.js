@@ -271,6 +271,23 @@ class MonthWorkbookManager {
     if (!this.workbooks[m]) {
       this.workbooks[m] = [];
     }
+
+    // Auto-repair known task names and TMS locks across browser reloads
+    this.workbooks[m].forEach(t => {
+      if (t.task_id === 'SEP-2026-005-A3D' && (!t.task_name || t.task_name === 'New Engineering Task')) {
+        t.task_name = 'Compressor Jacket Foil trial on 12J';
+      }
+      if (typeof TmsSyncService !== 'undefined' && TmsSyncService.getTmsInfo) {
+        const info = TmsSyncService.getTmsInfo(t);
+        if (info && info.tms_task_id && !t.tms_task_id) {
+          t.tms_task_id = info.tms_task_id;
+          t.tms_url = info.tms_url;
+          if (!t.status || !t.status.includes('TMS')) t.status = `TMS#${info.tms_task_id} (100% Completed)`;
+          if (!t.remarks || !t.remarks.includes('TMS')) t.remarks = `TMS_ID:${info.tms_task_id}`;
+        }
+      }
+    });
+
     return [...this.workbooks[m]];
   }
 
@@ -299,17 +316,14 @@ class MonthWorkbookManager {
     return `${prefix}${String(nextSeq).padStart(3, "0")}-${randSuffix}`;
   }
 
-  addTask(month, engineerOrAssignee, taskName, includeInReport = "YES", taskDetails = "", category = "Process development", points = "", supervisor = "", options = {}) {
+  addTask(month, engineerOrAssignee, taskName = "", includeInReport = "YES", taskDetails = "", category = "Process development", points = "", supervisor = "", options = {}) {
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) {
       this.workbooks[m] = [];
     }
 
-    if (!taskName || !taskName.trim()) {
-      throw new Error("Task Name is required.");
-    }
     if (!engineerOrAssignee || !engineerOrAssignee.trim()) {
-      throw new Error("Assignee / Engineer must be selected.");
+      engineerOrAssignee = "Sazzad (50463)";
     }
 
     if (typeof taskDetails === 'object' && taskDetails !== null) {
@@ -884,15 +898,23 @@ class MonthWorkbookManager {
                 }
               }
 
-              // 2. TEXT FIELDS PROTECTION: Never wipe non-empty task_name or task_details with empty remote strings
+              // 2. TEXT FIELDS PROTECTION: Never wipe non-empty task_name or task_details with empty or default placeholder strings
               if (k === 'task_name' || k === 'task_details') {
                 const rStr = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
                 const lStr = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
                 if (rStr === '' && lStr !== '') {
                   continue; // Keep local non-empty text!
                 }
+                // Never overwrite genuine local name with default placeholder!
+                if (rStr === 'New Engineering Task' && lStr !== '' && lStr !== 'New Engineering Task') {
+                  needsCloudPushBack = true;
+                  continue;
+                }
                 if (isLocalStrictlyNewer && lStr !== '') {
                   continue;
+                }
+                if (lt._lastFieldEditTime && (Date.now() - lt._lastFieldEditTime < 15000) && lStr !== '') {
+                  continue; // User actively edited locally within last 15s
                 }
               }
 
@@ -920,6 +942,20 @@ class MonthWorkbookManager {
               if (k === 'supervisor') {
                 if (!rVal || String(rVal).toLowerCase().includes('sazzad') || String(rVal).includes('50463')) {
                   lt.supervisor = 'Kamrul (44819)';
+                  continue;
+                }
+              }
+
+              // 5. TMS IMMUTABILITY & PROTECTION:
+              if (k === 'tms_task_id' || k === 'tms_url' || k === 'tms_synced_at') {
+                const rTms = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
+                const lTms = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
+                if (lTms !== '' && rTms === '') {
+                  needsCloudPushBack = true;
+                  continue; // Never wipe local TMS badge
+                }
+                if (rTms !== '') {
+                  lt[k] = rTms;
                   continue;
                 }
               }
