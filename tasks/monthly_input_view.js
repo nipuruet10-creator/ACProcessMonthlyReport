@@ -1857,9 +1857,13 @@ const MonthlyInputView = {
         container.style.minHeight = container.offsetHeight + 'px';
       }
 
-      const workbookMgr = window.appState && window.appState.workbookMgr
+      const workbookMgr = (window.appState && window.appState.workbookMgr)
         ? window.appState.workbookMgr
-        : new MonthWorkbookManager();
+        : ((typeof MonthWorkbookManager !== 'undefined') ? new MonthWorkbookManager() : ((typeof window !== 'undefined' && window.MonthWorkbookManager) ? new window.MonthWorkbookManager() : null));
+
+      if (!workbookMgr) {
+        throw new Error("Data engine is initializing. Please click Refresh.");
+      }
 
       const month = this.selectedMonth;
       let allTasks = workbookMgr.getTasksForMonth(month);

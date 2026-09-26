@@ -7,14 +7,26 @@
  * WALTON Hi-Tech Industries PLC
  */
 
-const GENUINE_TASK_IDS = new Set([
-  'SEP-2026-001-EE2',
-  'SEP-2026-002-4YT',
-  'SEP-2026-003-SJ2',
-  'SEP-2026-004-C44',
-  'SEP-2026-005-A3D',
-  'SEP-2026-005-FR5'
-]);
+if (typeof window !== 'undefined' && !window.GENUINE_TASK_IDS) {
+  window.GENUINE_TASK_IDS = new Set([
+    'SEP-2026-001-EE2',
+    'SEP-2026-002-4YT',
+    'SEP-2026-003-SJ2',
+    'SEP-2026-004-C44',
+    'SEP-2026-005-A3D',
+    'SEP-2026-005-FR5'
+  ]);
+}
+var GENUINE_TASK_IDS = (typeof window !== 'undefined' && window.GENUINE_TASK_IDS)
+  ? window.GENUINE_TASK_IDS
+  : new Set([
+      'SEP-2026-001-EE2',
+      'SEP-2026-002-4YT',
+      'SEP-2026-003-SJ2',
+      'SEP-2026-004-C44',
+      'SEP-2026-005-A3D',
+      'SEP-2026-005-FR5'
+    ]);
 
 const GENUINE_TASKS_SEP_2026 = [
   {
