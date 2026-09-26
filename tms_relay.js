@@ -142,12 +142,17 @@ async function createAndCompleteTask(cookie, taskInfo) {
   const rawCat = (taskInfo.category || '').toLowerCase();
   let mappedCategory = '10#sep#Process Development'; // default
   if (rawCat.includes('cost saving') && rawCat.includes('ibu')) mappedCategory = '6#sep#Cost Saving (IBU)';
-  else if (rawCat.includes('cost saving')) mappedCategory = '5#sep#Cost Saving (Local)';
+  else if (rawCat.includes('cost saving') || rawCat.includes('cost savings')) mappedCategory = '5#sep#Cost Saving (Local)';
   else if (rawCat.includes('process extension')) mappedCategory = '7#sep#Process Extension';
-  else if (rawCat.includes('process optimization')) mappedCategory = '8#sep#Process Optimization';
+  else if (rawCat.includes('process optimization') || rawCat.includes('optimization')) mappedCategory = '8#sep#Process Optimization';
   else if (rawCat.includes('new model')) mappedCategory = '4#sep#New Model (Local)';
+  else if (rawCat.includes('structure')) mappedCategory = '2#sep#New Structure Development';
+  else if (rawCat.includes('market')) mappedCategory = '3#sep#New Market Development (IBU)';
   else if (rawCat.includes('feature')) mappedCategory = '1#sep#Feature Development';
+  else if (rawCat.includes('existing model')) mappedCategory = '9#sep#Existing Model Development';
+  else if (rawCat.includes('oem')) mappedCategory = '11#sep#OEM';
   else if (rawCat.includes('other')) mappedCategory = '44#sep#Others';
+  else if (rawCat.includes('major developments') || rawCat.includes('process') || rawCat.includes('bom')) mappedCategory = '10#sep#Process Development';
 
   // Step 1: Create Task Form Post
   const taskPayload = {

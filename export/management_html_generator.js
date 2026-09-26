@@ -177,22 +177,66 @@ const ManagementHTMLGenerator = {
     .mgmt-slide-frame.active { display: block; }
     
     /* Print Layout for Vector 16:9 PDF */
+    @page {
+      size: 297mm 210mm;
+      margin: 0mm;
+    }
     @media print {
-      body { background: #FFF !important; }
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      html, body {
+        width: 297mm !important;
+        height: 210mm !important;
+        background: #FFF !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
       .mgmt-toolbar { display: none !important; }
       .slide-viewport { display: none !important; }
-      #print-container { display: block !important; }
+      #print-container {
+        display: block !important;
+        width: 297mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
       .print-page {
-        width: 100vw !important;
-        height: 56.25vw !important; /* 16:9 */
-        page-break-after: always;
-        break-after: page;
+        display: block !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        max-height: 210mm !important;
+        min-height: 210mm !important;
+        page-break-before: always !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        break-before: page !important;
+        break-after: page !important;
+        break-inside: avoid !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        margin: 0 !important;
         border-radius: 0 !important;
         box-shadow: none !important;
+        box-sizing: border-box !important;
+        background: #FFFFFF !important;
       }
-      @page {
-        size: 16in 9in;
-        margin: 0;
+      .print-page:first-child {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+      }
+      .print-page > div {
+        width: 297mm !important;
+        height: 210mm !important;
+        max-height: 210mm !important;
+        aspect-ratio: unset !important;
+        box-sizing: border-box !important;
+        border-radius: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
       }
     }
     #print-container { display: none; }

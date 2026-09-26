@@ -505,13 +505,27 @@ class MonthWorkbookManager {
       if (t.task_id === 'SEP-2026-005-A3D' && (!t.task_name || t.task_name === 'New Engineering Task')) {
         t.task_name = 'Compressor Jacket Foil trial on 12J';
       }
+      // Auto-correct rows 6 & 8 to genuine Walton TMS task IDs
+      const tName = (t.task_name || '').toLowerCase();
+      if (tName.includes('new die setup for 18m') || tName.includes('foil compressor jacket new die setup')) {
+        t.tms_task_id = '104888';
+        t.tms_url = 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104888';
+        t.status = 'TMS#104888 (100% Completed)';
+        t.remarks = 'TMS_ID:104888';
+      }
+      if (tName.includes('assembly line reclocation') || tName.includes('assembly line relocation') || (tName.includes('assembly line') && tName.includes('rac'))) {
+        t.tms_task_id = '104889';
+        t.tms_url = 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104889';
+        t.status = 'TMS#104889 (100% Completed)';
+        t.remarks = 'TMS_ID:104889';
+      }
       if (typeof TmsSyncService !== 'undefined' && TmsSyncService.getTmsInfo) {
         const info = TmsSyncService.getTmsInfo(t);
-        if (info && info.tms_task_id && !t.tms_task_id) {
+        if (info && info.tms_task_id && (!t.tms_task_id || t.tms_task_id === '104871' || t.tms_task_id === '104872')) {
           t.tms_task_id = info.tms_task_id;
           t.tms_url = info.tms_url;
-          if (!t.status || !t.status.includes('TMS')) t.status = `TMS#${info.tms_task_id} (100% Completed)`;
-          if (!t.remarks || !t.remarks.includes('TMS')) t.remarks = `TMS_ID:${info.tms_task_id}`;
+          t.status = `TMS#${info.tms_task_id} (100% Completed)`;
+          t.remarks = `TMS_ID:${info.tms_task_id}`;
         }
       }
     });

@@ -185,8 +185,8 @@ const HTMLReportGenerator = {
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: landscape;
-      margin: 0;
+      size: 297mm 210mm;
+      margin: 0mm;
     }
     *, *::before, *::after {
       box-sizing: border-box;
@@ -219,10 +219,18 @@ const HTMLReportGenerator = {
       display: none;
     }
     @media print {
-      body {
+      *, *::before, *::after {
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      html, body {
+        width: 297mm !important;
+        height: 210mm !important;
         background: #FFFFFF !important;
         margin: 0 !important;
         padding: 0 !important;
+        overflow: visible !important;
       }
       .no-print {
         display: none !important;
@@ -232,29 +240,57 @@ const HTMLReportGenerator = {
       }
       #print-container {
         display: block !important;
+        width: 297mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       .print-page {
+        display: block !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        max-height: 210mm !important;
+        min-height: 210mm !important;
+        page-break-before: always !important;
         page-break-after: always !important;
+        page-break-inside: avoid !important;
+        break-before: page !important;
         break-after: page !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        max-height: 100vh !important;
+        break-inside: avoid !important;
         overflow: hidden !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
         padding: 0 !important;
         margin: 0 !important;
         background: #FFFFFF !important;
+        position: relative !important;
+        box-sizing: border-box !important;
+      }
+      .print-page:first-child {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
       }
       .print-page > div {
-        width: 100% !important;
-        height: 100% !important;
-        max-width: 100% !important;
-        aspect-ratio: 16/9 !important;
+        width: 297mm !important;
+        height: 210mm !important;
+        max-height: 210mm !important;
+        aspect-ratio: unset !important;
         border-radius: 0 !important;
         border: none !important;
         box-shadow: none !important;
+        margin: 0 !important;
+        padding: 18px 24px 12px 24px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+      }
+      /* Suppress interactive photo frame editing toolbars and hints during print */
+      .slide-photo-frame button,
+      .slide-photo-frame .opacity-0,
+      .slide-photo-frame .pointer-events-none,
+      .slide-photo-frame .group-hover\:opacity-100,
+      .slide-photo-frame .absolute.top-2\.5.right-2\.5,
+      .slide-photo-frame .absolute.top-2\.5.left-2\.5 {
+        display: none !important;
       }
     }
   </style>

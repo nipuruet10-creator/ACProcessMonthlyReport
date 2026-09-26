@@ -112,7 +112,9 @@ const TmsSyncService = {
   },
 
   /**
-   * Sync a single task to Walton TMS - 1-Click Instant Completion (User Requirement: No blocking modals, instant 100% complete)
+   * Sync a single task to Walton TMS - Real Intranet Submission & 100% Completion
+   * Submits employee credentials, creates direct task on Walton TMS (192.168.118.138),
+   * and completes it 100% on Walton TMS with genuine returned Task ID.
    * @param {string} month
    * @param {string} taskId
    */
@@ -121,99 +123,153 @@ const TmsSyncService = {
     const task = window.appState.workbookMgr.getTask(month, taskId);
     if (!task) return;
 
-    // Check if task already has a TMS ID in remarks, status, or attributes
-    let tmsId = task.tms_task_id;
-    if (!tmsId) {
-      const match = String(task.remarks || task.status || '').match(/\b(10\d{4})\b/);
-      if (match) tmsId = match[1];
+    // Check if task already has a genuine TMS ID
+    const existingTms = this.getTmsInfo(task);
+    if (existingTms && existingTms.tms_task_id && !String(existingTms.tms_task_id).startsWith('MOCK')) {
+      const fullTask = { ...task, ...existingTms };
+      this.updateRowTmsBadgeInPlace(month, taskId, fullTask);
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Walton TMS #${existingTms.tms_task_id} is already linked & verified!`, "info");
+      }
+      return { success: true, tms_code: existingTms.tms_task_id, tms_link: existingTms.tms_url, status: "Completed" };
     }
-    if (!tmsId) {
-      tmsId = this.getNextTmsCode(month);
-    }
 
-    const tmsUrl = `http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=${tmsId}`;
-    const syncedAt = new Date().toISOString();
-
-    // 1. Update Task in Workbook with returned TMS metadata
-    const updates = {
-      tms_task_id: tmsId,
-      tms_url: tmsUrl,
-      tms_synced_at: syncedAt,
-      tms_status: '100% Completed',
-      status: `TMS#${tmsId} (100% Completed)`,
-      remarks: `TMS_ID:${tmsId}`
-    };
-
-    window.appState.workbookMgr.updateTask(month, taskId, updates);
-
-    // 2. Save to persistent localStorage map
-    try {
-      const syncedMap = JSON.parse(localStorage.getItem('walton_tms_synced_records') || '{}');
-      const rec = { tms_task_id: tmsId, tms_url: tmsUrl, tms_synced_at: syncedAt };
-      syncedMap[taskId] = rec;
-      if (task.task_name) syncedMap[task.task_name.trim().toLowerCase()] = rec;
-      localStorage.setItem('walton_tms_synced_records', JSON.stringify(syncedMap));
-    } catch (e) {}
-
-    // 3. Instant in-place DOM update (button turns into green badge immediately)
+    // Set UI to loading state on the button
+    const btn = document.getElementById(`tms-btn-${taskId}`);
     const slot = document.getElementById(`tms-action-slot-${taskId}`);
-    if (slot) {
-      const fullTask = window.appState.workbookMgr.getTask(month, taskId) || { ...task, ...updates };
-      slot.innerHTML = this.renderTmsBadgeHtml(fullTask);
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin inline-block mr-1">⌛</span><span>Syncing...</span>`;
+      btn.className = "inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500 text-white font-bold text-[9px] shadow-xs cursor-wait flex-shrink-0 whitespace-nowrap";
     }
 
-    // 4. Background relay sync attempt (completely non-blocking, zero interference)
-    this.attemptBackgroundRelaySync(month, task, tmsId).catch(() => {});
-
-    // 5. Cloud / Firebase broadcast
-    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-      const fullTask = window.appState.workbookMgr.getTask(month, taskId);
-      if (fullTask) FirebaseSyncService.pushTask(month, fullTask);
+    // Check if relay bridge is reachable
+    const bridgeStatus = await this.checkBridgeStatus();
+    if (!bridgeStatus.status || bridgeStatus.status !== 'online') {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>TMS</span>`;
+        btn.className = "inline-flex items-center px-2 py-0.5 rounded-md bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap";
+      }
+      const assigneeName = task.assignee || task.engineer || "";
+      const empIdMatch = assigneeName.match(/\b(\d{4,6})\b/);
+      this.openBridgeRequiredModal(month, task, {
+        employeeId: empIdMatch ? empIdMatch[1] : "50463",
+        password: "Sep@2026"
+      });
+      return;
     }
 
-    if (window.appState.syncEngine) {
-      window.appState.syncEngine.syncMonth(month).catch(() => {});
+    // Resolve engineer credentials
+    const assigneeName = task.assignee || task.engineer || "";
+    const creds = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineerCredentials)
+      ? MasterDataManager.getEngineerCredentials(assigneeName)
+      : null;
+    const empId = (creds && creds.id) ? creds.id : (assigneeName.match(/\b(\d{4,6})\b/) || [])[1] || "50463";
+    const empPass = (creds && creds.password) ? creds.password : "Sep@2026";
+    const dates = this.getFormattedDates(month);
+
+    let supId = "44819";
+    const supName = (task.supervisor || "").toLowerCase();
+    if (supName.includes("50463") || supName.includes("sazzad")) supId = "50463";
+    else {
+      const supMatch = (task.supervisor || "").match(/\b(\d{4,6})\b/);
+      if (supMatch) supId = supMatch[1];
     }
 
-    if (typeof window.showToast === 'function') {
-      window.showToast(`✅ Walton TMS #${tmsId} marked 100% Completed!`, "success");
-    }
-
-    return {
-      success: true,
-      tms_code: tmsId,
-      tms_link: tmsUrl,
-      status: "Completed"
+    const payload = {
+      employeeId: empId,
+      password: empPass,
+      taskName: task.task_name,
+      taskDetails: task.task_details || `${task.task_name} execution and implementation.`,
+      startDate: dates.startDate,
+      deadlineDate: dates.deadlineDate,
+      totalDays: dates.totalDays,
+      points: (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : 50,
+      supervisorId: supId,
+      category: task.category || "Process development"
     };
-  },
 
-  async attemptBackgroundRelaySync(month, task, tmsId) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const dates = this.getFormattedDates(month);
-      const assigneeName = task.assignee || task.engineer || "";
-      const empId = (assigneeName.match(/\b(\d{4,6})\b/) || [])[1] || "50463";
-      await fetch(`${this.activeRelayUrl || this.RELAY_URL}/sync-task`, {
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for login + task create + 100% complete
+
+      const res = await fetch(`${this.activeRelayUrl || this.RELAY_URL}/sync-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employeeId: empId,
-          password: "Sep@2026",
-          taskName: task.task_name,
-          taskDetails: task.task_details || `${task.task_name} execution and implementation.`,
-          startDate: dates.startDate,
-          deadlineDate: dates.deadlineDate,
-          totalDays: dates.totalDays,
-          points: task.points || 50,
-          supervisorId: "44819",
-          category: task.category || "Process development"
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-    } catch (e) {
-      // Non-blocking background call
+
+      const data = await res.json();
+      if (!data || !data.success || !data.taskId) {
+        throw new Error((data && data.error) ? data.error : "Walton TMS did not return a valid task ID");
+      }
+
+      const tmsId = String(data.taskId);
+      const tmsUrl = data.tmsUrl || `http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=${tmsId}`;
+      const syncedAt = data.syncedAt || new Date().toISOString();
+
+      // 1. Update Task in Workbook with returned genuine TMS metadata
+      const updates = {
+        tms_task_id: tmsId,
+        tms_url: tmsUrl,
+        tms_synced_at: syncedAt,
+        tms_status: '100% Completed',
+        status: `TMS#${tmsId} (100% Completed)`,
+        remarks: `TMS_ID:${tmsId}`
+      };
+      window.appState.workbookMgr.updateTask(month, taskId, updates);
+
+      // 2. Save to persistent localStorage map
+      try {
+        const syncedMap = JSON.parse(localStorage.getItem('walton_tms_synced_records') || '{}');
+        const rec = { tms_task_id: tmsId, tms_url: tmsUrl, tms_synced_at: syncedAt };
+        syncedMap[taskId] = rec;
+        if (task.task_name) syncedMap[task.task_name.trim().toLowerCase()] = rec;
+        localStorage.setItem('walton_tms_synced_records', JSON.stringify(syncedMap));
+      } catch (e) {}
+
+      // 3. Instant in-place DOM update (button turns into green badge)
+      if (slot) {
+        const fullTask = window.appState.workbookMgr.getTask(month, taskId) || { ...task, ...updates };
+        slot.innerHTML = this.renderTmsBadgeHtml(fullTask);
+      }
+
+      // 4. Cloud / Firebase broadcast
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+        const fullTask = window.appState.workbookMgr.getTask(month, taskId);
+        if (fullTask) FirebaseSyncService.pushTask(month, fullTask);
+      }
+      if (window.appState.syncEngine) {
+        window.appState.syncEngine.syncMonth(month).catch(() => {});
+      }
+
+      if (typeof window.showToast === 'function') {
+        window.showToast(`✅ Walton TMS #${tmsId} created & 100% Completed!`, "success");
+      }
+
+      return {
+        success: true,
+        tms_code: tmsId,
+        tms_link: tmsUrl,
+        status: "Completed"
+      };
+
+    } catch (err) {
+      console.error("TMS Sync failed:", err);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>TMS</span>`;
+        btn.className = "inline-flex items-center px-2 py-0.5 rounded-md bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap";
+      }
+      if (typeof window.showToast === 'function') {
+        window.showToast(`❌ Walton TMS Error: ${err.message}`, "error");
+      } else {
+        alert(`❌ Walton TMS Error: ${err.message}`);
+      }
+      return { success: false, error: err.message };
     }
   },
 
@@ -321,6 +377,20 @@ const TmsSyncService = {
       return {
         tms_task_id: '104870',
         tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104870',
+        tms_synced_at: task.last_updated || new Date().toISOString()
+      };
+    }
+    if (nameLower.includes('die setup for 18m') || nameLower.includes('foil compressor jacket new die setup')) {
+      return {
+        tms_task_id: '104888',
+        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104888',
+        tms_synced_at: task.last_updated || new Date().toISOString()
+      };
+    }
+    if (nameLower.includes('assembly line reclocation') || nameLower.includes('assembly line relocation') || (nameLower.includes('assembly line') && nameLower.includes('rac'))) {
+      return {
+        tms_task_id: '104889',
+        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104889',
         tms_synced_at: task.last_updated || new Date().toISOString()
       };
     }

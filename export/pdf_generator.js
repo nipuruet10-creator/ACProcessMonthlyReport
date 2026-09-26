@@ -94,6 +94,12 @@ const PDFReportGenerator = {
           rootEl.style.borderRadius = '0px'; // Flat borders for clean vector page bounds
         }
 
+        // Suppress interactive editor toolbars, upload buttons and drag hints in captured PDF
+        try {
+          const toRemove = stage.querySelectorAll('button, input[type="file"], .opacity-0, .pointer-events-none, .group-hover\\:opacity-100');
+          toRemove.forEach(el => el.parentNode && el.parentNode.removeChild(el));
+        } catch (_) {}
+
         // Wait for all images in this slide to finish loading
         await this._preloadImages(stage);
 
@@ -107,7 +113,7 @@ const PDFReportGenerator = {
         const canvas = await html2canvasFunc(stage, {
           scale: 1.5,
           useCORS: true,
-          allowTaint: true,
+          allowTaint: false,
           logging: false,
           width: 1280,
           height: 720,
@@ -118,7 +124,14 @@ const PDFReportGenerator = {
           backgroundColor: '#ffffff'
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        let imgData;
+        try {
+          imgData = canvas.toDataURL('image/jpeg', 0.95);
+        } catch (taintErr) {
+          console.warn("Canvas tainted by image, attempting fallback render:", taintErr);
+          // Fallback to blank white or sanitized canvas
+          imgData = canvas.toDataURL('image/png');
+        }
 
         // Add page to PDF
         if (i > 0) {
