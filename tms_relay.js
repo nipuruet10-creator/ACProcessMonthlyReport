@@ -76,25 +76,28 @@ function makeTmsRequest(path, method, data = null, cookie = null) {
  * Log in to Walton TMS for a given employee ID and password
  */
 async function loginToTms(employeeId, password) {
+  const cleanId = String(employeeId).trim();
+  const cleanPass = String(password).trim();
   const loginData = {
-    user: String(employeeId).trim(),
-    password: String(password).trim(),
+    user: cleanId,
+    password: cleanPass,
     btn_login: 'Login'
   };
 
   const res = await makeTmsRequest(`${TMS_BASE_PATH}/login.php`, 'POST', loginData);
   
-  // A successful login returns a 302 redirect with a Set-Cookie header
+  // A successful login returns a 302 redirect with a Set-Cookie header and Location to dashboard or report
   const rawCookies = res.headers['set-cookie'] || [];
   const sessionCookie = rawCookies.map(c => c.split(';')[0]).join('; ');
+  const location = res.headers['location'] || '';
 
-  if (!sessionCookie || (res.statusCode !== 302 && res.statusCode !== 200)) {
-    throw new Error(`Failed to log in to Walton TMS for Employee ID: ${employeeId}. Please check personal password.`);
-  }
+  const isSuccessRedirect = (res.statusCode === 302 && location && !location.includes('login.php'));
 
-  // Double check if redirect is back to login.php (indicating authentication failure)
-  if (res.headers['location'] && res.headers['location'].includes('login.php')) {
-    throw new Error(`Invalid password for Employee ID: ${employeeId}.`);
+  if (!isSuccessRedirect || !sessionCookie) {
+    const authErr = new Error(`Invalid Walton TMS password for Employee ID: ${cleanId}. Authentication failed.`);
+    authErr.isAuthError = true;
+    authErr.employeeId = cleanId;
+    throw authErr;
   }
 
   return sessionCookie;
@@ -273,8 +276,9 @@ const server = http.createServer(async (req, res) => {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
+      let payload = null;
       try {
-        const payload = JSON.parse(body);
+        payload = JSON.parse(body);
         if (!payload.employeeId) throw new Error('Missing employeeId in request');
         if (!payload.password) throw new Error('Missing password in request');
         if (!payload.taskName) throw new Error('Missing taskName in request');
@@ -301,10 +305,13 @@ const server = http.createServer(async (req, res) => {
         }));
       } catch (err) {
         console.error('[TMS-RELAY ERROR]:', err.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
+        const isAuth = Boolean(err.isAuthError || (err.message && err.message.toLowerCase().includes('password')));
+        res.writeHead(isAuth ? 401 : 500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: false,
-          error: err.message
+          authError: isAuth,
+          error: err.message,
+          employeeId: (payload && payload.employeeId) || err.employeeId || null
         }));
       }
     });
@@ -344,10 +351,13 @@ const server = http.createServer(async (req, res) => {
               taskName: t.taskName
             });
           } catch (itemErr) {
+            const isAuth = Boolean(itemErr.isAuthError || (itemErr.message && itemErr.message.toLowerCase().includes('password')));
             results.push({
               sourceTaskId: t.taskId || t.task_id,
               success: false,
+              authError: isAuth,
               taskName: t.taskName,
+              employeeId: empId,
               error: itemErr.message
             });
           }
