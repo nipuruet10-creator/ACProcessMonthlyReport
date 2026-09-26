@@ -206,10 +206,10 @@ const MonthlyReportView = {
       if (typeof photoManager !== 'undefined') {
         activeSlides.forEach(s => {
           const p = photoManager.getTaskPhotos(s.task_id, month);
-          s.photo_before = p.before_photo || null;
-          s.photo_after = p.after_photo || null;
-          s.photo = p.before_photo || p.after_photo || null;
-          s.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+          s.photo_before = p ? (p.before_photo || null) : null;
+          s.photo_after = p ? (p.after_photo || null) : null;
+          s.photo = p ? (p.before_photo || p.after_photo || null) : null;
+          s.has_dual_photo = Boolean(s.photo_before && s.photo_after);
         });
       }
       SlidePreviewModal.openFullDeck({ month, slides: activeSlides });
@@ -254,10 +254,10 @@ const MonthlyReportView = {
     if (typeof photoManager !== 'undefined') {
       activeSlides.forEach(s => {
         const p = photoManager.getTaskPhotos(s.task_id, month);
-        s.photo_before = p.before_photo || null;
-        s.photo_after = p.after_photo || null;
-        s.photo = p.before_photo || p.after_photo || null;
-        s.has_dual_photo = Boolean(p.before_photo && p.after_photo);
+        s.photo_before = p ? (p.before_photo || null) : null;
+        s.photo_after = p ? (p.after_photo || null) : null;
+        s.photo = p ? (p.before_photo || p.after_photo || null) : null;
+        s.has_dual_photo = Boolean(s.photo_before && s.photo_after);
       });
     }
 

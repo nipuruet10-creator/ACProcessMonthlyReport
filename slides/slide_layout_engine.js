@@ -229,7 +229,7 @@ const SlideLayoutEngine = {
     const photoBefore = slideData.photo_before || slideData.photo_1 || null;
     const photoAfter = slideData.photo_after || slideData.photo_2 || null;
     const photoSingle = slideData.photo || photoAfter || photoBefore || "assets/images/walton_red_reference_sample.jpg";
-    const hasDualPhoto = Boolean(photoBefore && photoAfter && photoBefore !== photoAfter);
+    const hasDualPhoto = Boolean(photoBefore && photoAfter);
 
     // Month
     const month = (slideData.month || "SEPTEMBER 2026").toUpperCase();
@@ -1012,7 +1012,7 @@ const SlideLayoutEngine = {
     const photoBefore = slideData.photo_before || slideData.photo_1 || null;
     const photoAfter = slideData.photo_after || slideData.photo_2 || null;
     const photoSingle = slideData.photo || photoAfter || photoBefore || "assets/img/blue_template_ref.jpg";
-    const hasDualPhoto = Boolean(photoBefore && photoAfter && photoBefore !== photoAfter);
+    const hasDualPhoto = Boolean(photoBefore && photoAfter);
     const month = (slideData.month || "SEPTEMBER 2026").toUpperCase();
 
     return `

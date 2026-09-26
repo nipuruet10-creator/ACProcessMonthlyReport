@@ -203,11 +203,14 @@ const MonthlyInputView = {
     }
 
     try {
-      await photoManager.savePhotoFile(taskId, 'before_photo', file);
+      await photoManager.savePhotoFile(taskId, 'before_photo', file, this.selectedMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 Photo attached to ${taskId}!`, "success");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
     } catch (err) {
       alert("Failed to save photo: " + err.message);
     }
@@ -218,11 +221,14 @@ const MonthlyInputView = {
     if (!files || files.length === 0) return;
     const file = files[0];
     try {
-      await photoManager.savePhotoFile(taskId, 'before_photo', file);
+      await photoManager.savePhotoFile(taskId, 'before_photo', file, this.selectedMonth);
       if (typeof window.showToast === 'function') {
         window.showToast(`📸 Photo attached to ${taskId}!`, "success");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
     } catch (err) {
       alert("Failed to save photo: " + err.message);
     }
@@ -1465,14 +1471,22 @@ const MonthlyInputView = {
   async deleteRowPhoto(taskId) {
     if (confirm(`Are you sure you want to delete photos for task ${taskId}?`)) {
       if (typeof photoManager !== 'undefined') {
-        await photoManager.removePhoto(taskId, 'before_photo');
-        await photoManager.removePhoto(taskId, 'after_photo');
-        await photoManager.removePhoto(taskId, 'photo_1');
+        const m = this.selectedMonth || (window.appState && window.appState.workbookMgr ? window.appState.workbookMgr.activeMonth : "SEP-2026");
+        await photoManager.removePhoto(taskId, 'before_photo', m);
+        await photoManager.removePhoto(taskId, 'after_photo', m);
+        await photoManager.removePhoto(taskId, 'photo_1', m);
+        await photoManager.removePhoto(taskId, 'photo_2', m);
       }
       if (typeof window.showToast === 'function') {
         window.showToast(`Photos removed for ${taskId}`, "info");
       }
       await this.render();
+      if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+        MonthlyReportView.render();
+      }
+      if (typeof PhotoManagerView !== 'undefined' && PhotoManagerView.render) {
+        PhotoManagerView.render();
+      }
     }
   },
 

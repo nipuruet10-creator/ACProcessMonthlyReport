@@ -151,12 +151,28 @@ const FirebaseSyncService = {
         }
       } catch (e) {}
 
+      // 🛡️ CRITICAL GUARD: Prune any tombstoned tasks from in-memory workbook BEFORE processing
+      if (wbMgr.workbooks && Array.isArray(wbMgr.workbooks[normMonth])) {
+        const initCount = wbMgr.workbooks[normMonth].length;
+        wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(t => t && t.task_id && !deletedSet.has(t.task_id));
+        if (wbMgr.workbooks[normMonth].length !== initCount) {
+          wbMgr.save();
+        }
+      }
+
       if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
         // Auto-heal tasks loaded from Firebase
         const remoteTasks = [];
         for (const [key, t] of Object.entries(fbData)) {
           if (!t || typeof t !== 'object') continue;
           if (!t.task_id) t.task_id = key; // Auto-heal missing task_id from Firebase key
+
+          // 🛡️ STRICT REJECTION: If task is in deletedSet (tombstoned), NEVER resurrect it!
+          if (deletedSet.has(t.task_id)) {
+            console.warn(`🛡️ Firebase task ${t.task_id} is in deleted tombstones! Purging from cloud...`);
+            this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
+            continue;
+          }
 
           // Auto-repair supervisor to Kamrul (44819)
           if (!t.supervisor || String(t.supervisor).toLowerCase().includes('sazzad') || String(t.supervisor).includes('50463')) {
@@ -186,6 +202,7 @@ const FirebaseSyncService = {
             if (typeof photoManager !== 'undefined') {
               const isRecentBeforeDelete = localMatch && localMatch._photoDeleted_before && (Date.now() - localMatch._photoDeleted_before < 300000);
               const isRecentAfterDelete = localMatch && localMatch._photoDeleted_after && (Date.now() - localMatch._photoDeleted_after < 300000);
+              const isRecentBeforeEdit = localMatch && localMatch._lastPhotoEditTime && (Date.now() - localMatch._lastPhotoEditTime < 15000);
               const isLocalBeforeEmpty = localMatch && localMatch.photo_1 === "";
               const isLocalAfterEmpty = localMatch && localMatch.photo_2 === "";
 
@@ -193,7 +210,9 @@ const FirebaseSyncService = {
                 if (!isRecentBeforeDelete && !isLocalBeforeEmpty && !localMatch?.clear_photos) {
                   photoManager.setTaskPhoto(t.task_id, 'before_photo', t.photo_1, t.photo_1, normMonth);
                 }
-              } else if (t.clear_photos || isLocalBeforeEmpty) {
+              } else if (t.clear_photos || isLocalBeforeEmpty || (!isRecentBeforeEdit && isRecentBeforeDelete)) {
+                photoManager.removePhoto(t.task_id, 'before_photo', normMonth);
+              } else if (!t.photo_1 && !isRecentBeforeEdit) {
                 photoManager.removePhoto(t.task_id, 'before_photo', normMonth);
               }
 
@@ -201,7 +220,9 @@ const FirebaseSyncService = {
                 if (!isRecentAfterDelete && !isLocalAfterEmpty && !localMatch?.clear_photos) {
                   photoManager.setTaskPhoto(t.task_id, 'after_photo', t.photo_2, t.photo_2, normMonth);
                 }
-              } else if (t.clear_photos || isLocalAfterEmpty) {
+              } else if (t.clear_photos || isLocalAfterEmpty || (!isRecentBeforeEdit && isRecentAfterDelete)) {
+                photoManager.removePhoto(t.task_id, 'after_photo', normMonth);
+              } else if (!t.photo_2 && !isRecentBeforeEdit) {
                 photoManager.removePhoto(t.task_id, 'after_photo', normMonth);
               }
             }
@@ -212,17 +233,24 @@ const FirebaseSyncService = {
 
         const changed = wbMgr.mergeFromCloud({ [normMonth]: remoteTasks }, false);
 
-        // Check if local has active tasks that Firebase is missing or incomplete
+        // Check if local has active tasks that Firebase is missing or incomplete (STRICTLY EXCLUDE DELETED TASKS)
         const localTasks = wbMgr.getTasksForMonth(normMonth);
         const missingOrIncomplete = localTasks.filter(lt => {
-          if (!lt || !lt.task_name) return false;
+          if (!lt || !lt.task_name || !lt.task_id) return false;
+          if (deletedSet.has(lt.task_id)) return false;
+          let curDel = [];
+          try { curDel = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]'); } catch(e) {}
+          if (curDel.includes(lt.task_id)) return false;
+
           const fbItem = fbData[lt.task_id];
           return !fbItem || !fbItem.task_name;
         });
         if (missingOrIncomplete.length > 0) {
-          console.log(`🔥 Pushing ${missingOrIncomplete.length} local tasks to Firebase to repair/sync cloud...`);
+          console.log(`🔥 Pushing ${missingOrIncomplete.length} genuine local tasks to Firebase to repair/sync cloud...`);
           for (const mt of missingOrIncomplete) {
-            await this.pushTask(normMonth, mt);
+            if (!deletedSet.has(mt.task_id)) {
+              await this.pushTask(normMonth, mt);
+            }
           }
         }
 
@@ -236,7 +264,11 @@ const FirebaseSyncService = {
         return true;
       } else {
         // Firebase has no tasks for this month yet. If local has tasks, seed Firebase!
-        const localTasks = wbMgr.getTasksForMonth(normMonth);
+        if (wbMgr.workbooks && Array.isArray(wbMgr.workbooks[normMonth])) {
+          wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(lt => lt && lt.task_id && !deletedSet.has(lt.task_id));
+          wbMgr.save();
+        }
+        const localTasks = wbMgr.getTasksForMonth(normMonth).filter(lt => lt && lt.task_id && !deletedSet.has(lt.task_id));
         if (localTasks.length > 0) {
           console.log(`🔥 Seeding Firebase for ${normMonth} with ${localTasks.length} local tasks...`);
           await this.pushEntireMonth(normMonth);
@@ -393,6 +425,16 @@ const FirebaseSyncService = {
     if (!window.appState || !window.appState.workbookMgr) return;
     if (!task || !task.task_id) return;
 
+    let deletedSet = new Set();
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      deletedSet = new Set(deletedList);
+    } catch (e) {}
+    if (deletedSet.has(task.task_id)) {
+      console.warn(`🛡️ Firebase child_added rejected tombstoned task: ${task.task_id}`);
+      return;
+    }
+
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);
     if (existing) {
@@ -450,10 +492,23 @@ const FirebaseSyncService = {
    */
   _handleRemoteTaskChanged(month, task) {
     if (!window.appState || !window.appState.workbookMgr) return;
+    if (!task || !task.task_id) return;
+
+    let deletedSet = new Set();
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      deletedSet = new Set(deletedList);
+    } catch (e) {}
+    if (deletedSet.has(task.task_id)) {
+      console.warn(`🛡️ Firebase child_changed rejected tombstoned task: ${task.task_id}`);
+      return;
+    }
+
     const wbMgr = window.appState.workbookMgr;
     const tasks = wbMgr.workbooks[month] || [];
     const idx = tasks.findIndex(t => t.task_id === task.task_id);
     if (idx === -1) {
+      if (deletedSet.has(task.task_id)) return;
       tasks.push(task);
       wbMgr.save();
       return;
@@ -699,7 +754,17 @@ const FirebaseSyncService = {
    * Send instant cell update to Firebase Realtime Highway (~15-30ms)
    */
   async updateCell(month, taskId, field, value) {
-    if (!this.isConnected()) return false;
+    if (!this.isConnected() || !taskId) return false;
+
+    // 🛡️ CRITICAL GUARD: Never resurrect tombstoned tasks via cell updates
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (deletedList.includes(taskId)) {
+        console.warn(`🛡️ Firebase updateCell blocked: ${taskId} is tombstoned!`);
+        return false;
+      }
+    } catch (e) {}
+
     const normMonth = (window.appState && window.appState.workbookMgr)
       ? window.appState.workbookMgr.normalizeMonth(month)
       : month;
@@ -741,6 +806,16 @@ const FirebaseSyncService = {
    */
   async pushTask(month, task) {
     if (!this.isConnected() || !task || !task.task_id) return false;
+
+    // 🛡️ CRITICAL GUARD: Never push a task that is in deletedSet / tombstoned!
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (deletedList.includes(task.task_id)) {
+        console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
+        return false;
+      }
+    } catch (e) {}
+
     const normMonth = (window.appState && window.appState.workbookMgr)
       ? window.appState.workbookMgr.normalizeMonth(month)
       : month;
@@ -849,15 +924,23 @@ const FirebaseSyncService = {
     if (!window.appState || !window.appState.workbookMgr) throw new Error("Workbook not ready.");
 
     const normMonth = window.appState.workbookMgr.normalizeMonth(month);
+    let deletedSet = new Set();
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      deletedSet = new Set(deletedList);
+    } catch (e) {}
+
     const tasks = window.appState.workbookMgr.getTasksForMonth(normMonth);
     const map = {};
     tasks.forEach(t => {
-      map[t.task_id] = t;
+      if (t && t.task_id && !deletedSet.has(t.task_id)) {
+        map[t.task_id] = t;
+      }
     });
 
     const monthRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks`);
     await monthRef.set(map);
-    return tasks.length;
+    return Object.keys(map).length;
   },
 
   /**

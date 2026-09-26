@@ -228,26 +228,83 @@ class SyncEngine {
   }
 
   getActiveSlides(month) {
-    const normalizedMonth = this.workbookMgr ? this.workbookMgr.normalizeMonth(month) : month.toUpperCase();
+    const wbMgr = this.workbookMgr || (typeof window !== 'undefined' && window.appState && window.appState.workbookMgr ? window.appState.workbookMgr : null);
+    const normalizedMonth = wbMgr ? wbMgr.normalizeMonth(month) : (month ? month.toUpperCase() : "SEP-2026");
+
+    let deletedSet = new Set();
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      deletedSet = new Set(deletedList);
+    } catch (e) {}
+
+    const rawTasks = wbMgr ? wbMgr.getTasksForMonth(normalizedMonth) : [];
+    const validTaskMap = new Map();
+    rawTasks.forEach(t => {
+      if (t && t.task_id && !deletedSet.has(t.task_id)) {
+        validTaskMap.set(t.task_id, t);
+      }
+    });
+
     try {
       const saved = localStorage.getItem(`walton_pd_active_slides_${normalizedMonth}`);
-      if (saved) {
-        const slides = JSON.parse(saved);
-        // Dynamically bind photos from PhotoManager/IndexedDB
-        const pMgr = this.photoMgr || (typeof photoManager !== 'undefined' ? photoManager : null);
-        if (pMgr && Array.isArray(slides)) {
-          slides.forEach(s => {
-            const p = pMgr.getTaskPhotos(s.task_id);
-            if (p) {
-              s.photo_before = p.before_photo || null;
-              s.photo_after = p.after_photo || null;
-              s.photo = p.photo_1 || p.before_photo || p.after_photo || null;
-            }
+      let slides = saved ? JSON.parse(saved) : [];
+
+      if (!Array.isArray(slides)) slides = [];
+
+      // 1. Strictly filter out any tombstoned tasks or tasks no longer in workbook
+      const originalLen = slides.length;
+      slides = slides.filter(s => s && s.task_id && !deletedSet.has(s.task_id) && validTaskMap.has(s.task_id));
+
+      // 2. Auto-include any active tasks from workbook not yet present in cached slides
+      validTaskMap.forEach((t, tId) => {
+        if (t.include_in_report !== "NO" && !slides.some(s => s.task_id === tId)) {
+          slides.push({
+            task_id: tId,
+            month: normalizedMonth,
+            engineer: t.concern_engineer || t.engineer || t.assignee || "Concern Engineer",
+            raw_task_name: t.task_name,
+            slide_title: t.task_name || `Task ${tId}`,
+            description: t.task_details || "Standard operating procedure execution and engineering development.",
+            impact: ["Zero defect manufacturing", "Enhanced line balancing and cycle efficiency"],
+            category: t.category || "Process Development",
+            status: t.status || "Completed",
+            investment: t.investment || "In-house / Direct Implementation",
+            has_manual_override: false
           });
         }
-        return slides;
+      });
+
+      // Save sanitized slides if count changed
+      if (slides.length !== originalLen) {
+        try {
+          const lightweight = slides.map(s => ({ ...s, photo: null, photo_before: null, photo_after: null }));
+          localStorage.setItem(`walton_pd_active_slides_${normalizedMonth}`, JSON.stringify(lightweight));
+        } catch (e) {}
       }
-    } catch (e) {}
+
+      // 3. Dynamically bind 100% current fresh photos from PhotoManager / IndexedDB
+      const pMgr = this.photoMgr || (typeof photoManager !== 'undefined' ? photoManager : null);
+      if (pMgr) {
+        slides.forEach(s => {
+          const p = pMgr.getTaskPhotos(s.task_id, normalizedMonth);
+          if (p) {
+            s.photo_before = p.before_photo || null;
+            s.photo_after = p.after_photo || null;
+            s.photo = p.before_photo || p.after_photo || null;
+            s.has_dual_photo = Boolean(s.photo_before && s.photo_after);
+          } else {
+            s.photo_before = null;
+            s.photo_after = null;
+            s.photo = null;
+            s.has_dual_photo = false;
+          }
+        });
+      }
+
+      return slides;
+    } catch (e) {
+      console.warn("getActiveSlides notice:", e);
+    }
     return [];
   }
 }

@@ -50,9 +50,25 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
+    // Load and seed deleted task IDs
+    let deletedIds = [];
+    try {
+      deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+    } catch (e) {}
+    const deletedSet = new Set(deletedIds);
+
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
+        // Purge tombstoned tasks from in-memory workbooks
+        if (deletedSet.size > 0) {
+          const initCount = this.workbooks[k].length;
+          this.workbooks[k] = this.workbooks[k].filter(t => t && t.task_id && !deletedSet.has(t.task_id));
+          if (this.workbooks[k].length !== initCount) {
+            modified = true;
+          }
+        }
+
         this.workbooks[k].forEach(t => {
           if (!t) return;
           // Auto-repair mistakenly defaulted Sazzad supervisor to Kamrul (44819)
@@ -74,7 +90,7 @@ class MonthWorkbookManager {
         const malformedTasks = this.workbooks[k] || [];
         malformedTasks.forEach(t => {
           t.month = norm;
-          if (!existingIds.has(t.task_id)) {
+          if (!existingIds.has(t.task_id) && !deletedSet.has(t.task_id)) {
             this.workbooks[norm].push(t);
             existingIds.add(t.task_id);
           }
@@ -548,6 +564,20 @@ class MonthWorkbookManager {
       }
 
       this.save();
+
+      // Clean presentation active slides cache so Monthly Report reflects deletions instantly
+      try {
+        const slideKey = `walton_pd_active_slides_${m}`;
+        const savedSlides = localStorage.getItem(slideKey);
+        if (savedSlides) {
+          const slides = JSON.parse(savedSlides);
+          if (Array.isArray(slides)) {
+            const filteredSlides = slides.filter(s => s.task_id !== taskId);
+            localStorage.setItem(slideKey, JSON.stringify(filteredSlides));
+          }
+        }
+      } catch (e) {}
+
       if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
         GoogleSheetsSync.deleteTask(taskId, m);
       }
@@ -593,6 +623,20 @@ class MonthWorkbookManager {
       }
 
       this.save();
+
+      // Clean presentation active slides cache so Monthly Report reflects bulk deletions instantly
+      try {
+        const slideKey = `walton_pd_active_slides_${m}`;
+        const savedSlides = localStorage.getItem(slideKey);
+        if (savedSlides) {
+          const slides = JSON.parse(savedSlides);
+          if (Array.isArray(slides)) {
+            const filteredSlides = slides.filter(s => !toDeleteSet.has(s.task_id));
+            localStorage.setItem(slideKey, JSON.stringify(filteredSlides));
+          }
+        }
+      } catch (e) {}
+
       if (typeof GoogleSheetsSync !== 'undefined') {
         if (GoogleSheetsSync.deleteMultipleTasks) {
           GoogleSheetsSync.deleteMultipleTasks(taskIds, m);

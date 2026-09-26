@@ -123,10 +123,26 @@ class PhotoManager {
     // Hard defensive safeguard: if task in workbook is marked with empty string or cleared photos, never return a ghost photo
     if (t) {
       if (t.photo_1 === "" || t.before_photo === "" || t._photoDeleted_before || t.clear_photos) {
-        if (!memMonth?.before_photo && !this.photoMap[taskId]?.before_photo) p1 = null;
+        p1 = null;
+        if (this.photoMap[taskId]) {
+          this.photoMap[taskId].before_photo = null;
+          this.photoMap[taskId].photo_1 = null;
+        }
+        if (monthKey && this.photoMap[monthKey]) {
+          this.photoMap[monthKey].before_photo = null;
+          this.photoMap[monthKey].photo_1 = null;
+        }
       }
       if (t.photo_2 === "" || t.after_photo === "" || t._photoDeleted_after || t.clear_photos) {
-        if (!memMonth?.after_photo && !this.photoMap[taskId]?.after_photo) p2 = null;
+        p2 = null;
+        if (this.photoMap[taskId]) {
+          this.photoMap[taskId].after_photo = null;
+          this.photoMap[taskId].photo_2 = null;
+        }
+        if (monthKey && this.photoMap[monthKey]) {
+          this.photoMap[monthKey].after_photo = null;
+          this.photoMap[monthKey].photo_2 = null;
+        }
       }
     }
 
@@ -316,6 +332,10 @@ class PhotoManager {
       }
     } catch (syncErr) {
       console.warn("Photo sync notice:", syncErr);
+    }
+
+    if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+      MonthlyReportView.render();
     }
 
     return base64Url;
@@ -510,6 +530,10 @@ class PhotoManager {
       }
     } catch (e) {
       console.warn("Cloud photo broadcast removal notice:", e);
+    }
+
+    if (typeof MonthlyReportView !== 'undefined' && MonthlyReportView.render) {
+      MonthlyReportView.render();
     }
 
     return true;

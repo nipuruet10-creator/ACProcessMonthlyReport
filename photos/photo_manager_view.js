@@ -27,14 +27,9 @@ const PhotoManagerView = {
     this.render();
   },
 
-  selectSlot(taskId, slot, event = null) {
-    if (event) {
-      // Don't override if user clicked an action button like delete or copy
-      if (event.target && event.target.closest('button, label, input')) return;
-    }
-    this.selectedTarget = { taskId, slot };
+  _lockedTarget: false,
 
-    // Update active highlight classes in DOM immediately without full re-render
+  _updateVisualBadges(taskId, slot) {
     document.querySelectorAll('[data-photo-slot]').forEach(el => {
       const elTaskId = el.getAttribute('data-task-id');
       const elSlot = el.getAttribute('data-slot');
@@ -48,10 +43,27 @@ const PhotoManagerView = {
         if (indicator) indicator.classList.add('hidden');
       }
     });
+  },
+
+  hoverSlot(taskId, slot) {
+    if (!this._lockedTarget) {
+      this.selectedTarget = { taskId, slot };
+      this._updateVisualBadges(taskId, slot);
+    }
+  },
+
+  selectSlot(taskId, slot, event = null) {
+    if (event) {
+      // Don't override if user clicked an action button like delete or copy
+      if (event.target && event.target.closest('button, label, input')) return;
+    }
+    this.selectedTarget = { taskId, slot };
+    this._lockedTarget = true;
+    this._updateVisualBadges(taskId, slot);
 
     if (typeof window.showToast === 'function') {
-      const slotName = slot === 'before_photo' ? 'Before Photo' : 'After Photo';
-      window.showToast(`🎯 Box Selected: ${slotName} for Task ${taskId}. Press Ctrl+V or click Paste!`, "info");
+      const slotName = slot === 'before_photo' ? 'Before Photo (Present Condition)' : 'After Photo (Proposed Project)';
+      window.showToast(`🎯 Box Locked & Ready: ${slotName} for Task ${taskId}. Press Ctrl+V!`, "info");
     }
   },
 
@@ -221,6 +233,7 @@ const PhotoManagerView = {
             
             <!-- Slot 1: Before / Present Condition -->
             <div data-photo-slot="true" data-task-id="${t.task_id}" data-slot="before_photo"
+                 onmouseenter="PhotoManagerView.hoverSlot('${t.task_id}', 'before_photo')"
                  onclick="PhotoManagerView.selectSlot('${t.task_id}', 'before_photo', event)"
                  ondragover="event.preventDefault(); this.classList.add('border-amber-500', 'bg-amber-50');"
                  ondragleave="this.classList.remove('border-amber-500', 'bg-amber-50');"
@@ -272,6 +285,7 @@ const PhotoManagerView = {
 
             <!-- Slot 2: After / Proposed Project -->
             <div data-photo-slot="true" data-task-id="${t.task_id}" data-slot="after_photo"
+                 onmouseenter="PhotoManagerView.hoverSlot('${t.task_id}', 'after_photo')"
                  onclick="PhotoManagerView.selectSlot('${t.task_id}', 'after_photo', event)"
                  ondragover="event.preventDefault(); this.classList.add('border-sky-500', 'bg-sky-50');"
                  ondragleave="this.classList.remove('border-sky-500', 'bg-sky-50');"
@@ -550,14 +564,20 @@ const PhotoManagerView = {
 
       if (!imageFile) return;
 
-      // Requirement 3: Use explicit selectedTarget first to avoid placing photo in wrong box!
-      let target = this.selectedTarget;
-
-      // Modal fallback
-      if (!target && window.photoViewModal && photoViewModal._activeSlot) {
-        target = photoViewModal._activeSlot;
+      // 1. If PhotoViewModal is currently open, it MUST take absolute priority
+      let target = null;
+      let targetMonth = this.selectedMonth;
+      if (window.photoViewModal && photoViewModal.isOpen) {
+        target = photoViewModal._activeSlot || { taskId: photoViewModal.activeTaskId, slot: 'before_photo' };
+        if (photoViewModal.activeMonth) targetMonth = photoViewModal.activeMonth;
       }
 
+      // 2. Otherwise use explicit selected/locked target in PhotoManagerView
+      if (!target) {
+        target = this.selectedTarget;
+      }
+
+      // 3. Fallback to activeElement if focused on a specific slot
       if (!target && document.activeElement) {
         const el = document.activeElement.closest('[data-photo-slot]');
         if (el) {
@@ -569,7 +589,7 @@ const PhotoManagerView = {
         const isPhotoView = Boolean(document.getElementById('photo-manager-view-container') && !document.getElementById('photo-manager-view-container').classList.contains('hidden'));
         const isModalOpen = Boolean(window.photoViewModal && photoViewModal.isOpen);
         if ((isPhotoView || isModalOpen) && typeof window.showToast === 'function') {
-          window.showToast("⚠️ Please click on a Before or After photo box first to select where to paste the image!", "warning");
+          window.showToast("⚠️ Please click or hover on a Before or After photo box first to select where to paste the image!", "warning");
         }
         return;
       }
@@ -577,8 +597,11 @@ const PhotoManagerView = {
       if (target && target.taskId && target.slot) {
         event.preventDefault();
         try {
-          await photoManager.savePhotoFile(target.taskId, target.slot, imageFile, this.selectedMonth);
+          await photoManager.savePhotoFile(target.taskId, target.slot, imageFile, targetMonth);
           this.selectedTarget = null;
+          this._lockedTarget = false;
+          this._updateVisualBadges(null, null);
+
           const slotLabel = target.slot === 'before_photo' ? 'Before (Present)' : 'After (Project)';
           if (typeof window.showToast === 'function') {
             window.showToast(`✅ Pasted photo into ${slotLabel} Photo for task ${target.taskId}!`, "success");
@@ -590,7 +613,7 @@ const PhotoManagerView = {
             MonthlyReportView.render();
           }
           if (window.photoViewModal && photoViewModal.isOpen) {
-            photoViewModal.open(target.taskId);
+            photoViewModal.open(target.taskId, targetMonth);
           }
         } catch (err) {
           alert("Failed to paste photo: " + err.message);
