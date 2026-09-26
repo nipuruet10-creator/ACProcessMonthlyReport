@@ -9,6 +9,125 @@
 const ProjectsView = {
   selectedMonth: "SEP-2026",
   activeFilter: "all", // 'all', 'ongoing', 'completed'
+  STORAGE_KEY: "walton_strategic_projects_permanent_v1",
+
+  getDefaultSeedProjects() {
+    return [
+      {
+        task_id: "PROJ-2026-001",
+        task_name: "Powder Coating Booth with Cyclone Recovery & Filter Unit Upgradation",
+        category: "Ongoing Projects",
+        status: "Ongoing",
+        project_status: "Ongoing",
+        deadline: "4-5 Months (Target: Oct, 2026)",
+        task_details: "1. Engineering feasibility study. 2. Cyclone recovery system fabrication. 3. Filter unit assembly & trial. 4. Mass production sign-off.",
+        supervisor: "Kamrul (44819)",
+        assignee: "Faiyaz (54634)",
+        engineer: "Faiyaz (54634)",
+        points: 60,
+        is_project: true,
+        photo_1: "assets/images/image123.png",
+        photo_2: "assets/images/image130.png",
+        created_at: new Date().toISOString()
+      },
+      {
+        task_id: "PROJ-2026-002",
+        task_name: "CAC condenser & evaporator bending die trial",
+        category: "Completed Projects",
+        status: "Completed",
+        project_status: "Completed",
+        deadline: "Target: Aug, 2026",
+        task_details: "1. New model bending die design. 2. Tooling fabrication & assembly. 3. Trial run validation. 4. Quality sign-off.",
+        supervisor: "Kamrul (44819)",
+        assignee: "Faiyaz (54634)",
+        engineer: "Faiyaz (54634)",
+        points: 60,
+        is_project: true,
+        photo_1: "assets/images/image126.png",
+        photo_2: "assets/images/image132.jpg",
+        created_at: new Date().toISOString()
+      },
+      {
+        task_id: "PROJ-2026-003",
+        task_name: "Booster Pump Cycle Time Reduced by 37.5% (8 min → 5 min)",
+        category: "Completed Projects",
+        status: "Completed",
+        project_status: "Completed",
+        deadline: "Target: Aug, 2026",
+        task_details: "1. Cycle time bottleneck analysis. 2. Hydraulic pressure optimization. 3. Automation sensor integration. 4. Validated 37.5% cycle time reduction.",
+        supervisor: "Kamrul (44819)",
+        assignee: "Sazzad (50463)",
+        engineer: "Sazzad (50463)",
+        points: 60,
+        is_project: true,
+        photo_1: "assets/images/image139.png",
+        created_at: new Date().toISOString()
+      },
+      {
+        task_id: "PROJ-2026-004",
+        task_name: "CNC Turret Punch Machine Automation & Setup",
+        category: "Ongoing Projects",
+        status: "Ongoing",
+        project_status: "Ongoing",
+        deadline: "4-5 Months (Target: Nov, 2026)",
+        task_details: "1. Tooling alignment matrix study. 2. Auto-feed control integration. 3. Pilot stamping validation. 4. Mass production commissioning.",
+        supervisor: "Kamrul (44819)",
+        assignee: "Sazzad (50463)",
+        engineer: "Sazzad (50463)",
+        points: 70,
+        is_project: true,
+        created_at: new Date().toISOString()
+      },
+      {
+        task_id: "PROJ-2026-005",
+        task_name: "Automated Robotic Braze Joint Quality Inspection",
+        category: "Ongoing Projects",
+        status: "Ongoing",
+        project_status: "Ongoing",
+        deadline: "5 Months (Target: Dec, 2026)",
+        task_details: "1. Vision inspection sensor calibration. 2. Robot path teaching. 3. Joint penetration validation. 4. Real-time defect detection sign-off.",
+        supervisor: "Kamrul (44819)",
+        assignee: "Mahmud (51020)",
+        engineer: "Mahmud (51020)",
+        points: 65,
+        is_project: true,
+        created_at: new Date().toISOString()
+      }
+    ];
+  },
+
+  getProjects() {
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not read strategic projects storage:", e);
+    }
+    const seeds = this.getDefaultSeedProjects();
+    this.saveProjects(seeds);
+    return seeds;
+  },
+
+  saveProjects(projects) {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(projects));
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.broadcastProjectUpdate) {
+        FirebaseSyncService.broadcastProjectUpdate(projects);
+      }
+    } catch (e) {
+      console.error("Failed to save strategic projects:", e);
+    }
+  },
+
+  getProject(taskId) {
+    const list = this.getProjects();
+    return list.find(p => p.task_id === taskId) || null;
+  },
 
   async handleMonthSelect(month) {
     this.selectedMonth = month;
@@ -47,40 +166,52 @@ const ProjectsView = {
   },
 
   async toggleProjectStatus(taskId) {
-    if (!window.appState || !window.appState.workbookMgr) return;
-    const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
-    if (!task) return;
+    const list = this.getProjects();
+    const proj = list.find(p => p.task_id === taskId);
+    if (!proj) return;
 
-    const isCurrentlyCompleted = task.status === 'Completed' || task.category === 'Completed Projects' || task.project_status === 'Completed';
-    const newStatus = isCurrentlyCompleted ? 'Ongoing' : 'Completed';
-    const newCategory = isCurrentlyCompleted ? 'Ongoing Projects' : 'Completed Projects';
+    const isCurrentlyCompleted = proj.status === 'Completed' || proj.category === 'Completed Projects' || proj.project_status === 'Completed';
+    proj.status = isCurrentlyCompleted ? 'Ongoing' : 'Completed';
+    proj.project_status = proj.status;
+    proj.category = isCurrentlyCompleted ? 'Ongoing Projects' : 'Completed Projects';
+    proj.last_updated = new Date().toISOString();
 
-    window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, {
-      status: newStatus,
-      project_status: newStatus,
-      category: newCategory,
-      last_updated: new Date().toISOString()
-    });
+    this.saveProjects(list);
 
-    if (window.appState.syncEngine) {
+    // Also update in workbook manager if exists
+    if (window.appState && window.appState.workbookMgr) {
+      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, {
+        status: proj.status,
+        project_status: proj.status,
+        category: proj.category,
+        last_updated: proj.last_updated
+      });
+    }
+
+    if (window.appState && window.appState.syncEngine) {
       await window.appState.syncEngine.syncMonth(this.selectedMonth);
     }
 
     if (typeof window.showToast === 'function') {
-      window.showToast(`Project marked as ${newStatus}!`, "success");
+      window.showToast(`Project marked as ${proj.status}!`, "success");
     }
     await this.render();
   },
 
   async deleteProject(taskId) {
-    if (!window.appState || !window.appState.workbookMgr) return;
-    if (confirm(`Are you sure you want to delete this project (${taskId}) from ${this.selectedMonth}?`)) {
-      window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
-      if (window.appState.syncEngine) {
+    if (confirm(`Are you sure you want to delete this strategic project (${taskId})?`)) {
+      let list = this.getProjects();
+      list = list.filter(p => p.task_id !== taskId);
+      this.saveProjects(list);
+
+      if (window.appState && window.appState.workbookMgr) {
+        window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+      }
+      if (window.appState && window.appState.syncEngine) {
         await window.appState.syncEngine.syncMonth(this.selectedMonth);
       }
       if (typeof window.showToast === 'function') {
-        window.showToast(`Deleted project ${taskId}`, "info");
+        window.showToast(`Deleted strategic project ${taskId}`, "info");
       }
       await this.render();
     }
@@ -199,9 +330,19 @@ const ProjectsView = {
               </div>
 
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Task Point</label>
-                <input type="number" id="proj-points" placeholder="&mdash;" step="5" min="0" max="200"
-                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono font-bold focus:outline-none focus:border-sky-500" />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-bold text-slate-700">Task Point</label>
+                  ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? '<span class="text-[9px] font-mono text-amber-600 font-bold">🔒 HOD Locked</span>' : ''}
+                </div>
+                ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? `
+                  <input type="number" id="proj-points" placeholder="—" readonly
+                         onclick="MonthlyInputView.openHodPointUnlockModal()"
+                         title="Point entry is restricted to HOD (ID: 44819). Click to unlock."
+                         class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-500 font-mono font-bold cursor-pointer" />
+                ` : `
+                  <input type="number" id="proj-points" placeholder="—" step="5" min="0" max="200"
+                         class="w-full bg-white border border-emerald-400 hover:border-emerald-600 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono font-bold focus:outline-none" />
+                `}
               </div>
             </div>
 
@@ -209,7 +350,7 @@ const ProjectsView = {
               <span class="text-[11px] text-slate-400">Project tasks are automatically scheduled at the end of monthly report decks.</span>
               <div class="flex items-center gap-2">
                 <button type="button" onclick="ProjectsView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">Cancel</button>
-                <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black shadow-md shadow-sky-200/50 transition flex items-center gap-1.5">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black shadow-md shadow-sky-200/50 transition flex items-center gap-1.5 cursor-pointer">
                   <span>💾</span> <span>Save Project</span>
                 </button>
               </div>
@@ -222,8 +363,7 @@ const ProjectsView = {
   },
 
   openEditProjectModal(taskId) {
-    if (!window.appState || !window.appState.workbookMgr) return;
-    const task = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
+    const task = this.getProject(taskId) || (window.appState && window.appState.workbookMgr ? window.appState.workbookMgr.getTask(this.selectedMonth, taskId) : null);
     if (!task) {
       if (typeof window.showToast === 'function') window.showToast("Project task not found", "error");
       return;
@@ -312,9 +452,19 @@ const ProjectsView = {
               </div>
 
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Task Point</label>
-                <input type="number" id="proj-points" value="${(task.points !== undefined && task.points !== null) ? task.points : ''}" placeholder="—" step="5" min="0" max="200"
-                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono font-bold focus:outline-none focus:border-amber-500" />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-bold text-slate-700">Task Point</label>
+                  ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? '<span class="text-[9px] font-mono text-amber-600 font-bold">🔒 HOD Locked</span>' : ''}
+                </div>
+                ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? `
+                  <input type="number" id="proj-points" value="${(task.points !== undefined && task.points !== null) ? task.points : ''}" placeholder="—" readonly
+                         onclick="MonthlyInputView.openHodPointUnlockModal()"
+                         title="Point entry is restricted to HOD (ID: 44819). Click to unlock."
+                         class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-500 font-mono font-bold cursor-pointer" />
+                ` : `
+                  <input type="number" id="proj-points" value="${(task.points !== undefined && task.points !== null) ? task.points : ''}" placeholder="—" step="5" min="0" max="200"
+                         class="w-full bg-white border border-emerald-400 hover:border-emerald-600 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs text-slate-800 font-mono font-bold focus:outline-none" />
+                `}
               </div>
             </div>
 
@@ -322,7 +472,7 @@ const ProjectsView = {
               <span class="text-[11px] text-slate-400">All modifications are preserved and synced.</span>
               <div class="flex items-center gap-2">
                 <button type="button" onclick="ProjectsView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">Cancel</button>
-                <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black shadow-md shadow-amber-200/50 transition flex items-center gap-1.5">
+                <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black shadow-md shadow-amber-200/50 transition flex items-center gap-1.5 cursor-pointer">
                   <span>💾</span> <span>Update Project Details</span>
                 </button>
               </div>
@@ -352,14 +502,34 @@ const ProjectsView = {
     const details = document.getElementById('proj-details').value.trim();
     const supervisor = document.getElementById('proj-supervisor').value;
     const assignee = document.getElementById('proj-assignee').value;
-    const points = document.getElementById('proj-points').value;
+    const pointsInput = document.getElementById('proj-points');
+    const points = pointsInput ? pointsInput.value : '';
 
     const isCompleted = (category === 'Completed Projects');
     const parsedPts = (points !== "" && points !== undefined && points !== null && !isNaN(parseFloat(points))) ? parseFloat(points) : "";
 
-    if (window.appState && window.appState.workbookMgr) {
-      if (editTaskId) {
-        // UPDATE EXISTING PROJECT
+    const list = this.getProjects();
+
+    if (editTaskId) {
+      // UPDATE EXISTING PROJECT IN PERMANENT STORE
+      const existing = list.find(p => p.task_id === editTaskId);
+      if (existing) {
+        existing.task_name = name;
+        existing.category = category;
+        existing.deadline = deadline;
+        existing.task_details = details;
+        existing.supervisor = supervisor;
+        existing.assignee = assignee;
+        existing.engineer = assignee;
+        existing.points = parsedPts;
+        existing.status = isCompleted ? "Completed" : "Ongoing";
+        existing.project_status = existing.status;
+        existing.last_updated = new Date().toISOString();
+      }
+      this.saveProjects(list);
+
+      // Sync into workbook
+      if (window.appState && window.appState.workbookMgr) {
         window.appState.workbookMgr.updateTask(this.selectedMonth, editTaskId, {
           task_name: name,
           category: category,
@@ -374,17 +544,36 @@ const ProjectsView = {
           is_project: true,
           last_updated: new Date().toISOString()
         });
+      }
 
-        if (window.appState.syncEngine) {
-          await window.appState.syncEngine.syncMonth(this.selectedMonth);
-        }
+      this.closeModal();
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Updated strategic project: ${name}`, "success");
+      }
+    } else {
+      // ADD NEW STRATEGIC PROJECT IN PERMANENT STORE
+      const newId = `PROJ-2026-${Date.now().toString().slice(-4)}`;
+      const newProj = {
+        task_id: newId,
+        task_name: name,
+        category: category,
+        status: isCompleted ? "Completed" : "Ongoing",
+        project_status: isCompleted ? "Completed" : "Ongoing",
+        deadline: deadline,
+        task_details: details,
+        supervisor: supervisor,
+        assignee: assignee,
+        engineer: assignee,
+        points: parsedPts,
+        is_project: true,
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      };
+      list.push(newProj);
+      this.saveProjects(list);
 
-        this.closeModal();
-        if (typeof window.showToast === 'function') {
-          window.showToast(`Updated project: ${name}`, "success");
-        }
-      } else {
-        // ADD NEW PROJECT
+      // Sync into workbook
+      if (window.appState && window.appState.workbookMgr) {
         window.appState.workbookMgr.addTask(
           this.selectedMonth,
           assignee,
@@ -395,22 +584,23 @@ const ProjectsView = {
           parsedPts,
           supervisor,
           {
+            task_id: newId,
             is_project: true,
             project_status: isCompleted ? "Completed" : "Ongoing",
             deadline: deadline,
             last_updated: new Date().toISOString()
           }
         );
-
-        if (window.appState.syncEngine) {
-          await window.appState.syncEngine.syncMonth(this.selectedMonth);
-        }
-
-        this.closeModal();
-        if (typeof window.showToast === 'function') {
-          window.showToast(`🚀 Added project task: ${name}`, "success");
-        }
       }
+
+      this.closeModal();
+      if (typeof window.showToast === 'function') {
+        window.showToast(`🚀 Added strategic project: ${name} (Permanently preserved)`, "success");
+      }
+    }
+
+    if (window.appState && window.appState.syncEngine) {
+      await window.appState.syncEngine.syncMonth(this.selectedMonth);
     }
 
     await this.render();
@@ -428,8 +618,34 @@ const ProjectsView = {
     const months = workbookMgr.getAllMonths();
     const allTasks = workbookMgr.getTasksForMonth(month);
 
-    // Extract project tasks (strictly from dedicated Projects section)
-    const projectTasks = allTasks.filter(t => Boolean(t.is_project === true));
+    // Load permanently preserved strategic projects
+    const projectTasks = this.getProjects();
+
+    // Ensure all permanent strategic projects are also present in the active month workbook
+    projectTasks.forEach(p => {
+      const existing = allTasks.find(t => t.task_id === p.task_id);
+      if (!existing && workbookMgr) {
+        workbookMgr.addTask(
+          month,
+          p.assignee || p.engineer || "Concern Engineer",
+          p.task_name,
+          "YES",
+          p.task_details || "",
+          p.category || "Ongoing Projects",
+          p.points || 0,
+          p.supervisor || "Kamrul (44819)",
+          {
+            task_id: p.task_id,
+            is_project: true,
+            project_status: p.status || "Ongoing",
+            deadline: p.deadline || "",
+            photo_1: p.photo_1 || p.photo || null,
+            photo_2: p.photo_2 || null
+          }
+        );
+      }
+    });
+
 
     const ongoingProjects = projectTasks.filter(t => {
       const status = (t.status || t.project_status || '').toLowerCase();

@@ -136,6 +136,154 @@ const MonthlyInputView = {
     this.render();
   },
 
+  isHodPointUnlocked() {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        return sessionStorage.getItem('walton_hod_point_unlocked') === 'true';
+      }
+    } catch (e) {}
+    return false;
+  },
+
+  lockHodPoints() {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('walton_hod_point_unlocked');
+      }
+    } catch (e) {}
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast("🔒 Point editing locked. HOD authorization required.", "info");
+    }
+  },
+
+  renderHodUnlockModalContainer() {
+    let container = document.getElementById('hod-unlock-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'hod-unlock-modal-container';
+      document.body.appendChild(container);
+    }
+    return container;
+  },
+
+  openHodPointUnlockModal(targetTaskId = null) {
+    const container = this.renderHodUnlockModalContainer();
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-sans">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 sm:p-7 text-slate-800">
+          
+          <!-- Header -->
+          <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-xl shadow-xs">
+                🔐
+              </div>
+              <div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  HOD AUTHORIZATION
+                </span>
+                <h3 class="text-base font-black text-slate-900 mt-0.5">Unlock Point Evaluation</h3>
+              </div>
+            </div>
+            <button onclick="MonthlyInputView.closeHodPointUnlockModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 text-sm flex items-center justify-center transition">&times;</button>
+          </div>
+
+          <!-- Notice -->
+          <div class="my-4 p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-relaxed">
+            <p class="font-bold">⚠️ HOD Authority Required:</p>
+            <p class="text-[11px] text-amber-800 mt-0.5">
+              Task Point entry and evaluation authority is restricted to <strong>Head of Department (Kamrul Hasan Chowdhury)</strong>.
+            </p>
+          </div>
+
+          <!-- Form -->
+          <form onsubmit="MonthlyInputView.verifyHodPointUnlock(event, '${targetTaskId || ''}')" class="space-y-4 text-xs">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Employee ID</label>
+              <input type="text" id="hod-unlock-id" value="44819" required
+                     placeholder="Enter HOD ID (44819)"
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-mono font-bold focus:bg-white focus:outline-none focus:border-amber-500 shadow-xs" />
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Password</label>
+              <input type="password" id="hod-unlock-pass" required autofocus
+                     placeholder="Enter HOD Password"
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-bold focus:bg-white focus:outline-none focus:border-amber-500 shadow-xs" />
+            </div>
+
+            <div id="hod-unlock-error-msg" class="hidden text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl"></div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button type="button" onclick="MonthlyInputView.closeHodPointUnlockModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">
+                Cancel
+              </button>
+              <button type="submit" class="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-500/20 transition cursor-pointer flex items-center gap-1.5">
+                <span>🔓</span> <span>Unlock Points</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      const passEl = document.getElementById('hod-unlock-pass');
+      if (passEl) passEl.focus();
+    }, 100);
+  },
+
+  closeHodPointUnlockModal() {
+    const container = document.getElementById('hod-unlock-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  verifyHodPointUnlock(event, targetTaskId = null) {
+    if (event) event.preventDefault();
+    const idEl = document.getElementById('hod-unlock-id');
+    const passEl = document.getElementById('hod-unlock-pass');
+    const errEl = document.getElementById('hod-unlock-error-msg');
+
+    const id = idEl ? idEl.value.trim() : '';
+    const pass = passEl ? passEl.value.trim() : '';
+
+    if (id === '44819' && pass === 'HOD@2026') {
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('walton_hod_point_unlocked', 'true');
+        }
+      } catch (e) {}
+
+      this.closeHodPointUnlockModal();
+      this.render();
+
+      if (typeof window.showToast === 'function') {
+        window.showToast("🔓 HOD Authorization Verified! Point entry unlocked for this session.", "success");
+      }
+
+      if (targetTaskId) {
+        setTimeout(() => {
+          const targetInput = document.getElementById(`task-point-${targetTaskId}`);
+          if (targetInput) {
+            targetInput.focus();
+            targetInput.select();
+          }
+        }, 150);
+      }
+    } else {
+      if (errEl) {
+        errEl.classList.remove('hidden');
+        errEl.textContent = "❌ Invalid HOD Credentials. Required ID: 44819, Password: HOD@2026.";
+      }
+      if (passEl) {
+        passEl.value = '';
+        passEl.focus();
+      }
+    }
+  },
+
   async handleInlineUpdate(taskId, field, value) {
     if (!window.appState || !window.appState.workbookMgr) return;
     try {
@@ -145,6 +293,10 @@ const MonthlyInputView = {
 
       let cleanVal = value;
       if (field === 'points') {
+        if (!this.isHodPointUnlocked()) {
+          this.openHodPointUnlockModal(taskId);
+          return;
+        }
         cleanVal = (value !== '' && value !== null && !isNaN(parseFloat(value))) ? parseFloat(value) : '';
       }
 
@@ -647,6 +799,10 @@ const MonthlyInputView = {
     // Ctrl + D: Excel Fill Down from cell above
     if (event.ctrlKey && (event.key === 'd' || event.key === 'D')) {
       event.preventDefault();
+      if (!this.isHodPointUnlocked()) {
+        this.openHodPointUnlockModal(taskId);
+        return;
+      }
       if (!window.appState || !window.appState.workbookMgr) return;
       const tasks = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
       const curIdx = tasks.findIndex(t => t.task_id === taskId);
@@ -665,6 +821,11 @@ const MonthlyInputView = {
   },
 
   async handlePointPaste(event, taskId) {
+    if (!this.isHodPointUnlocked()) {
+      event.preventDefault();
+      this.openHodPointUnlockModal(taskId);
+      return;
+    }
     const clipboardData = (event.clipboardData || window.clipboardData);
     if (!clipboardData) return;
     const text = clipboardData.getData('text');
@@ -1663,14 +1824,25 @@ const MonthlyInputView = {
           </select>
         </td>
 
-        <!-- Task Point (Centered, Clean Box) -->
+        <!-- Task Point (Centered, Clean Box - HOD Protected) -->
         <td class="py-1.5 px-1 text-center border-r border-slate-200 align-middle">
           <div class="flex items-center justify-center">
-            <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
-                   placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
-                   oninput="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                   onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
-                   class="w-12 h-8 text-center bg-white border border-emerald-400 hover:border-emerald-600 focus:border-emerald-600 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-400 shadow-xs placeholder:text-slate-400" />
+            ${this.isHodPointUnlocked() ? `
+              <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
+                     placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
+                     oninput="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
+                     onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
+                     onkeydown="MonthlyInputView.handlePointKeyDown(event, '${t.task_id}')"
+                     onpaste="MonthlyInputView.handlePointPaste(event, '${t.task_id}')"
+                     class="w-12 h-8 text-center bg-white border border-emerald-400 hover:border-emerald-600 focus:border-emerald-600 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-400 shadow-xs placeholder:text-slate-400" />
+            ` : `
+              <div onclick="MonthlyInputView.openHodPointUnlockModal('${t.task_id}')" class="relative group cursor-pointer" title="🔒 HOD Authorization Required (ID: 44819). Click to unlock.">
+                <input type="text" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
+                       placeholder="—" readonly
+                       class="w-12 h-8 text-center bg-slate-100 border border-slate-200 hover:border-amber-400 rounded-lg text-xs font-mono font-bold text-slate-600 cursor-pointer shadow-xs pointer-events-none" />
+                <span class="absolute -top-1 -right-1 text-[9px] bg-amber-100 border border-amber-300 rounded-full px-0.5 leading-none">🔒</span>
+              </div>
+            `}
           </div>
         </td>
 
@@ -2223,7 +2395,17 @@ const MonthlyInputView = {
                   <th class="py-3 px-3 border-r border-slate-100 text-[11px]">Task Name ↕</th>
                   <th class="py-3 px-3 border-r border-slate-100 text-[11px]">Task Details ↕</th>
                   <th class="py-3 px-2 text-center border-r border-slate-100 text-[11px]">Category ↕</th>
-                  <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">Point ↕</th>
+                  <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">
+                    ${this.isHodPointUnlocked() ? `
+                      <button type="button" onclick="MonthlyInputView.lockHodPoints()" class="inline-flex items-center gap-0.5 text-emerald-700 font-bold hover:text-emerald-900 cursor-pointer" title="Point Evaluation Unlocked (HOD). Click to lock.">
+                        <span>Point</span> <span>🔓</span>
+                      </button>
+                    ` : `
+                      <button type="button" onclick="MonthlyInputView.openHodPointUnlockModal()" class="inline-flex items-center gap-0.5 text-slate-700 font-bold hover:text-amber-700 cursor-pointer" title="Point grading locked to HOD (ID: 44819). Click to unlock.">
+                        <span>Point</span> <span>🔒</span>
+                      </button>
+                    `}
+                  </th>
                   <th class="py-3 px-2 border-r border-slate-100 text-[11px]">Supervisor ↕</th>
                   <th class="py-3 px-2 border-r border-slate-100 text-[11px]">Assignee ↕</th>
                   <th class="py-3 px-1 text-center border-r border-slate-100 text-[11px]">Report</th>

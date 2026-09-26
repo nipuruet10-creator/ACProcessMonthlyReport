@@ -58,7 +58,7 @@ const MonthlyReportView = {
   },
 
   /**
-   * Opens the slide override editor for a specific task slide
+   * Opens the slide override editor for a specific task slide with live in-modal preview
    */
   openModal(taskId) {
     if (!taskId) return;
@@ -81,12 +81,13 @@ const MonthlyReportView = {
 
     const container = this.renderContainer();
     container.innerHTML = `
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800 flex flex-col max-h-[90vh] overflow-y-auto">
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md">
+        <div class="relative w-full max-w-6xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-5 sm:p-6 text-slate-800 flex flex-col max-h-[95vh] overflow-hidden">
           
-          <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+          <!-- Top Header -->
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-lg font-bold">
+              <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-lg font-bold shadow-xs">
                 ✏️
               </div>
               <div>
@@ -96,58 +97,268 @@ const MonthlyReportView = {
                   </span>
                   <span class="text-xs font-mono text-slate-400">ID: ${taskId}</span>
                 </div>
-                <h3 class="text-base font-black text-slate-900 mt-0.5">Edit Slide Presentation Content</h3>
-                <p class="text-xs text-slate-500">Changes modify only the slide presentation while keeping raw table data intact.</p>
+                <h3 class="text-base font-black text-slate-900 mt-0.5">Edit Slide Content &amp; Live In-Modal Preview</h3>
               </div>
             </div>
-            <button onclick="MonthlyReportView.closeModal()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl">✕</button>
+            <button onclick="MonthlyReportView.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition">&times;</button>
           </div>
 
-          <form onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="space-y-4 my-4 text-xs">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Slide Title (Headline)</label>
-              <input type="text" id="edit-slide-title" value="${HELPERS.escapeHtml(currentTitle)}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-bold" required />
-            </div>
-
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Description / 5-Step Process Breakdown</label>
-              <textarea id="edit-slide-desc" rows="4" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 leading-relaxed font-sans">${HELPERS.escapeHtml(currentDesc)}</textarea>
-            </div>
-
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">Project Impact &amp; Outcomes (One bullet per line)</label>
-              <textarea id="edit-slide-impact" rows="3" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-sans">${HELPERS.escapeHtml(currentImpact)}</textarea>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Body: Split 2-Column (Form on Left, Real-Time Preview on Right) -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 py-4 overflow-y-auto flex-1">
+            
+            <!-- Left: Editorial Form -->
+            <form id="slide-override-form" onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="space-y-3.5 text-xs">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Concern Engineer Name</label>
-                <input type="text" id="edit-slide-engineer" value="${HELPERS.escapeHtml(currentEngineer)}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium" />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-bold text-slate-700">Slide Title (Headline) <span class="text-red-500">*</span></label>
+                  <span class="text-[10px] text-slate-400 font-mono">Live updates on right →</span>
+                </div>
+                <input type="text" id="edit-slide-title" value="${HELPERS.escapeHtml(currentTitle)}" 
+                       oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                       class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-bold shadow-xs" required />
               </div>
+
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Investment / Budget Note</label>
-                <input type="text" id="edit-slide-investment" value="${HELPERS.escapeHtml(currentInvestment)}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium" />
+                <label class="block font-bold text-slate-700 mb-1">5-Step Process Breakdown / Description</label>
+                <textarea id="edit-slide-desc" rows="4" 
+                          oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                          class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 leading-relaxed font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentDesc)}</textarea>
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Project Impact &amp; Outcomes (One bullet per line)</label>
+                <textarea id="edit-slide-impact" rows="3" 
+                          oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                          class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentImpact)}</textarea>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Concern Engineer</label>
+                  <input type="text" id="edit-slide-engineer" value="${HELPERS.escapeHtml(currentEngineer)}" 
+                         oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                         class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Investment / Budget Note</label>
+                  <input type="text" id="edit-slide-investment" value="${HELPERS.escapeHtml(currentInvestment)}" 
+                         oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                         class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="MonthlyReportView.resetOverrides('${taskId}')" class="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition">
+                  Reset to AI Defaults
+                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="MonthlyReportView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                    Cancel
+                  </button>
+                  <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5">
+                    <span>💾</span> <span>Save Overrides</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <!-- Right: Real-Time 16:9 In-Modal Live Preview -->
+            <div class="bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800 shadow-inner">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Live Slide Preview</span>
+                </div>
+                <button type="button" onclick="MonthlyReportView.openModalFullScreenPreview('${taskId}')" 
+                        class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 border border-slate-700 transition flex items-center gap-1 cursor-pointer">
+                  <span>👁️</span> <span>Full Screen</span>
+                </button>
+              </div>
+
+              <!-- 16:9 Presentation Stage inside Modal -->
+              <div id="modal-slide-live-preview" class="w-full aspect-video bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col p-4 text-slate-800">
+                <!-- Injected via renderModalLivePreview -->
+              </div>
+
+              <div class="pt-3 text-[11px] text-slate-400 flex items-center justify-between font-mono">
+                <span>Walton Executive Theme &bull; 16:9</span>
+                <span class="text-emerald-400 font-bold">✨ Real-time synced</span>
               </div>
             </div>
 
-            <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
-              <button type="button" onclick="MonthlyReportView.resetOverrides('${taskId}')" class="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition">
-                Reset to AI Defaults
-              </button>
-              <div class="flex items-center gap-2">
-                <button type="button" onclick="MonthlyReportView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
-                  Cancel
-                </button>
-                <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition cursor-pointer">
-                  💾 Save Overrides
-                </button>
-              </div>
-            </div>
-          </form>
+          </div>
 
         </div>
       </div>
     `;
+
+    // Immediately render the live preview in the modal
+    this.renderModalLivePreview(taskId);
+  },
+
+  /**
+   * Real-time in-modal 16:9 live slide preview renderer
+   */
+  renderModalLivePreview(taskId) {
+    const previewEl = document.getElementById('modal-slide-live-preview');
+    if (!previewEl) return;
+
+    const titleEl = document.getElementById('edit-slide-title');
+    const descEl = document.getElementById('edit-slide-desc');
+    const impactEl = document.getElementById('edit-slide-impact');
+    const engineerEl = document.getElementById('edit-slide-engineer');
+    const investEl = document.getElementById('edit-slide-investment');
+
+    const title = titleEl ? titleEl.value.trim() : `Task ${taskId}`;
+    const desc = descEl ? descEl.value.trim() : "Standard operating procedure execution and engineering development.";
+    const impactLines = impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [];
+    const engineer = engineerEl ? engineerEl.value.trim() : "Concern Engineer";
+    const investment = investEl ? investEl.value.trim() : "In-house / Direct Implementation";
+
+    // Fetch photos
+    let photoBefore = null;
+    let photoAfter = null;
+    if (typeof photoManager !== 'undefined') {
+      const p = photoManager.getTaskPhotos(taskId, this.selectedMonth);
+      if (p) {
+        photoBefore = p.before_photo || null;
+        photoAfter = p.after_photo || null;
+      }
+    }
+
+    const hasPhotos = Boolean(photoBefore || photoAfter);
+
+    previewEl.innerHTML = `
+      <div class="h-full w-full flex flex-col justify-between font-sans select-none overflow-hidden text-xs">
+        
+        <!-- Top Presentation Bar -->
+        <div class="flex items-center justify-between pb-2 border-b-2 border-red-600 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-red-600 text-white shadow-xs">
+              WALTON
+            </span>
+            <span class="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
+              AC PROCESS DEVELOPMENT &bull; ${this.selectedMonth}
+            </span>
+          </div>
+          <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-mono text-[10px] font-bold border border-blue-200">
+            ID: ${taskId}
+          </span>
+        </div>
+
+        <!-- Slide Heading -->
+        <div class="pt-2 flex-shrink-0">
+          <h4 class="text-sm font-black text-slate-900 leading-snug line-clamp-2">
+            ${HELPERS.escapeHtml(title)}
+          </h4>
+          <div class="flex items-center gap-2 mt-1 flex-wrap text-[10px]">
+            <span class="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+              👤 ${HELPERS.escapeHtml(engineer)}
+            </span>
+            <span class="font-medium text-slate-600 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded">
+              💰 ${HELPERS.escapeHtml(investment)}
+            </span>
+          </div>
+        </div>
+
+        <!-- Slide Content Grid: Process Steps + Impact Bullets + Photos -->
+        <div class="grid ${hasPhotos ? 'grid-cols-2' : 'grid-cols-1'} gap-3 py-2 flex-1 min-h-0 overflow-hidden">
+          
+          <!-- Left Text Details -->
+          <div class="flex flex-col justify-between space-y-2 overflow-hidden">
+            <!-- 5-Step Description -->
+            <div class="bg-blue-50/60 border-l-4 border-blue-500 p-2 rounded-r-lg">
+              <span class="text-[9px] font-mono font-bold text-blue-800 uppercase block mb-0.5">PROCESS BREAKDOWN:</span>
+              <p class="text-[11px] text-slate-700 leading-relaxed line-clamp-3">
+                ${HELPERS.escapeHtml(desc)}
+              </p>
+            </div>
+
+            <!-- Impact Bullets -->
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">
+              <span class="text-[9px] font-mono font-bold text-slate-600 uppercase block mb-1">KEY OUTCOMES:</span>
+              <ul class="space-y-1">
+                ${impactLines.slice(0, 3).map(imp => `
+                  <li class="flex items-start gap-1.5 text-[10px] text-slate-700">
+                    <span class="text-emerald-600 font-bold flex-shrink-0">✔</span>
+                    <span class="line-clamp-1">${HELPERS.escapeHtml(imp)}</span>
+                  </li>
+                `).join('')}
+                ${impactLines.length === 0 ? '<li class="text-[10px] text-slate-400 italic">No impact notes registered</li>' : ''}
+              </ul>
+            </div>
+          </div>
+
+          <!-- Right: Photos (if any) -->
+          ${hasPhotos ? `
+            <div class="grid ${photoBefore && photoAfter ? 'grid-cols-2' : 'grid-cols-1'} gap-2 h-full">
+              ${photoBefore ? `
+                <div class="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                  <img src="${photoBefore}" class="w-full h-full object-cover" alt="Before">
+                  <span class="absolute top-1 left-1 px-1.5 py-0.2 bg-black/60 text-white rounded text-[8px] font-bold">BEFORE</span>
+                </div>
+              ` : ''}
+              ${photoAfter ? `
+                <div class="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
+                  <img src="${photoAfter}" class="w-full h-full object-cover" alt="After">
+                  <span class="absolute top-1 left-1 px-1.5 py-0.2 bg-emerald-600 text-white rounded text-[8px] font-bold">AFTER</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- Slide Footer Bar -->
+        <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[9px] font-mono text-slate-400 flex-shrink-0">
+          <span>WALTON PROCESS AUTOMATION SYSTEM</span>
+          <span>SLIDE PREVIEW MODE</span>
+        </div>
+
+      </div>
+    `;
+  },
+
+  /**
+   * Pop-out full screen 16:9 preview for the draft slide currently in the modal
+   */
+  openModalFullScreenPreview(taskId) {
+    const titleEl = document.getElementById('edit-slide-title');
+    const descEl = document.getElementById('edit-slide-desc');
+    const impactEl = document.getElementById('edit-slide-impact');
+    const engineerEl = document.getElementById('edit-slide-engineer');
+    const investEl = document.getElementById('edit-slide-investment');
+
+    let photoBefore = null;
+    let photoAfter = null;
+    if (typeof photoManager !== 'undefined') {
+      const p = photoManager.getTaskPhotos(taskId, this.selectedMonth);
+      if (p) {
+        photoBefore = p.before_photo || null;
+        photoAfter = p.after_photo || null;
+      }
+    }
+
+    const draftSlide = {
+      task_id: taskId,
+      month: this.selectedMonth,
+      slide_title: titleEl ? titleEl.value.trim() : `Task ${taskId}`,
+      description: descEl ? descEl.value.trim() : "",
+      impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
+      engineer: engineerEl ? engineerEl.value.trim() : "Concern Engineer",
+      investment: investEl ? investEl.value.trim() : "In-house / Direct Implementation",
+      category: "Process development",
+      status: "Completed",
+      photo_before: photoBefore,
+      photo_after: photoAfter,
+      photo: photoBefore || photoAfter,
+      has_dual_photo: Boolean(photoBefore && photoAfter),
+      has_manual_override: true
+    };
+
+    if (typeof SlidePreviewModal !== 'undefined' && SlidePreviewModal.openSingle) {
+      SlidePreviewModal.openSingle(draftSlide);
+    }
   },
 
   closeModal() {
@@ -172,21 +383,48 @@ const MonthlyReportView = {
       investment: investEl ? investEl.value.trim() : ""
     };
 
+    // 1. Save to SyncEngine overrides map
     if (window.appState && window.appState.syncEngine) {
-      window.appState.syncEngine.saveManualOverride(taskId, overrides);
+      if (typeof window.appState.syncEngine.saveManualOverride === 'function') {
+        window.appState.syncEngine.saveManualOverride(taskId, overrides);
+      } else if (typeof window.appState.syncEngine.setManualOverride === 'function') {
+        window.appState.syncEngine.setManualOverride(taskId, overrides);
+      }
+    }
+
+    // 2. Direct cache synchronization for instant presentation reload
+    try {
+      const cacheKey = `walton_pd_active_slides_${this.selectedMonth}`;
+      const saved = localStorage.getItem(cacheKey);
+      if (saved) {
+        const cachedSlides = JSON.parse(saved);
+        const idx = cachedSlides.findIndex(s => s && s.task_id === taskId);
+        if (idx !== -1) {
+          cachedSlides[idx] = {
+            ...cachedSlides[idx],
+            ...overrides,
+            has_manual_override: true
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cachedSlides));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not patch local active slides cache:", e);
     }
 
     this.closeModal();
     this.render();
 
     if (typeof window.showToast === 'function') {
-      window.showToast(`✨ Slide overrides saved for task ${taskId}!`, "success");
+      window.showToast(`✨ Slide overrides saved for task ${taskId}! Presentation preview updated.`, "success");
     }
   },
 
   resetOverrides(taskId) {
     if (window.appState && window.appState.syncEngine) {
-      window.appState.syncEngine.removeManualOverride(taskId);
+      if (typeof window.appState.syncEngine.removeManualOverride === 'function') {
+        window.appState.syncEngine.removeManualOverride(taskId);
+      }
     }
     this.closeModal();
     this.render();
@@ -461,6 +699,11 @@ const MonthlyReportView = {
                             Slide #${idx + 3}
                           </span>
                           <div class="flex items-center gap-1.5">
+                            ${s.is_project ? `
+                              <span class="text-[9px] font-mono font-bold ${s.status === 'Completed' ? 'text-emerald-700 bg-emerald-100' : 'text-purple-700 bg-purple-100'} px-1.5 py-0.2 rounded" title="Strategic Project Slide appended at end">
+                                ${s.status === 'Completed' ? '✔ Completed Project' : '🚀 Ongoing Project'}
+                              </span>
+                            ` : ''}
                             ${isOverridden ? `
                               <span class="text-[9px] font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded" title="Slide content edited manually">
                                 ✏️ Overridden

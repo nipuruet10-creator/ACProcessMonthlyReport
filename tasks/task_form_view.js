@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Process Development Monthly Report Automation System
  * Module: Task Form View (Fast Engineer Entry)
  * Principle: ENGINEER ENTERS TASK NAME + OPTIONAL AI DETAILS GENERATION
@@ -193,9 +193,19 @@ const TaskFormView = {
               </div>
 
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Task Point</label>
-                <input type="number" id="entry-task-points" value="${currentPts}" placeholder="&mdash;" step="5" min="0" max="100"
-                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono font-bold focus:outline-none focus:border-red-400" />
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-bold text-slate-700">Task Point</label>
+                  ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? '<span class="text-[9px] font-mono text-amber-600 font-bold">🔒 HOD Locked</span>' : ''}
+                </div>
+                ${(typeof MonthlyInputView !== 'undefined' && !MonthlyInputView.isHodPointUnlocked()) ? `
+                  <input type="number" id="entry-task-points" value="${currentPts}" placeholder="—" readonly
+                         onclick="MonthlyInputView.openHodPointUnlockModal()"
+                         title="Point entry is restricted to HOD (ID: 44819). Click to unlock."
+                         class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-500 font-mono font-bold cursor-pointer" />
+                ` : `
+                  <input type="number" id="entry-task-points" value="${currentPts}" placeholder="—" step="5" min="0" max="100"
+                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono font-bold focus:outline-none focus:border-red-400" />
+                `}
               </div>
             </div>
 

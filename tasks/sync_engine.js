@@ -42,6 +42,17 @@ class SyncEngine {
     this.saveManualOverrides();
   }
 
+  saveManualOverride(taskId, overrides = {}) {
+    return this.setManualOverride(taskId, overrides);
+  }
+
+  removeManualOverride(taskId) {
+    if (this.manualOverrides[taskId]) {
+      delete this.manualOverrides[taskId];
+      this.saveManualOverrides();
+    }
+  }
+
   getManualOverride(taskId) {
     return this.manualOverrides[taskId] || null;
   }
@@ -282,7 +293,26 @@ class SyncEngine {
         } catch (e) {}
       }
 
-      // 3. Dynamically bind 100% current fresh photos from PhotoManager / IndexedDB
+      // 3. Apply manual overrides (slide_title, description, impact, engineer, investment, category, etc.)
+      slides.forEach(s => {
+        const overrides = this.getManualOverride(s.task_id);
+        if (overrides) {
+          if (overrides.slide_title) s.slide_title = overrides.slide_title;
+          if (overrides.split_title_1) s.split_title_1 = overrides.split_title_1;
+          if (overrides.split_title_2) s.split_title_2 = overrides.split_title_2;
+          if (overrides.description) s.description = overrides.description;
+          if (overrides.impact) s.impact = overrides.impact;
+          if (overrides.metrics) s.metrics = overrides.metrics;
+          if (overrides.quote) s.quote = overrides.quote;
+          if (overrides.engineer) s.engineer = overrides.engineer;
+          if (overrides.investment) s.investment = overrides.investment;
+          if (overrides.category) s.category = overrides.category;
+          if (overrides.status) s.status = overrides.status;
+          s.has_manual_override = true;
+        }
+      });
+
+      // 4. Dynamically bind 100% current fresh photos from PhotoManager / IndexedDB
       const pMgr = this.photoMgr || (typeof photoManager !== 'undefined' ? photoManager : null);
       if (pMgr) {
         slides.forEach(s => {
@@ -301,6 +331,63 @@ class SyncEngine {
         });
       }
 
+      // 5. Append permanent strategic projects to the end of the slide deck
+      let strategicProjects = [];
+      try {
+        const rawProj = localStorage.getItem('walton_strategic_projects_permanent_v1');
+        if (rawProj) strategicProjects = JSON.parse(rawProj);
+      } catch (e) {}
+
+      if (Array.isArray(strategicProjects)) {
+        strategicProjects.forEach(proj => {
+          if (proj && proj.task_name && !slides.some(s => s.task_id === proj.task_id)) {
+            const isCompleted = (proj.status === 'Completed' || proj.category === 'Completed Projects');
+            slides.push({
+              task_id: proj.task_id,
+              month: normalizedMonth,
+              engineer: proj.assignee || proj.engineer || "Concern Engineer",
+              raw_task_name: proj.task_name,
+              slide_title: proj.task_name,
+              description: proj.task_details || "Strategic automation & process development milestone.",
+              impact: [
+                "Zero defect manufacturing & cycle efficiency",
+                proj.deadline ? `Target: ${proj.deadline}` : "Target timeline adherence"
+              ],
+              category: proj.category || (isCompleted ? "Completed Projects" : "Ongoing Projects"),
+              status: isCompleted ? "Completed" : "Ongoing",
+              investment: proj.investment || "In-house / Direct Implementation",
+              is_project: true,
+              project_status: isCompleted ? "Completed" : "Ongoing",
+              has_manual_override: false,
+              photo: proj.photo || null,
+              photo_before: proj.photo_before || null,
+              photo_after: proj.photo_after || null
+            });
+          }
+        });
+      }
+
+      // 6. Strict Presentation Sequence: Standard process tasks first, Completed Projects next, Ongoing Projects at the very end
+      const stdSlides = [];
+      const completedProjSlides = [];
+      const ongoingProjSlides = [];
+      slides.forEach(s => {
+        const cat = (s.category || '').toLowerCase();
+        const title = (s.slide_title || s.raw_task_name || '').toLowerCase();
+        const isProj = Boolean(s.is_project || cat.includes('project') || title.includes('project'));
+        if (isProj) {
+          const status = (s.status || s.project_status || '').toLowerCase();
+          if (status.includes('complete') || cat.includes('completed project')) {
+            completedProjSlides.push(s);
+          } else {
+            ongoingProjSlides.push(s);
+          }
+        } else {
+          stdSlides.push(s);
+        }
+      });
+
+      slides = [...stdSlides, ...completedProjSlides, ...ongoingProjSlides];
       return slides;
     } catch (e) {
       console.warn("getActiveSlides notice:", e);
