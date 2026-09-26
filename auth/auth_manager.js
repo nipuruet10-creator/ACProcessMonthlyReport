@@ -17,7 +17,7 @@ class AuthManager {
   constructor(storageKey = (typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.STORAGE_KEYS.USER : 'walton_user_auth')) {
     this.storageKey = storageKey;
     this.currentUser = this.loadUser();
-    this._inMemoryUnlocked = true; // Handover mode: unlocked by default so engineers can input immediately
+    this._inMemoryUnlocked = false;
   }
 
   loadUser() {
@@ -61,11 +61,9 @@ class AuthManager {
     if (this._inMemoryUnlocked) return true;
     if (typeof HELPERS !== 'undefined' && HELPERS.storage) {
       const session = HELPERS.storage.get(INPUT_AUTH_CONFIG.STORAGE_KEY_SESSION, null);
-      if (session && session.unlocked === false) return false;
       if (session && session.unlocked === true) return true;
     }
-    // Handover default: keep editing unlocked so engineers never see a blank or blocked screen
-    return true;
+    return false;
   }
 
   /**
@@ -155,7 +153,7 @@ class AuthManager {
 
     return { 
       success: false, 
-      error: "Incorrect password. Default team password is: ACprocess@2026 (or Walton Master PIN: 50463)" 
+      error: "Incorrect password. Please try again." 
     };
   }
 
@@ -185,7 +183,7 @@ class AuthManager {
     const cleanNew = (newPassword || '').trim();
 
     if (!cleanCurrent) {
-      return { success: false, error: "Please enter your current password or Walton Master PIN (50463)." };
+      return { success: false, error: "Please enter your current password or Master PIN." };
     }
 
     if (!cleanNew || cleanNew.length < 6) {
@@ -200,7 +198,7 @@ class AuthManager {
     if (!isValidCurrent) {
       return { 
         success: false, 
-        error: "Incorrect current password or Master PIN. You can use Master PIN: 50463 if you forgot your password." 
+        error: "Incorrect current password or Master PIN." 
       };
     }
 
@@ -241,7 +239,7 @@ class AuthManager {
     if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.requestAuthOtp) {
       return await GoogleSheetsSync.requestAuthOtp(INPUT_AUTH_CONFIG.ADMIN_EMAIL);
     }
-    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN 50463.");
+    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN.");
   }
 
   /**
@@ -266,7 +264,7 @@ class AuthManager {
       }
     }
 
-    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN 50463.");
+    throw new Error("Cloud sync service is not available. Please connect Google Sheets in Settings, or change password directly using Current Password / Master PIN.");
   }
 
   // ---------------------------------------------------------------------------

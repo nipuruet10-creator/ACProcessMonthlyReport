@@ -1840,7 +1840,7 @@ const MonthlyInputView = {
       // Security Gate: Check if Input Section is unlocked
       const isUnlocked = (typeof authManager !== 'undefined' && authManager.isInputUnlocked)
         ? authManager.isInputUnlocked()
-        : true; // Default open for team handover
+        : false;
 
       if (!isUnlocked) {
         this.renderLoginGate(containerId);
@@ -2405,39 +2405,18 @@ const MonthlyInputView = {
               <span>🔓</span>
               <span>Unlock Input Section</span>
             </button>
-
-            <!-- 1-Click Quick Access for Handover -->
-            <button 
-              type="button" 
-              onclick="MonthlyInputView.handleQuickUnlock()" 
-              class="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
-              <span>⚡</span> <span>1-Click Team Access (Handover Mode)</span>
-            </button>
           </form>
 
           <!-- Information Notice -->
-          <div class="mt-6 pt-5 border-t border-slate-100 text-center space-y-1">
-            <p class="text-[11px] text-slate-500 font-medium">
-              🔑 Default Team Password: <span class="font-mono font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">ACprocess@2026</span>
-            </p>
-            <p class="text-[10px] text-slate-400 leading-relaxed">
-              Walton Master PIN: <span class="font-mono text-slate-600 font-bold">50463</span> &bull; All engineering tasks, rankings, and cloud sync remain active.
+          <div class="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              <strong class="text-slate-600">Restricted Engineering Area:</strong> Enter authorized credentials to access and modify monthly engineering records.
             </p>
           </div>
 
         </div>
       </div>
     `;
-  },
-
-  async handleQuickUnlock() {
-    if (typeof authManager !== 'undefined') {
-      await authManager.unlockInput('admin', 'ACprocess@2026', true);
-      if (typeof window.showToast === 'function') {
-        window.showToast("🔓 Input section unlocked for engineering team!", "success");
-      }
-    }
-    await this.render();
   },
 
   async handleUnlockSubmit(event) {
