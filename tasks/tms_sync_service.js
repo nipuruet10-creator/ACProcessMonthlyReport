@@ -156,8 +156,10 @@ const TmsSyncService = {
       return;
     }
 
-    const engFullName = (creds && creds.fullName) ? creds.fullName : (assigneeName || `ID: ${empId}`);
-    const engDisplay = (creds && creds.display) ? creds.display : `${assigneeName} (${empId})`;
+    // Single clean name and single ID everywhere (Requirement 2A: "Sobar name er pash theke eta single ID dekhao")
+    const cleanNameOnly = ((creds && creds.name) ? creds.name : assigneeName).replace(/\s*\(\d+\).*/g, '').trim();
+    const engFullName = (creds && creds.fullName) ? creds.fullName : cleanNameOnly;
+    const engDisplay = `${cleanNameOnly} (${empId})`;
     const currentPass = (creds && creds.password) ? creds.password : "Sep@2026";
     const dates = this.getFormattedDates(month);
 
@@ -173,7 +175,20 @@ const TmsSyncService = {
       }
     }
 
-    const points = (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : 50;
+    // Requirement 2B: "Task point deya hoy ni, tobuo 50 dekhasse. So eta accurate point pick korbe. point na thakle setar warning dibe and TMS e deya jabe na."
+    const rawPoint = (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : task.task_point;
+    const points = (rawPoint !== undefined && rawPoint !== null && rawPoint !== "" && !isNaN(parseFloat(rawPoint)))
+      ? parseFloat(rawPoint)
+      : null;
+
+    if (!points || points <= 0) {
+      if (typeof window.showToast === 'function') {
+        window.showToast("⚠️ Task Point Required: এই টাস্কে কোনো পয়েন্ট দেওয়া হয়নি। HOD পয়েন্ট নির্ধারণ না করলে TMS-এ সাবমিট করা যাবে না।", "error");
+      }
+      alert(`⚠️ Task Point Required:\n\nএই টাস্কে কোনো পয়েন্ট (Point) নির্ধারণ করা হয়নি।\nWalton TMS-এ সরাসরি সাবমিট ও ১০০% সম্পন্ন করার জন্য HOD (44819) কর্তৃক পয়েন্ট এন্ট্রি করা আবশ্যক।\n\nঅনুগ্রহ করে প্রথমে রো-এর পয়েন্ট বক্সে সঠিক পয়েন্ট দিন (HOD পাসওয়ার্ড: HOD@2026)।`);
+      return;
+    }
+
     const category = task.category || "Process development";
 
     let container = document.getElementById('tms-confirm-modal-container');
@@ -184,6 +199,10 @@ const TmsSyncService = {
     }
 
     const escape = (str) => (typeof HELPERS !== 'undefined' && HELPERS.escapeHtml) ? HELPERS.escapeHtml(str) : String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // Requirement 2C: "Jar password milbe na, tar jonno password option rakhio. baki gulo dio."
+    // Open password drawer by default only if password failed before, or if engineer is Anam (52800), or if password is non-default
+    const needsPasswordPrompt = (empId === '52800' || currentPass !== 'Sep@2026' || (typeof localStorage !== 'undefined' && localStorage.getItem('walton_tms_failed_pwd_' + empId) === 'true'));
 
     container.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-sans animate-in fade-in duration-150">
@@ -240,31 +259,49 @@ const TmsSyncService = {
               </div>
             </div>
 
-            <!-- Engineer TMS Password Field (Editable) -->
-            <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+            <!-- Engineer TMS Password Field (Clean status by default, expandable on demand) -->
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
               <div class="flex items-center justify-between">
-                <label for="tms-confirm-password" class="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
-                  <span>🔑</span> <span>Walton TMS Password for ${escape(engFullName)} (${empId})</span>
-                </label>
-                <span class="text-[10px] text-amber-800 font-mono font-semibold">Walton Intranet</span>
-              </div>
-              <div class="relative flex items-center">
-                <input type="password" id="tms-confirm-password" value="${escape(currentPass)}"
-                       placeholder="Enter Walton TMS Password..."
-                       class="w-full bg-white border border-amber-300 focus:border-amber-600 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 pr-10 shadow-xs" 
-                       onkeydown="if(event.key==='Enter') TmsSyncService.handleConfirmModalSubmit('${month}', '${task.task_id}', '${empId}')" />
-                <button type="button" onclick="const f=document.getElementById('tms-confirm-password'); f.type=(f.type==='password'?'text':'password'); this.textContent=(f.type==='password'?'👁️':'🔒')"
-                        title="Toggle Password Visibility"
-                        class="absolute right-2.5 text-slate-400 hover:text-slate-700 text-xs cursor-pointer p-1">
-                  👁️
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg ${needsPasswordPrompt ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'} flex items-center justify-center text-xs font-bold">
+                    ${needsPasswordPrompt ? '🔑' : '✔'}
+                  </span>
+                  <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Walton TMS Password</span>
+                    <span class="font-mono text-xs font-bold text-slate-800">
+                      ${needsPasswordPrompt ? 'Personal Password Verification Required' : 'Default Auto-Ready (Sep@2026)'}
+                    </span>
+                  </div>
+                </div>
+                <button type="button" onclick="const s=document.getElementById('tms-password-edit-drawer'); s.classList.toggle('hidden');"
+                        class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-blue-600 hover:text-blue-800 text-xs font-bold transition cursor-pointer">
+                  ${needsPasswordPrompt ? 'Edit' : 'Change Password ✏️'}
                 </button>
               </div>
-              <div class="flex items-center justify-between pt-0.5 text-[11px] text-slate-600">
-                <label class="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" id="tms-save-password-chk" checked class="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 cursor-pointer" />
-                  <span>Remember this password for ${escape(engFullName)}</span>
+
+              <!-- Collapsible Password Input (shown if user wants to change, or open by default if password mismatch) -->
+              <div id="tms-password-edit-drawer" class="${needsPasswordPrompt ? '' : 'hidden'} pt-2 border-t border-slate-200/80 space-y-2">
+                <label for="tms-confirm-password" class="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                  <span>🔑</span> <span>Enter Walton TMS Password for ${escape(engFullName)} (${empId})</span>
                 </label>
-                <span class="text-[10px] text-slate-400 font-medium">Strictly per-engineer</span>
+                <div class="relative flex items-center">
+                  <input type="password" id="tms-confirm-password" value="${escape(currentPass)}"
+                         placeholder="Enter Walton TMS Password..."
+                         class="w-full bg-white border border-amber-300 focus:border-amber-600 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 pr-10 shadow-xs" 
+                         onkeydown="if(event.key==='Enter') TmsSyncService.handleConfirmModalSubmit('${month}', '${task.task_id}', '${empId}')" />
+                  <button type="button" onclick="const f=document.getElementById('tms-confirm-password'); f.type=(f.type==='password'?'text':'password'); this.textContent=(f.type==='password'?'👁️':'🔒')"
+                          title="Toggle Password Visibility"
+                          class="absolute right-2.5 text-slate-400 hover:text-slate-700 text-xs cursor-pointer p-1">
+                    👁️
+                  </button>
+                </div>
+                <div class="flex items-center justify-between pt-0.5 text-[11px] text-slate-600">
+                  <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" id="tms-save-password-chk" checked class="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 cursor-pointer" />
+                    <span>Remember this password for ${escape(engFullName)}</span>
+                  </label>
+                  <span class="text-[10px] text-slate-400 font-medium">Strictly per-engineer</span>
+                </div>
               </div>
             </div>
 
@@ -388,6 +425,22 @@ const TmsSyncService = {
       if (supMatch) supId = supMatch[1];
     }
 
+    // Strictly enforce accurate task point - Never default to 50
+    const rawPoint = (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : task.task_point;
+    const taskPoint = (rawPoint !== undefined && rawPoint !== null && rawPoint !== "" && !isNaN(parseFloat(rawPoint)))
+      ? parseFloat(rawPoint)
+      : null;
+
+    if (!taskPoint || taskPoint <= 0) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>TMS</span>`;
+        btn.className = "inline-flex items-center px-2 py-0.5 rounded-md bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-[9px] shadow-xs cursor-pointer flex-shrink-0 whitespace-nowrap";
+      }
+      alert(`⚠️ Task Point Required:\n\nএই টাস্কে কোনো পয়েন্ট (Point) নির্ধারণ করা হয়নি।\nWalton TMS-এ সাবমিট করার জন্য HOD (44819) কর্তৃক পয়েন্ট নির্ধারণ করা আবশ্যক।\n\nদয়া করে প্রথমে পয়েন্ট বক্সে সঠিক পয়েন্ট দিন (HOD পাসওয়ার্ড: HOD@2026)।`);
+      return { success: false, error: "Task Point Required" };
+    }
+
     const payload = {
       employeeId: empId,
       password: empPass,
@@ -396,7 +449,7 @@ const TmsSyncService = {
       startDate: dates.startDate,
       deadlineDate: dates.deadlineDate,
       totalDays: dates.totalDays,
-      points: (task.points !== undefined && task.points !== null && task.points !== "") ? task.points : 50,
+      points: taskPoint,
       supervisorId: supId,
       category: task.category || "Process development"
     };
@@ -1174,6 +1227,16 @@ const TmsSyncService = {
           if (supMatch) supId = supMatch[1];
         }
 
+        const rawPt = (t.points !== undefined && t.points !== null && t.points !== "") ? t.points : t.task_point;
+        const taskPt = (rawPt !== undefined && rawPt !== null && rawPt !== "" && !isNaN(parseFloat(rawPt)))
+          ? parseFloat(rawPt)
+          : null;
+        if (!taskPt || taskPt <= 0) {
+          console.warn(`[TmsSyncService] Skipping task ${t.task_id} - No HOD points set.`);
+          failedCount++;
+          continue;
+        }
+
         const payload = {
           employeeId: empId,
           password: empPass,
@@ -1182,7 +1245,7 @@ const TmsSyncService = {
           startDate: dates.startDate,
           deadlineDate: dates.deadlineDate,
           totalDays: dates.totalDays,
-          points: (t.points !== undefined && t.points !== null && t.points !== "") ? t.points : 50,
+          points: taskPt,
           supervisorId: supId,
           category: t.category || "Process development"
         };

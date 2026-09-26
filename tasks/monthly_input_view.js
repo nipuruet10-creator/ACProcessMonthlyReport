@@ -95,6 +95,15 @@ const MonthlyInputView = {
     }
   },
 
+  autoAdjustAllTextareas() {
+    if (typeof document === 'undefined') return;
+    const areas = document.querySelectorAll('textarea[id^="task-name-input-"]');
+    areas.forEach(el => {
+      el.style.height = 'auto';
+      el.style.height = Math.max(36, el.scrollHeight) + 'px';
+    });
+  },
+
   toggleRanking() {
     this.isRankingExpanded = !this.isRankingExpanded;
     const panel = document.getElementById('ranking-table-collapsible');
@@ -1790,7 +1799,8 @@ const MonthlyInputView = {
         <td class="py-1.5 px-2.5 border-r border-slate-200 align-middle">
           <div class="flex items-center justify-between gap-1.5 w-full">
             <textarea id="task-name-input-${t.task_id}" rows="1"
-                      oninput="MonthlyInputView.handleFieldInput('${t.task_id}', 'task_name', this.value); this.style.height='auto'; this.style.height=this.scrollHeight+'px';"
+                      style="field-sizing: content; min-height: 36px; height: auto; white-space: pre-wrap; word-break: break-word;"
+                      oninput="MonthlyInputView.handleFieldInput('${t.task_id}', 'task_name', this.value); this.style.height='auto'; this.style.height=Math.max(36, this.scrollHeight)+'px';"
                       onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'task_name', this.value)"
                       class="flex-1 min-h-[36px] bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-bold focus:outline-none focus:ring-1 focus:ring-blue-100 resize-none overflow-hidden leading-snug block transition"
                       placeholder="Enter Task Name...">${HELPERS.escapeHtml(t.task_name)}</textarea>
@@ -2444,7 +2454,7 @@ const MonthlyInputView = {
             </span>
             <div class="flex items-center gap-2">
               <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 shadow-xs">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <span>Real-Time Instant Cloud Sync Active</span>
               </span>
               <span class="text-xs text-slate-400 font-medium hidden sm:inline">&bull; Direct Cell Editing Enabled</span>
@@ -2459,15 +2469,19 @@ const MonthlyInputView = {
     // Initialize/sync ranking table
     this.updateRankingTable();
 
-    // Auto-expand textarea heights to comfortably display all lines without vertical truncation (Requirement 6)
+    // Auto-expand textarea heights to comfortably display all lines without vertical truncation (Requirement 3 & 6)
     setTimeout(() => {
-      if (container) {
-        container.querySelectorAll('textarea[id^="task-name-input-"]').forEach(el => {
-          el.style.height = 'auto';
-          el.style.height = el.scrollHeight + 'px';
-        });
-      }
-    }, 10);
+      this.autoAdjustAllTextareas();
+    }, 15);
+
+    if (typeof window !== 'undefined' && !window._tmsTextareaResizeBound) {
+      window._tmsTextareaResizeBound = true;
+      window.addEventListener('resize', () => {
+        if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.autoAdjustAllTextareas) {
+          MonthlyInputView.autoAdjustAllTextareas();
+        }
+      });
+    }
 
     // Preserve scroll position without disruptive height bouncing
     if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {

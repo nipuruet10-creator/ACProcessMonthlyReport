@@ -30,7 +30,7 @@ const SettingsView = {
     if (syncStatus.status === 'CONNECTED') {
       statusBadgeHtml = `
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Connected to Google Sheets
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Connected to Google Sheets
         </span>
       `;
     } else if (syncStatus.status === 'SYNCING') {
@@ -59,13 +59,13 @@ const SettingsView = {
     if (fbConnected) {
       fbBadgeHtml = `
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live &lt;30ms Realtime Active
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Live &lt;30ms Realtime Active
         </span>
       `;
     } else if (fbDbUrl) {
       fbBadgeHtml = `
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Ready to Connect
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span> Ready to Connect
         </span>
       `;
     }
@@ -94,7 +94,7 @@ const SettingsView = {
                   Security, Admin Access &amp; Sheet Protection
                   ${isUnlocked ? `
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Admin Access Active (Unlocked)
+                      <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Admin Access Active (Unlocked)
                     </span>
                   ` : `
                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">

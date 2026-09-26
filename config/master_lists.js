@@ -205,6 +205,7 @@ const MasterDataManager = {
         id: eng.id,
         name: eng.name,
         fullName: eng.fullName,
+        display: eng.display || `${eng.name} (${eng.id})`,
         password: eng.tms_password || "Sep@2026"
       };
     }

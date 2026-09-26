@@ -166,7 +166,7 @@ const MonthlyReportView = {
             <div class="bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800 shadow-inner">
               <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
                 <div class="flex items-center gap-2">
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                   <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Live Slide Preview</span>
                 </div>
                 <button type="button" onclick="MonthlyReportView.openModalFullScreenPreview('${taskId}')" 
