@@ -796,6 +796,10 @@ const MonthlyInputView = {
       this.updateRowIndices();
       this.updateBulkDeleteButton();
       this.updateEngineerSummary();
+      const remaining = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
+      if (!remaining || remaining.length === 0) {
+        this.render();
+      }
     }, 250);
 
     // 5. Silent background slide compilation

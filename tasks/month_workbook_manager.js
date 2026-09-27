@@ -447,34 +447,9 @@ class MonthWorkbookManager {
 
   getTasksForMonth(month) {
     const m = this.normalizeMonth(month);
-    if (!this.workbooks[m] || (m === 'SEP-2026' && this.workbooks[m].length === 0)) {
-      this.workbooks[m] = (m === 'SEP-2026') ? this.getDefaultSep2026Tasks() : [];
+    if (!this.workbooks[m]) {
+      this.workbooks[m] = [];
     }
-
-    // Auto-heal genuine September tasks if missing
-    if (m === 'SEP-2026') {
-      const existingIds = new Set(this.workbooks[m].map(t => t.task_id));
-      let neededSave = false;
-      this.getDefaultSep2026Tasks().forEach(defTask => {
-        if (!existingIds.has(defTask.task_id)) {
-          this.workbooks[m].push({ ...defTask });
-          existingIds.add(defTask.task_id);
-          neededSave = true;
-        }
-      });
-      if (neededSave) {
-        this.workbooks[m].sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
-        this.save();
-      }
-    }
-
-    // Auto-repair known initial task name across browser reloads
-    this.workbooks[m].forEach(t => {
-      if (t.task_id === 'SEP-2026-005-A3D' && (!t.task_name || t.task_name === 'New Engineering Task')) {
-        t.task_name = 'Compressor Jacket Foil trial on 12J';
-      }
-    });
-
     return [...this.workbooks[m]];
   }
 
@@ -1182,19 +1157,14 @@ class MonthWorkbookManager {
 
         const filtered = localTasks.filter(lt => {
           if (!lt || !lt.task_id) return false;
-          // STRICT IMMUNITY: GENUINE_TASK_IDS can NEVER be pruned or tombstoned
-          if (GENUINE_TASK_IDS.has(lt.task_id)) {
-            return true;
-          }
           if (deletedIds.includes(lt.task_id)) {
             return false;
           }
 
           if (!remoteIdSet.has(lt.task_id)) {
-            // NEVER prune local tasks simply because they are missing from Google Sheets!
-            // Instead, queue them to be pushed to Google Sheets so Google Sheets gets updated:
-            if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
-              GoogleSheetsSync.pushTask(lt).catch(() => {});
+            if (isAuthoritative || (remoteIdSet.size > 0 && lt._syncedToCloud)) {
+              newlyPrunedIds.push(lt.task_id);
+              return false;
             }
             return true;
           }
