@@ -495,23 +495,54 @@ const MonthlyReportView = {
     const currentSlide = allSlides.find(s => s && s.task_id === taskId) || null;
 
     const rawTaskName = (task && task.task_name) ? task.task_name : (breakdown ? breakdown.original_task_name : "Task " + taskId);
+    const currentCategory = overrides.category || (task ? task.category : null) || (currentSlide ? currentSlide.category : null) || (breakdown ? breakdown.ai_category : "Process development");
     const currentTitle = overrides.slide_title || (breakdown ? breakdown.ai_report_title : rawTaskName);
-    const currentDesc = overrides.description || (breakdown ? breakdown.ai_description : ((task && task.task_details) ? task.task_details : ""));
-    const currentImpact = overrides.impact
+
+    // Auto-generate description & steps if empty so it is never blank in Monthly Report
+    let currentDesc = overrides.description || (breakdown ? breakdown.ai_description : ((task && task.task_details) ? task.task_details : ""));
+    if (!currentDesc || currentDesc.trim() === '' || currentDesc.toLowerCase().includes("1. concept design & layout analysis")) {
+      if (typeof PROMPT_TEMPLATES !== 'undefined' && PROMPT_TEMPLATES.generateEngineeringSteps) {
+        currentDesc = PROMPT_TEMPLATES.generateEngineeringSteps(currentTitle, currentCategory);
+      }
+      if (!currentDesc && task && task.task_details && !task.task_details.toLowerCase().includes("1. concept design & layout analysis")) {
+        currentDesc = task.task_details;
+      }
+      if (!currentDesc) {
+        currentDesc = "• Process requirement study & CAD modeling\n• Tooling fabrication & assembly setup\n• Sensor calibration & precision trial\n• Production trial run & validation\n• Final SOP documentation & handover";
+      }
+    }
+    if (typeof HELPERS !== 'undefined' && HELPERS.formatDetailsAsShortBullets) {
+      currentDesc = HELPERS.formatDetailsAsShortBullets(currentDesc);
+    }
+
+    // Auto-generate project impact & outcomes if empty
+    let currentImpact = overrides.impact
       ? (Array.isArray(overrides.impact) ? overrides.impact.join("\n") : overrides.impact)
       : (breakdown && Array.isArray(breakdown.ai_impact) ? breakdown.ai_impact.join("\n") : "");
+    if (!currentImpact || currentImpact.trim() === '') {
+      currentImpact = "• Process cycle time reduced and standardized across shifts\n• Eliminates manual operator strain and operational defect risks\n• Increases active line throughput and ensures zero defect quality";
+    }
+
     const currentEngineer = overrides.engineer || (task ? (task.concern_engineer || task.assignee || task.engineer) : null) || (breakdown ? breakdown.engineer : "Concern Engineer");
+
+    // All engineers for dropdown
+    const allEngineersList = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers)
+      ? MasterDataManager.getEngineers().map(e => e.display || e.name || e).filter(Boolean)
+      : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS.map(e => e.display || e.name || e).filter(Boolean) : [
+          "Faiyaz (54634)", "Sazzad (50463)", "Rafi (45127)", "Abdullah (58102)", "Emon (58279)", "Al-Amin (59092)", "Hasibul (59239)"
+        ]);
+    if (!allEngineersList.some(e => e.toLowerCase() === String(currentEngineer).toLowerCase()) && currentEngineer && currentEngineer !== "Concern Engineer") {
+      allEngineersList.unshift(currentEngineer);
+    }
 
     const allCategories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getCategories)
       ? MasterDataManager.getCategories()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.CATEGORIES) ? MASTER_LISTS.CATEGORIES : ["Process development", "Completed Projects", "Ongoing Projects"]);
 
-    const currentCategory = overrides.category || (task ? task.category : null) || (currentSlide ? currentSlide.category : null) || (breakdown ? breakdown.ai_category : "Process development");
-
     const container = this.renderContainer();
     container.innerHTML = `
-      <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md">
-        <div class="relative w-full max-w-6xl bg-white border border-slate-200 rounded-3xl shadow-2xl p-5 sm:p-6 text-slate-800 flex flex-col max-h-[95vh] overflow-hidden">
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="relative w-full max-w-[98vw] 2xl:max-w-[1680px] h-[96vh] bg-white border border-slate-200 rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-800 flex flex-col overflow-hidden">
           
           <!-- Top Header -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0">
@@ -537,11 +568,11 @@ const MonthlyReportView = {
             <button onclick="MonthlyReportView.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition">&times;</button>
           </div>
 
-          <!-- Body: Split 2-Column (Controls on Left, Real-Time Preview on Right) -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 py-4 overflow-y-auto flex-1">
+          <!-- Body: Split 2-Column (Controls on Left: 5 cols, Real-Time Preview on Right: 7 cols) -->
+          <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 py-3 overflow-y-auto flex-1 items-start">
             
-            <!-- Left: Unified Editorial & Photo Form -->
-            <form id="slide-override-form" onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="space-y-4 text-xs">
+            <!-- Left: Unified Editorial & Photo Form (5 Columns) -->
+            <form id="slide-override-form" onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="xl:col-span-5 space-y-3.5 text-xs pr-1">
               
               <!-- Slide Title -->
               <div>
@@ -554,7 +585,7 @@ const MonthlyReportView = {
                        class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-bold shadow-xs" required />
               </div>
 
-              <!-- 5-Step Description + AI Generation Button (Requirement 1) -->
+              <!-- 5-Step Description + AI Generation Button -->
               <div>
                 <div class="flex items-center justify-between mb-1.5">
                   <label class="block font-bold text-slate-700">5-Step Process Breakdown / Description</label>
@@ -577,7 +608,7 @@ const MonthlyReportView = {
                           class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentImpact)}</textarea>
               </div>
 
-              <!-- Slide Category (Requirement 1: Category dropdown in Monthly Report) -->
+              <!-- Slide Category (Auto-updates Report Metrics) -->
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Slide Category (Auto-updates Report Metrics)</label>
                 <select id="edit-slide-category" 
@@ -587,15 +618,17 @@ const MonthlyReportView = {
                 </select>
               </div>
 
-              <!-- Concern Engineer (Requirement 2: Investment/Budget Note removed) -->
+              <!-- Concern Engineer (Dropdown with transfer to engineer's tab) -->
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Concern Engineer</label>
-                <input type="text" id="edit-slide-engineer" value="${HELPERS.escapeHtml(currentEngineer)}" 
-                       oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
-                       class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+                <label class="block font-bold text-slate-700 mb-1">Concern Engineer (Changing moves task to their tab)</label>
+                <select id="edit-slide-engineer" 
+                        onchange="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                        class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-bold shadow-xs cursor-pointer">
+                  ${allEngineersList.map(eng => `<option value="${HELPERS.escapeHtml(eng)}" ${eng.trim().toLowerCase() === String(currentEngineer).trim().toLowerCase() ? 'selected' : ''}>${HELPERS.escapeHtml(eng)}</option>`).join('')}
+                </select>
               </div>
 
-              <!-- PHOTO MANAGEMENT SECTION (Requirement 4: Integrated Photo Studio) -->
+              <!-- PHOTO MANAGEMENT SECTION -->
               <div class="bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
@@ -626,12 +659,12 @@ const MonthlyReportView = {
               </div>
             </form>
 
-            <!-- Right: Real-Time In-Modal Live Preview (Requirement 4: 1:1 Report Slide Format) -->
-            <div class="bg-slate-900 rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-slate-800 shadow-inner overflow-hidden">
-              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2 flex-shrink-0">
+            <!-- Right: Real-Time In-Modal Live Preview (7 Columns, Large Presentation Display) -->
+            <div class="xl:col-span-7 bg-slate-900 rounded-2xl p-4 sm:p-5 flex flex-col justify-between border border-slate-800 shadow-2xl xl:sticky xl:top-0 min-h-[580px] overflow-hidden">
+              <div class="flex items-center justify-between pb-2.5 border-b border-slate-800 mb-3 flex-shrink-0">
                 <div class="flex items-center gap-2">
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Exact Presentation Slide Preview</span>
+                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Exact Presentation Slide Preview (Actual 16:9 Scale)</span>
                 </div>
                 <button type="button" onclick="MonthlyReportView.openModalFullScreenPreview('${taskId}')" 
                         class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 border border-slate-700 transition flex items-center gap-1 cursor-pointer">
@@ -640,12 +673,12 @@ const MonthlyReportView = {
               </div>
 
               <!-- Presentation Stage inside Modal (Responsive 16:9 Presentation Slide Canvas) -->
-              <div id="modal-slide-live-preview" class="w-full flex-1 flex items-center justify-center max-h-[620px] overflow-y-auto my-auto rounded-xl shadow-2xl">
+              <div id="modal-slide-live-preview" class="w-full flex-1 flex items-center justify-center overflow-hidden my-auto rounded-xl shadow-2xl">
                 <!-- Injected via renderModalLivePreview -->
               </div>
 
               <div class="pt-2 text-[11px] text-slate-400 flex items-center justify-between font-mono flex-shrink-0">
-                <span>Walton Executive Theme &bull; 16:9 Slide Canvas</span>
+                <span>Walton Executive Theme &bull; 16:9 Widescreen Presentation Canvas</span>
                 <span class="text-emerald-400 font-bold">✨ Real-time synced</span>
               </div>
             </div>
@@ -717,7 +750,7 @@ const MonthlyReportView = {
 
     if (typeof SlideLayoutEngine !== 'undefined') {
       previewEl.innerHTML = `
-        <div class="w-full flex items-center justify-center p-1" style="max-width: 680px; width: 100%;">
+        <div class="w-full flex items-center justify-center p-0" style="width: 100%; max-width: 100%;">
           ${SlideLayoutEngine.renderTaskSlide(slideData, 1, 1)}
         </div>
       `;
@@ -789,12 +822,16 @@ const MonthlyReportView = {
     const catEl = document.getElementById('edit-slide-category');
 
     const newCategory = catEl ? catEl.value.trim() : null;
+    const newTitle = titleEl ? titleEl.value.trim() : "";
+    const newDesc = descEl ? descEl.value.trim() : "";
+    const newEngineer = engineerEl ? engineerEl.value.trim() : "";
+    const newImpact = impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [];
 
     const overrides = {
-      slide_title: titleEl ? titleEl.value.trim() : "",
-      description: descEl ? descEl.value.trim() : "",
-      impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
-      engineer: engineerEl ? engineerEl.value.trim() : "",
+      slide_title: newTitle,
+      description: newDesc,
+      impact: newImpact,
+      engineer: newEngineer,
       ...(newCategory ? { category: newCategory } : {})
     };
 
@@ -807,21 +844,45 @@ const MonthlyReportView = {
       }
     }
 
-    // 2. Permanently sync category to underlying workbook task so system never overwrites it
-    if (newCategory && window.appState && window.appState.workbookMgr) {
-      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, {
-        category: newCategory,
-        last_updated: new Date().toISOString()
-      });
+    // 2. Permanently sync changes to underlying workbook task
+    const taskPatch = {
+      last_updated: new Date().toISOString()
+    };
+    if (newCategory) taskPatch.category = newCategory;
+    if (newTitle) taskPatch.task_name = newTitle;
+    if (newDesc) taskPatch.task_details = newDesc;
+    if (newEngineer) {
+      taskPatch.assignee = newEngineer;
+      taskPatch.engineer = newEngineer;
+      taskPatch.concern_engineer = newEngineer;
+    }
+
+    if (window.appState && window.appState.workbookMgr) {
+      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, taskPatch);
       window.appState.workbookMgr.save();
     }
 
     // 3. Real-time Firebase broadcast if online
-    if (newCategory && typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-      FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'category', newCategory);
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      if (newCategory) FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'category', newCategory);
+      if (newTitle) FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'task_name', newTitle);
+      if (newDesc) FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'task_details', newDesc);
+      if (newEngineer) {
+        FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'assignee', newEngineer);
+        FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'engineer', newEngineer);
+      }
+      const fullTask = window.appState && window.appState.workbookMgr ? window.appState.workbookMgr.getTask(this.selectedMonth, taskId) : null;
+      if (fullTask) {
+        FirebaseSyncService.pushTask(this.selectedMonth, fullTask);
+      }
     }
 
-    // 4. Direct cache synchronization for instant presentation reload
+    // 4. Queue Google Sheets sync if available
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.queueFullSync) {
+      GoogleSheetsSync.queueFullSync();
+    }
+
+    // 5. Direct cache synchronization for instant presentation reload
     try {
       const cacheKey = `walton_pd_active_slides_${this.selectedMonth}`;
       const saved = localStorage.getItem(cacheKey);
@@ -845,13 +906,18 @@ const MonthlyReportView = {
     this.closeModal();
     this.render();
 
-    // 5. Automatically refresh Dashboard metrics and category counts
+    // 6. Refresh MonthlyInputView so that engineer change moves task to their concern tab immediately
+    if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
+      MonthlyInputView.render();
+    }
+
+    // 7. Automatically refresh Dashboard metrics and category counts
     if (typeof DashboardController !== 'undefined' && DashboardController.render) {
       DashboardController.render(this.selectedMonth);
     }
 
     if (typeof window.showToast === 'function') {
-      window.showToast(`✨ Slide overrides saved for task ${taskId}! Presentation preview updated.`, "success");
+      window.showToast(`✨ Slide overrides saved for task ${taskId}! Presentation preview and concern assignment updated.`, "success");
     }
   },
 

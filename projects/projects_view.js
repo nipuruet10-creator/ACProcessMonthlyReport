@@ -635,30 +635,7 @@ const ProjectsView = {
     // Load permanently preserved strategic projects
     const projectTasks = this.getProjects();
 
-    // Ensure all permanent strategic projects are also present in the active month workbook
-    projectTasks.forEach(p => {
-      const existing = allTasks.find(t => t.task_id === p.task_id);
-      if (!existing && workbookMgr) {
-        workbookMgr.addTask(
-          month,
-          p.assignee || p.engineer || "Concern Engineer",
-          p.task_name,
-          "YES",
-          p.task_details || "",
-          p.category || "Ongoing Projects",
-          p.points || 0,
-          p.supervisor || "Kamrul (44819)",
-          {
-            task_id: p.task_id,
-            is_project: true,
-            project_status: p.status || "Ongoing",
-            deadline: p.deadline || "",
-            photo_1: p.photo_1 || p.photo || null,
-            photo_2: p.photo_2 || null
-          }
-        );
-      }
-    });
+    // Strategic projects remain in dedicated Projects view and are never injected into the monthly workbook on render
 
 
     const ongoingProjects = projectTasks.filter(t => {
