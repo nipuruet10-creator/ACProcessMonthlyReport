@@ -147,19 +147,16 @@ class MonthWorkbookManager {
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
 
-    // Seed September 2026 tasks only on first initial system bootstrap
-    const hasSeededSep = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_pd_sep2026_seeded') : null;
-    if (!hasSeededSep && (!this.workbooks["SEP-2026"] || !Array.isArray(this.workbooks["SEP-2026"]))) {
-      this.workbooks["SEP-2026"] = this.getDefaultSep2026Tasks();
-      this.save();
-      try { localStorage.setItem('walton_pd_sep2026_seeded', 'true'); } catch (e) {}
-    } else if (!this.workbooks["SEP-2026"]) {
+    // SEP-2026 starts clean and empty for live user entries and cloud sync
+    if (!this.workbooks["SEP-2026"] || !Array.isArray(this.workbooks["SEP-2026"])) {
       this.workbooks["SEP-2026"] = [];
+      this.save();
     }
+    try { localStorage.setItem('walton_pd_sep2026_seeded', 'true'); } catch (e) {}
   }
 
   getDefaultSep2026Tasks() {
-    return JSON.parse(JSON.stringify(GENUINE_TASKS_SEP_2026));
+    return [];
   }
 
   sanitizeWorkbooks() {
@@ -534,6 +531,15 @@ class MonthWorkbookManager {
       updated_at: new Date().toISOString()
     };
 
+    // Guarantee new task ID is never shadowed by previous tombstone
+    try {
+      let curDel = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      if (curDel.includes(taskId)) {
+        curDel = curDel.filter(id => id !== taskId);
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(curDel));
+      }
+    } catch (e) {}
+
     this.workbooks[m].push(newTask);
     this.save();
     if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
@@ -554,9 +560,37 @@ class MonthWorkbookManager {
   updateTask(month, taskId, updates = {}) {
     const m = this.normalizeMonth(month);
     const tasks = this.workbooks[m] || [];
-    const idx = tasks.findIndex(t => t.task_id === taskId);
+    let idx = tasks.findIndex(t => t.task_id === taskId);
     if (idx === -1) {
-      throw new Error(`Task with ID ${taskId} not found in ${m}`);
+      console.warn(`Task ${taskId} not found in in-memory ${m}, auto-recovering...`);
+      let domName = "";
+      let domDetails = "";
+      if (typeof document !== 'undefined') {
+        const nameInput = document.getElementById(`task-name-input-${taskId}`);
+        if (nameInput) domName = nameInput.value;
+        const detInput = document.getElementById(`task-details-input-${taskId}`);
+        if (detInput) domDetails = detInput.value;
+      }
+      const recoveredTask = {
+        task_id: taskId,
+        month: m,
+        task_name: domName || updates.task_name || "",
+        task_details: domDetails || updates.task_details || "",
+        category: updates.category || "Process development",
+        points: updates.points !== undefined ? updates.points : "",
+        supervisor: updates.supervisor || "Kamrul (44819)",
+        assignee: updates.assignee || updates.engineer || "Sazzad (50463)",
+        engineer: updates.assignee || updates.engineer || "Sazzad (50463)",
+        include_in_report: "YES",
+        _isLocalDraft: true,
+        created_at: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...updates
+      };
+      tasks.push(recoveredTask);
+      this.workbooks[m] = tasks;
+      idx = tasks.length - 1;
     }
 
     const formatName = (n) => (typeof MasterDataManager !== 'undefined' && MasterDataManager.formatNameWithId)
@@ -1162,6 +1196,10 @@ class MonthWorkbookManager {
           }
 
           if (!remoteIdSet.has(lt.task_id)) {
+            // CRITICAL: NEVER prune active local drafts or tasks created/edited recently!
+            if (lt._isLocalDraft || (lt._lastFieldEditTime && Date.now() - lt._lastFieldEditTime < 60000) || (lt.created_at && Date.now() - new Date(lt.created_at).getTime() < 120000)) {
+              return true;
+            }
             if (isAuthoritative || (remoteIdSet.size > 0 && lt._syncedToCloud)) {
               newlyPrunedIds.push(lt.task_id);
               return false;

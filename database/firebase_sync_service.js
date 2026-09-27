@@ -240,13 +240,13 @@ const FirebaseSyncService = {
         // Check if local has genuinely new local drafts that Firebase is missing (STRICTLY EXCLUDE DELETED TASKS)
         const localTasks = wbMgr.getTasksForMonth(normMonth);
         const newLocalDrafts = localTasks.filter(lt => {
-          if (!lt || !lt.task_name || !lt.task_id) return false;
-          if (deletedSet.has(lt.task_id)) return false;
+          if (!lt || !lt.task_id) return false;
+          if (deletedSet.has(lt.task_id) && !lt._isLocalDraft) return false;
           let curDel = [];
           try { curDel = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]'); } catch(e) {}
-          if (curDel.includes(lt.task_id)) return false;
+          if (curDel.includes(lt.task_id) && !lt._isLocalDraft) return false;
 
-          // Only push if explicitly marked as local draft (newly created offline row)
+          // Only push if explicitly marked as local draft (newly created row)
           return Boolean(lt._isLocalDraft && !fbData[lt.task_id]);
         });
         if (newLocalDrafts.length > 0) {
@@ -270,6 +270,14 @@ const FirebaseSyncService = {
         // Firebase has 0 tasks for this month: Authoritatively synchronize local to match Firebase (0 tasks)
         if (wbMgr.workbooks && Array.isArray(wbMgr.workbooks[normMonth])) {
           wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(lt => lt && lt.task_id && !deletedSet.has(lt.task_id) && lt._isLocalDraft);
+          wbMgr.save();
+        }
+        const localDrafts = (wbMgr.workbooks && wbMgr.workbooks[normMonth]) ? wbMgr.workbooks[normMonth].filter(lt => lt && lt._isLocalDraft) : [];
+        if (localDrafts.length > 0) {
+          for (const ld of localDrafts) {
+            await this.pushTask(normMonth, ld);
+            delete ld._isLocalDraft;
+          }
           wbMgr.save();
         }
         console.log(`🔥 Firebase Hydrated: Month ${normMonth} has 0 tasks in cloud.`);
@@ -884,12 +892,17 @@ const FirebaseSyncService = {
   async pushTask(month, task) {
     if (!this.isConnected() || !task || !task.task_id) return false;
 
-    // 🛡️ CRITICAL GUARD: Never push a task that is in deletedSet / tombstoned!
+    // 🛡️ CRITICAL GUARD: Never push a task that is in deletedSet / tombstoned unless it is an explicit local draft!
     try {
-      const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      let deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
       if (deletedList.includes(task.task_id)) {
-        console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
-        return false;
+        if (task._isLocalDraft) {
+          deletedList = deletedList.filter(id => id !== task.task_id);
+          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedList));
+        } else {
+          console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
+          return false;
+        }
       }
     } catch (e) {}
 

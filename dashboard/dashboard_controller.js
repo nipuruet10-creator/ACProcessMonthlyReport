@@ -40,17 +40,9 @@ const DashboardController = {
       rawTasks = workbookMgr.getTasksForMonth(normMonth);
     }
 
-    // Auto-heal September 2026 genuine tasks if missing or empty
-    if ((!rawTasks || rawTasks.length === 0) && (normMonth === "SEP-2026" || normMonth === "2026-09")) {
-      if (workbookMgr && typeof workbookMgr.getDefaultSep2026Tasks === 'function') {
-        rawTasks = workbookMgr.getDefaultSep2026Tasks();
-        if (workbookMgr.workbooks) {
-          workbookMgr.workbooks["SEP-2026"] = rawTasks;
-          workbookMgr.save();
-        }
-      } else if (typeof GENUINE_TASKS_SEP_2026 !== 'undefined') {
-        rawTasks = JSON.parse(JSON.stringify(GENUINE_TASKS_SEP_2026));
-      }
+    // Never resurrect or auto-heal deleted tasks - reflect accurate live state
+    if (!rawTasks) {
+      rawTasks = [];
     }
 
     // If workbookMgr has real tasks, map them

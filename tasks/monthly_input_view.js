@@ -1001,7 +1001,7 @@ const MonthlyInputView = {
     }
 
     // Save task name to workbook if updated in DOM
-    if (task && taskName !== task.task_name) {
+    if (!task || taskName !== task.task_name) {
       window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, { task_name: taskName });
     }
 
