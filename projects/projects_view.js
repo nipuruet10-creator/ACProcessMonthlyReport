@@ -12,96 +12,31 @@ const ProjectsView = {
   STORAGE_KEY: "walton_strategic_projects_permanent_v1",
 
   getDefaultSeedProjects() {
-    return [
-      {
-        task_id: "PROJ-2026-001",
-        task_name: "Powder Coating Booth with Cyclone Recovery & Filter Unit Upgradation",
-        category: "Ongoing Projects",
-        status: "Ongoing",
-        project_status: "Ongoing",
-        deadline: "4-5 Months (Target: Oct, 2026)",
-        task_details: "1. Engineering feasibility study. 2. Cyclone recovery system fabrication. 3. Filter unit assembly & trial. 4. Mass production sign-off.",
-        supervisor: "Kamrul (44819)",
-        assignee: "Faiyaz (54634)",
-        engineer: "Faiyaz (54634)",
-        points: 60,
-        is_project: true,
-        photo_1: "assets/images/image123.png",
-        photo_2: "assets/images/image130.png",
-        created_at: new Date().toISOString()
-      },
-      {
-        task_id: "PROJ-2026-002",
-        task_name: "CAC condenser & evaporator bending die trial",
-        category: "Completed Projects",
-        status: "Completed",
-        project_status: "Completed",
-        deadline: "Target: Aug, 2026",
-        task_details: "1. New model bending die design. 2. Tooling fabrication & assembly. 3. Trial run validation. 4. Quality sign-off.",
-        supervisor: "Kamrul (44819)",
-        assignee: "Faiyaz (54634)",
-        engineer: "Faiyaz (54634)",
-        points: 60,
-        is_project: true,
-        photo_1: "assets/images/image126.png",
-        photo_2: "assets/images/image132.jpg",
-        created_at: new Date().toISOString()
-      },
-      {
-        task_id: "PROJ-2026-003",
-        task_name: "Booster Pump Cycle Time Reduced by 37.5% (8 min → 5 min)",
-        category: "Completed Projects",
-        status: "Completed",
-        project_status: "Completed",
-        deadline: "Target: Aug, 2026",
-        task_details: "1. Cycle time bottleneck analysis. 2. Hydraulic pressure optimization. 3. Automation sensor integration. 4. Validated 37.5% cycle time reduction.",
-        supervisor: "Kamrul (44819)",
-        assignee: "Sazzad (50463)",
-        engineer: "Sazzad (50463)",
-        points: 60,
-        is_project: true,
-        photo_1: "assets/images/image139.png",
-        created_at: new Date().toISOString()
-      },
-      {
-        task_id: "PROJ-2026-004",
-        task_name: "CNC Turret Punch Machine Automation & Setup",
-        category: "Ongoing Projects",
-        status: "Ongoing",
-        project_status: "Ongoing",
-        deadline: "4-5 Months (Target: Nov, 2026)",
-        task_details: "1. Tooling alignment matrix study. 2. Auto-feed control integration. 3. Pilot stamping validation. 4. Mass production commissioning.",
-        supervisor: "Kamrul (44819)",
-        assignee: "Sazzad (50463)",
-        engineer: "Sazzad (50463)",
-        points: 70,
-        is_project: true,
-        created_at: new Date().toISOString()
-      },
-      {
-        task_id: "PROJ-2026-005",
-        task_name: "Automated Robotic Braze Joint Quality Inspection",
-        category: "Ongoing Projects",
-        status: "Ongoing",
-        project_status: "Ongoing",
-        deadline: "5 Months (Target: Dec, 2026)",
-        task_details: "1. Vision inspection sensor calibration. 2. Robot path teaching. 3. Joint penetration validation. 4. Real-time defect detection sign-off.",
-        supervisor: "Kamrul (44819)",
-        assignee: "Sazzad (50463)",
-        engineer: "Sazzad (50463)",
-        points: 65,
-        is_project: true,
-        created_at: new Date().toISOString()
-      }
-    ];
+    return [];
   },
 
   getProjects() {
     try {
       const raw = localStorage.getItem(this.STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        let parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          // Strictly filter out any legacy dummy seed projects
+          const dummyIds = new Set(['PROJ-2026-001', 'PROJ-2026-002', 'PROJ-2026-003', 'PROJ-2026-004', 'PROJ-2026-005']);
+          parsed = parsed.filter(p => {
+            if (!p || !p.task_id) return false;
+            if (dummyIds.has(p.task_id)) return false;
+            const nm = (p.task_name || '').toLowerCase();
+            if (nm.includes('powder coating booth with cyclone') ||
+                nm.includes('cac condenser & evaporator bending') ||
+                nm.includes('cnc turret punch machine automation') ||
+                nm.includes('automated robotic braze joint quality') ||
+                nm.includes('booster pump cycle time reduced by 37.5%')) {
+              return false;
+            }
+            return true;
+          });
+
           // Cleanse any legacy reference to inactive personnel
           let cleaned = false;
           parsed.forEach(p => {
@@ -113,18 +48,14 @@ const ProjectsView = {
               cleaned = true;
             }
           });
-          if (cleaned) {
-            this.saveProjects(parsed);
-          }
+          this.saveProjects(parsed);
           return parsed;
         }
       }
     } catch (e) {
       console.warn("Could not read strategic projects storage:", e);
     }
-    const seeds = this.getDefaultSeedProjects();
-    this.saveProjects(seeds);
-    return seeds;
+    return [];
   },
 
   saveProjects(projects) {
@@ -158,6 +89,12 @@ const ProjectsView = {
 
   async handleSyncFromPreviousMonth() {
     if (!window.appState || !window.appState.workbookMgr) return;
+    if (this.selectedMonth === 'SEP-2026') {
+      if (typeof window.showToast === 'function') {
+        window.showToast("SEP-2026 is locked against historical sync to preserve genuine manual entries.", "info");
+      }
+      return;
+    }
     const res = window.appState.workbookMgr.syncOngoingProjectsFromPreviousMonth(this.selectedMonth);
     
     if (res.added > 0) {
@@ -220,6 +157,16 @@ const ProjectsView = {
 
       if (window.appState && window.appState.workbookMgr) {
         window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
+      }
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
+        try {
+          FirebaseSyncService.deleteTask(this.selectedMonth, taskId);
+        } catch (e) {
+          console.warn("Firebase deleteProject notice:", e);
+        }
+      }
+      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
+        GoogleSheetsSync.deleteTask(taskId, this.selectedMonth).catch(e => console.warn("Google Sheets deleteProject notice:", e));
       }
       if (window.appState && window.appState.syncEngine) {
         await window.appState.syncEngine.syncMonth(this.selectedMonth);
@@ -676,7 +623,7 @@ const ProjectsView = {
 
             <!-- Action Buttons -->
             <div class="flex flex-wrap items-center gap-2.5">
-              ${prevMonth ? `
+              ${(prevMonth && month !== 'SEP-2026') ? `
                 <button onclick="ProjectsView.handleSyncFromPreviousMonth()" title="Carry forward active ongoing projects from ${prevMonth} into ${month}"
                         class="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                   <span>\u{1F504}</span> <span>Sync from ${prevMonth}</span>
@@ -765,7 +712,7 @@ const ProjectsView = {
             ${ongoingProjects.length === 0 ? `
               <div class="py-12 text-center text-slate-400 font-mono text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
                 No active ongoing projects recorded for ${month}.<br>
-                ${prevMonth ? `
+                ${(prevMonth && month !== 'SEP-2026') ? `
                   <button onclick="ProjectsView.handleSyncFromPreviousMonth()" class="mt-3 px-4 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs inline-flex items-center gap-1.5 transition">
                     <span>\u{1F504}</span> <span>Carry forward ongoing projects from ${prevMonth}</span>
                   </button>

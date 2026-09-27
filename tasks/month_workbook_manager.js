@@ -174,17 +174,58 @@ class MonthWorkbookManager {
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        // Purge tombstoned tasks from in-memory workbooks
-        if (deletedSet.size > 0) {
-          const initCount = this.workbooks[k].length;
-          this.workbooks[k] = this.workbooks[k].filter(t => {
-            if (!t || !t.task_id) return false;
-            return !deletedSet.has(t.task_id);
-          });
-          if (this.workbooks[k].length !== initCount) {
-            modified = true;
+        // Filter out deleted, dummy, and injected tasks
+        this.workbooks[k] = this.workbooks[k].filter(t => {
+          if (!t || !t.task_id) return false;
+          if (deletedSet.has(t.task_id)) return false;
+
+          // Reject dummy project tasks and injected Anam BOM tasks in SEP-2026
+          if (norm === 'SEP-2026') {
+            if (['SEP-2026-013-W2B', 'SEP-2026-020-OAX', 'SEP-2026-021-SGX'].includes(t.task_id)) {
+              deletedSet.add(t.task_id);
+              return false;
+            }
+            if (t.task_id.startsWith('SEP-2026-056-') || t.task_id.startsWith('SEP-2026-057-') ||
+                t.task_id.startsWith('SEP-2026-058-') || t.task_id.startsWith('SEP-2026-059-') ||
+                t.task_id.startsWith('SEP-2026-06') || t.task_id.startsWith('SEP-2026-07') ||
+                t.task_id.startsWith('SEP-2026-08')) {
+              deletedSet.add(t.task_id);
+              return false;
+            }
+            const nm = (t.task_name || '').toLowerCase();
+            if (nm.includes('powder coating booth with cyclone') ||
+                nm.includes('cac condenser & evaporator bending') ||
+                nm.includes('cnc turret punch machine automation') ||
+                nm.includes('automated robotic braze joint quality') ||
+                nm.includes('booster pump cycle time reduced by 37.5%')) {
+              deletedSet.add(t.task_id);
+              return false;
+            }
           }
+          return true;
+        });
+
+        // Deduplicate tasks by task_name and assignee in SEP-2026
+        if (norm === 'SEP-2026' && this.workbooks[k].length > 1) {
+          const seenKeys = new Set();
+          const deduped = [];
+          this.workbooks[k].forEach(t => {
+            const signature = `${(t.task_name || '').trim().toLowerCase()}_${(t.assignee || t.engineer || '').trim().toLowerCase()}`;
+            if (signature.length > 5 && seenKeys.has(signature)) {
+              deletedSet.add(t.task_id);
+              modified = true;
+            } else {
+              if (signature.length > 5) seenKeys.add(signature);
+              deduped.push(t);
+            }
+          });
+          this.workbooks[k] = deduped;
         }
+
+        // Save updated tombstones to localStorage
+        try {
+          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
+        } catch (e) {}
 
         this.workbooks[k].forEach(t => {
           if (!t) return;
@@ -888,16 +929,26 @@ class MonthWorkbookManager {
       return { added: 0, prevMonth: null, message: "No preceding month found." };
     }
 
+    // CRITICAL AIRTIGHT GUARD: Never carry forward tasks from historical imported dataset (AUG-2026 or older)
+    if (m === "SEP-2026" || prevMonth === "AUG-2026" || prevMonth.includes("2026-08")) {
+      return {
+        added: 0,
+        syncedCount: 0,
+        prevMonth: prevMonth,
+        message: `${prevMonth} is an archived dataset. Strategic projects for ${m} are managed exclusively via New Project Task.`
+      };
+    }
+
     const prevTasks = this.getTasksForMonth(prevMonth);
     const currentTasks = this.getTasksForMonth(m);
 
-    // Identify active ongoing projects from previous month
+    // Identify genuine active ongoing strategic projects from previous month ONLY
     const ongoingProjects = prevTasks.filter(t => {
-      const cat = (t.category || '').toLowerCase();
+      if (!t || !t.task_id) return false;
+      const isExplicitProject = Boolean(t.is_project && (t.task_id.startsWith('PROJ-') || (t.category || '').toLowerCase() === 'ongoing projects'));
       const status = (t.status || t.project_status || '').toLowerCase();
-      const isProj = Boolean(t.is_project || cat.includes('ongoing project') || cat === 'project' || (t.task_name && t.task_name.toLowerCase().includes('project')));
-      const isCompleted = status.includes('complete') || cat.includes('completed project');
-      return isProj && !isCompleted;
+      const isCompleted = status.includes('complete') || (t.category || '').toLowerCase().includes('completed');
+      return isExplicitProject && !isCompleted;
     });
 
     let addedCount = 0;
@@ -966,8 +1017,30 @@ class MonthWorkbookManager {
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
 
-        // Suppress tasks deleted on this device if present locally
-        if (deletedIds.includes(rt.task_id)) {
+        const isDummyOrInjected = (t) => {
+          if (!t || !t.task_id) return false;
+          if (norm === 'SEP-2026') {
+            if (['SEP-2026-013-W2B', 'SEP-2026-020-OAX', 'SEP-2026-021-SGX'].includes(t.task_id)) return true;
+            if (t.task_id.startsWith('SEP-2026-056-') || t.task_id.startsWith('SEP-2026-057-') ||
+                t.task_id.startsWith('SEP-2026-058-') || t.task_id.startsWith('SEP-2026-059-') ||
+                t.task_id.startsWith('SEP-2026-06') || t.task_id.startsWith('SEP-2026-07') ||
+                t.task_id.startsWith('SEP-2026-08')) {
+              return true;
+            }
+            const nm = (t.task_name || '').toLowerCase();
+            if (nm.includes('powder coating booth with cyclone') ||
+                nm.includes('cac condenser & evaporator bending') ||
+                nm.includes('cnc turret punch machine automation') ||
+                nm.includes('automated robotic braze joint quality') ||
+                nm.includes('booster pump cycle time reduced by 37.5%')) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        // Suppress tasks deleted on this device or dummy/injected tasks if present locally
+        if (deletedIds.includes(rt.task_id) || isDummyOrInjected(rt)) {
           if (localMap.has(rt.task_id)) {
             const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
             if (idx !== -1) {

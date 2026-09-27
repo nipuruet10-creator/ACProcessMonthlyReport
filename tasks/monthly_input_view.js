@@ -715,7 +715,7 @@ const MonthlyInputView = {
     // 2. Persist deletion in MonthWorkbookManager (updates local memory & records tombstones)
     window.appState.workbookMgr.deleteMultipleTasks(this.selectedMonth, taskIds);
 
-    // 3. Real-time Firebase Broadcast & Cloud deletion
+    // 3. Real-time Firebase Broadcast & Cloud deletion across Firebase & Google Sheets
     if (typeof FirebaseSyncService !== 'undefined') {
       try {
         if (FirebaseSyncService.deleteMultipleTasks) {
@@ -726,6 +726,9 @@ const MonthlyInputView = {
       } catch (e) {
         console.warn("Firebase deleteSelectedTasks notice:", e);
       }
+    }
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteMultipleTasks) {
+      GoogleSheetsSync.deleteMultipleTasks(taskIds, this.selectedMonth).catch(e => console.warn("Google Sheets deleteMultipleTasks notice:", e));
     }
 
     // 4. Clean up DOM elements smoothly after transition completes
@@ -781,13 +784,16 @@ const MonthlyInputView = {
     // 2. Persist deletion in MonthWorkbookManager (updates local memory & records tombstones)
     window.appState.workbookMgr.deleteTask(this.selectedMonth, taskId);
 
-    // 3. Real-time Firebase Broadcast & Cloud deletion
+    // 3. Real-time Firebase Broadcast & Cloud deletion across Firebase & Google Sheets
     if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.deleteTask) {
       try {
         FirebaseSyncService.deleteTask(this.selectedMonth, taskId);
       } catch (e) {
         console.warn("Firebase deleteTask notice:", e);
       }
+    }
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.deleteTask) {
+      GoogleSheetsSync.deleteTask(taskId, this.selectedMonth).catch(e => console.warn("Google Sheets deleteTask notice:", e));
     }
 
     // 4. Clean up DOM smoothly after transition completes

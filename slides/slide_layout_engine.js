@@ -166,6 +166,8 @@ const SlideLayoutEngine = {
    */
   renderExecutiveRedSlide(slideData, slideIndex = 1, totalSlides = 1) {
     const rawTitle = slideData.slide_title || slideData.task_name || "Process Development Project";
+    const fullRawTitle = rawTitle;
+    const titleFontSize = fullRawTitle.length > 55 ? "17px" : (fullRawTitle.length > 35 ? "19px" : "21px");
     
     // Split Title (Line 1 = Charcoal, Line 2 = Walton Red)
     let titleLine1 = slideData.split_title_1;
@@ -366,7 +368,7 @@ const SlideLayoutEngine = {
             </div>
 
             <div class="flex flex-col gap-1.5 flex-1 justify-around py-0.5">
-              ${impacts.slice(0, 3).map(imp => `
+              ${impacts.slice(0, 4).map(imp => `
                 <div class="flex items-start gap-2">
                   <span class="w-3.5 h-3.5 rounded bg-red-600 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5 shadow-xs" style="line-height: 1;">✔</span>
                   <span style="font-size: 11px; font-weight: 600; color: #1E293B; line-height: 1.35;">${imp.trim()}</span>
@@ -566,7 +568,7 @@ const SlideLayoutEngine = {
           <div class="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
             <svg class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 12l10 10 10-10L12 2zm0 3.5L18.5 12 12 18.5 5.5 12 12 5.5z"/></svg>
           </div>
-          <h2 style="font-size: 19px; font-weight: 900; color: #0B2038; margin: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${HELPERS.escapeHtml(title)}">
+          <h2 style="font-size: ${title.length > 50 ? '16px' : (title.length > 30 ? '18px' : '19px')}; font-weight: 900; color: #0B2038; margin: 0; line-height: 1.25; word-break: break-word;" title="${HELPERS.escapeHtml(title)}">
             ${this.formatTitleWithAccent(title)}
           </h2>
           <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-sky-800 bg-sky-100 border border-sky-200 flex-shrink-0">
@@ -677,7 +679,7 @@ const SlideLayoutEngine = {
                 </div>
                 <div class="flex-1 min-h-0 overflow-hidden">
                   <div class="text-xs font-black text-[#0369A1] uppercase tracking-wider">Project Summary</div>
-                  <p class="text-[11.5px] font-medium text-slate-800 leading-snug mt-0.5" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                  <p class="text-[11.5px] font-medium text-slate-800 leading-snug mt-0.5" style="overflow-y: auto; max-height: 70px; word-break: break-word;">
                     ${HELPERS.escapeHtml(description)}
                   </p>
                 </div>

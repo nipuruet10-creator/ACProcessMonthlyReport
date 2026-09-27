@@ -314,8 +314,9 @@ const SlidePreviewModal = {
       task = this.activeSlides[this.currentSlideIndex];
     }
 
-    if (task && typeof photoViewModal !== 'undefined') {
-      photoViewModal.open(task.task_id);
+    const modal = (typeof PhotoViewModal !== 'undefined' ? PhotoViewModal : (typeof photoViewModal !== 'undefined' ? photoViewModal : null));
+    if (task && modal && typeof modal.open === 'function') {
+      modal.open(task.task_id, this.month || (task.month || 'SEP-2026'));
     } else {
       alert("Photo upload available for task slides.");
     }

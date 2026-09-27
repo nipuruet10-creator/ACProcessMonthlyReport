@@ -178,6 +178,28 @@ const FirebaseSyncService = {
             continue;
           }
 
+          // 🛡️ STRICT REJECTION for SEP-2026: dummy project tasks & unwanted Anam BOM tasks
+          if (normMonth === 'SEP-2026') {
+            const isDummyId = ['SEP-2026-013-W2B', 'SEP-2026-020-OAX', 'SEP-2026-021-SGX'].includes(t.task_id);
+            const isAnamBomId = t.task_id.startsWith('SEP-2026-056-') || t.task_id.startsWith('SEP-2026-057-') ||
+                                t.task_id.startsWith('SEP-2026-058-') || t.task_id.startsWith('SEP-2026-059-') ||
+                                t.task_id.startsWith('SEP-2026-06') || t.task_id.startsWith('SEP-2026-07') ||
+                                t.task_id.startsWith('SEP-2026-08');
+            const nm = (t.task_name || '').toLowerCase();
+            const isDummyName = nm.includes('powder coating booth with cyclone') ||
+                                nm.includes('cac condenser & evaporator bending') ||
+                                nm.includes('cnc turret punch machine automation') ||
+                                nm.includes('automated robotic braze joint quality') ||
+                                nm.includes('booster pump cycle time reduced by 37.5%');
+            if (isDummyId || isAnamBomId || isDummyName) {
+              console.warn(`🛡️ Purging unwanted dummy/injected task ${t.task_id} from Firebase SEP-2026`);
+              deletedSet.add(t.task_id);
+              this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
+              this.db.ref(`walton_monthly_report/deleted_task_ids/${t.task_id}`).set(Date.now()).catch(() => {});
+              continue;
+            }
+          }
+
           // Auto-repair supervisor to Kamrul (44819)
           if (!t.supervisor || String(t.supervisor).toLowerCase().includes('sazzad') || String(t.supervisor).includes('50463')) {
             t.supervisor = 'Kamrul (44819)';
@@ -447,6 +469,25 @@ const FirebaseSyncService = {
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_added rejected tombstoned task: ${task.task_id}`);
       return;
+    }
+
+    if (month === 'SEP-2026') {
+      const isDummyId = ['SEP-2026-013-W2B', 'SEP-2026-020-OAX', 'SEP-2026-021-SGX'].includes(task.task_id);
+      const isAnamBomId = task.task_id.startsWith('SEP-2026-056-') || task.task_id.startsWith('SEP-2026-057-') ||
+                          task.task_id.startsWith('SEP-2026-058-') || task.task_id.startsWith('SEP-2026-059-') ||
+                          task.task_id.startsWith('SEP-2026-06') || task.task_id.startsWith('SEP-2026-07') ||
+                          task.task_id.startsWith('SEP-2026-08');
+      const nm = (task.task_name || '').toLowerCase();
+      const isDummyName = nm.includes('powder coating booth with cyclone') ||
+                          nm.includes('cac condenser & evaporator bending') ||
+                          nm.includes('cnc turret punch machine automation') ||
+                          nm.includes('automated robotic braze joint quality') ||
+                          nm.includes('booster pump cycle time reduced by 37.5%');
+      if (isDummyId || isAnamBomId || isDummyName) {
+        console.warn(`🛡️ Rejected remote addition of unwanted task ${task.task_id}`);
+        this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
+        return;
+      }
     }
 
     const wbMgr = window.appState.workbookMgr;
