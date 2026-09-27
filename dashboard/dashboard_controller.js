@@ -398,8 +398,9 @@ const DashboardController = {
       }
     };
 
-    // 4. Build Dynamic Cards for Categories that have task entries
+    // 4. Build Dynamic Cards for Categories that have task entries (Requirements 6 & 7: Only categories with tasks > 0)
     const dynamicCategoryCards = Object.entries(categoryCounts)
+      .filter(([catName, cnt]) => cnt > 0)
       .sort((a, b) => b[1] - a[1])
       .map(([catName, cnt]) => {
         const normKey = catName.toLowerCase().replace(/–/g, '-').trim();
@@ -429,54 +430,10 @@ const DashboardController = {
         };
       });
 
-    // Default starter categories if month has no tasks entered yet
-    if (dynamicCategoryCards.length === 0) {
-      dynamicCategoryCards.push(
-        {
-          id: "process_dev",
-          val: 0,
-          label: "Process Developed",
-          icon: "⚙️",
-          note: "Process Standardisation & SOP",
-          bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
-          border: "#60A5FA",
-          valColor: "#1D4ED8",
-          labelColor: "#1E3A8A",
-          shadow: "rgba(59,130,246,0.16)",
-          filterCategory: "Process development"
-        },
-        {
-          id: "tools_dev",
-          val: 0,
-          label: "Tools Developed",
-          icon: "🔧",
-          note: "Jigs, Fixtures & Dies",
-          bg: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
-          border: "#818CF8",
-          valColor: "#4338CA",
-          labelColor: "#312E81",
-          shadow: "rgba(99,102,241,0.16)",
-          filterCategory: "Major Developments – Tools"
-        },
-        {
-          id: "parts_dev",
-          val: 0,
-          label: "Parts Developed",
-          icon: "🔩",
-          note: "Components & Sheet Metal",
-          bg: "linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)",
-          border: "#34D399",
-          valColor: "#047857",
-          labelColor: "#064E3B",
-          shadow: "rgba(16,185,129,0.16)",
-          filterCategory: "Major Developments – Parts"
-        }
-      );
-    }
-
-    // Two dedicated Project Cards directly from "Projects" Section
-    const projectCards = [
-      {
+    // Dedicated Project Cards directly from "Projects" Section (Only if count > 0)
+    const projectCards = [];
+    if (completedProjCount > 0) {
+      projectCards.push({
         id: "comp_proj",
         val: completedProjCount,
         label: "Completed Projects",
@@ -489,8 +446,10 @@ const DashboardController = {
         shadow: "rgba(239,68,68,0.16)",
         filterCategory: "Completed Projects",
         isProjectLink: true
-      },
-      {
+      });
+    }
+    if (ongoingProjCount > 0) {
+      projectCards.push({
         id: "ongoing_proj",
         val: ongoingProjCount,
         label: "New Projects / Ongoing",
@@ -503,8 +462,8 @@ const DashboardController = {
         shadow: "rgba(6,182,212,0.16)",
         filterCategory: "Ongoing Projects",
         isProjectLink: true
-      }
-    ];
+      });
+    }
 
     const image2Cards = [...dynamicCategoryCards, ...projectCards];
 
@@ -740,9 +699,19 @@ const DashboardController = {
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            ${image2Cards.map(c => `
+            ${image2Cards.length === 0 ? `
+              <div class="col-span-full py-8 text-center text-xs font-mono text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
+                No active categories with tasks found for ${this.currentFilters.month}.
+              </div>
+            ` : image2Cards.map((c, idx) => {
+              const totalCards = image2Cards.length;
+              const isOddTotal = (totalCards % 2 !== 0);
+              const isLast = (idx === totalCards - 1);
+              // Requirement 7: "bejor hole last e ekta card thakbe. design ovabe modify korba"
+              const spanClass = (isOddTotal && isLast) ? 'col-span-1 sm:col-span-2 lg:col-span-2' : '';
+              return `
               <div onclick="${(c.id === 'comp_proj' || c.id === 'ongoing_proj') ? `App.switchTab('projects')` : `DashboardController.handleFilter('category', '${c.filterCategory}')`}"
-                   class="cursor-pointer rounded-2xl p-5 transition hover:scale-[1.02] hover:shadow-lg relative overflow-hidden flex flex-col justify-between"
+                   class="cursor-pointer rounded-2xl p-5 transition hover:scale-[1.02] hover:shadow-lg relative overflow-hidden flex flex-col justify-between ${spanClass}"
                    style="background: ${c.bg}; border: 1.5px solid ${c.border}; box-shadow: 0 4px 12px ${c.shadow};"
                    title="${(c.id === 'comp_proj' || c.id === 'ongoing_proj') ? 'Click to open Dedicated Projects Section' : `Click to filter by ${c.filterCategory}`}">
                 <div class="flex items-center justify-between">
@@ -760,7 +729,8 @@ const DashboardController = {
                   </div>
                 </div>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </div>
         </div>
 

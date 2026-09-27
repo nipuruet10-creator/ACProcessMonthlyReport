@@ -6,9 +6,153 @@
  * WALTON Hi-Tech Industries PLC
  */
 
+const REPORT_CATEGORY_META = {
+  "process development": {
+    label: "Process Developed",
+    icon: "⚙️",
+    note: "SOP & Method Engineering",
+    bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+    border: "#60A5FA",
+    valColor: "#1D4ED8",
+    labelColor: "#1E3A8A",
+    shadow: "rgba(59,130,246,0.16)"
+  },
+  "major developments - process": {
+    label: "Process Developed",
+    icon: "⚙️",
+    note: "SOP & Method Engineering",
+    bg: "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)",
+    border: "#60A5FA",
+    valColor: "#1D4ED8",
+    labelColor: "#1E3A8A",
+    shadow: "rgba(59,130,246,0.16)"
+  },
+  "major developments - tools": {
+    label: "Tools Developed",
+    icon: "🔧",
+    note: "Jigs, Dies & Fixtures",
+    bg: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+    border: "#818CF8",
+    valColor: "#4338CA",
+    labelColor: "#312E81",
+    shadow: "rgba(99,102,241,0.16)"
+  },
+  "major developments - parts": {
+    label: "Parts Developed",
+    icon: "🔩",
+    note: "Components & Sheet Metal",
+    bg: "linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)",
+    border: "#34D399",
+    valColor: "#047857",
+    labelColor: "#064E3B",
+    shadow: "rgba(16,185,129,0.16)"
+  },
+  "major developments - materials": {
+    label: "Materials Development",
+    icon: "🧪",
+    note: "Raw Materials & Metallurgy",
+    bg: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)",
+    border: "#4ADE80",
+    valColor: "#15803D",
+    labelColor: "#14532D",
+    shadow: "rgba(34,197,94,0.16)"
+  },
+  "major developments - chemical": {
+    label: "Chemical Development",
+    icon: "🔬",
+    note: "SWAAT Trials & Chemicals",
+    bg: "linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)",
+    border: "#22D3EE",
+    valColor: "#0E7490",
+    labelColor: "#164E63",
+    shadow: "rgba(6,182,212,0.16)"
+  },
+  "bom verification": {
+    label: "BOM Verification",
+    icon: "📋",
+    note: "Physical Audit & Reconciliation",
+    bg: "linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%)",
+    border: "#FB7185",
+    valColor: "#BE123C",
+    labelColor: "#881337",
+    shadow: "rgba(244,63,94,0.16)"
+  },
+  "fg bom/ sfg": {
+    label: "FG BOM / SFG",
+    icon: "📦",
+    note: "BOM Structure & Confirmations",
+    bg: "linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 100%)",
+    border: "#F472B6",
+    valColor: "#BE185D",
+    labelColor: "#831843",
+    shadow: "rgba(236,72,153,0.16)"
+  },
+  "cost saving": {
+    label: "Cost Optimization",
+    icon: "💰",
+    note: "Financial & Yield Savings",
+    bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+    border: "#FBBF24",
+    valColor: "#B45309",
+    labelColor: "#78350F",
+    shadow: "rgba(245,158,11,0.16)"
+  },
+  "cost savings (local)": {
+    label: "Cost Savings (Local)",
+    icon: "🪙",
+    note: "Domestic Plant Saving",
+    bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+    border: "#FBBF24",
+    valColor: "#B45309",
+    labelColor: "#78350F",
+    shadow: "rgba(245,158,11,0.16)"
+  },
+  "cost savings (ibu)": {
+    label: "Cost Savings (IBU)",
+    icon: "💵",
+    note: "International Business Saving",
+    bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+    border: "#FBBF24",
+    valColor: "#B45309",
+    labelColor: "#78350F",
+    shadow: "rgba(245,158,11,0.16)"
+  },
+  "new model(local)": {
+    label: "New Model (Local)",
+    icon: "✨",
+    note: "Model Introduction & Trial",
+    bg: "linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)",
+    border: "#A78BFA",
+    valColor: "#6D28D9",
+    labelColor: "#4C1D95",
+    shadow: "rgba(139,92,246,0.16)"
+  },
+  "process optimization": {
+    label: "Process Optimization",
+    icon: "👥",
+    note: "Line Balancing & Efficiency",
+    bg: "linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)",
+    border: "#C084FC",
+    valColor: "#7E22CE",
+    labelColor: "#581C87",
+    shadow: "rgba(168,85,247,0.16)"
+  },
+  "process extension": {
+    label: "Process Extension",
+    icon: "🏗️",
+    note: "Plant Capacity & Line Expansion",
+    bg: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+    border: "#38BDF8",
+    valColor: "#0369A1",
+    labelColor: "#0C4A6E",
+    shadow: "rgba(14,165,233,0.16)"
+  }
+};
+
 const MonthlyReportView = {
   selectedMonth: "SEP-2026",
   filterEngineer: "",
+  filterCategory: "",
   searchQuery: "",
 
   handleMonthSelect(month) {
@@ -20,6 +164,15 @@ const MonthlyReportView = {
 
   handleEngineerFilter(eng) {
     this.filterEngineer = eng || "";
+    this.render();
+  },
+
+  handleCategoryFilter(cat) {
+    if (this.filterCategory === (cat || "")) {
+      this.filterCategory = "";
+    } else {
+      this.filterCategory = cat || "";
+    }
     this.render();
   },
 
@@ -58,7 +211,234 @@ const MonthlyReportView = {
   },
 
   /**
+   * Auto-generates concise 5-step process breakdown and short bullet points derived from task name
+   * Requirement 1: "Monthly report theke task details generate korar option rakhio. Bullet point will be short and as per task name."
+   */
+  generateSlideDetails(taskId) {
+    const titleInput = document.getElementById('edit-slide-title');
+    const taskName = (titleInput ? titleInput.value.trim() : '') || taskId;
+    if (!taskName) {
+      if (typeof window.showToast === 'function') {
+        window.showToast("Please enter a slide title or task name first.", "warning");
+      }
+      return;
+    }
+
+    const lower = taskName.toLowerCase();
+    let desc = "";
+    let bullets = [];
+
+    if (lower.includes("die") || lower.includes("fixture") || lower.includes("jig") || lower.includes("cutter") || lower.includes("mold") || lower.includes("tool")) {
+      desc = `Designed, fabricated, and verified precision tooling fixture for ${taskName.toLowerCase()}. Verified dimensional tolerance and commissioned on the active production line.`;
+      bullets = [
+        `Tooling design & 3D fabrication finalized`,
+        `Verified fitment & dimensional tolerance`,
+        `Reduced changeover & manual setup time`,
+        `Commissioned on active production line`
+      ];
+    } else if (lower.includes("robot") || lower.includes("automation") || lower.includes("punch") || lower.includes("press") || lower.includes("turret") || lower.includes("sensor") || lower.includes("motor")) {
+      desc = `Engineered and integrated automated control mechanism for ${taskName.toLowerCase()}. Successfully tested safety interlocks and commissioned on the active line.`;
+      bullets = [
+        `Automated cycle & safety interlock setup`,
+        `Increased continuous line throughput`,
+        `Enhanced operator safety & handling speed`,
+        `Validated operational reliability on line`
+      ];
+    } else if (lower.includes("foil") || lower.includes("cutting") || lower.includes("vacuum") || lower.includes("brazing") || lower.includes("jacket") || lower.includes("coil")) {
+      desc = `Developed and implemented specialized process mechanism for ${taskName.toLowerCase()}. Commissioned for daily manufacturing with zero quality deviation.`;
+      bullets = [
+        `Process flow & cycle parameters optimized`,
+        `Eliminated manual handling bottlenecks`,
+        `Improved cutting & assembly consistency`,
+        `Ensured zero-defect line handover`
+      ];
+    } else if (lower.includes("bom") || lower.includes("audit") || lower.includes("sfg") || lower.includes("verification")) {
+      desc = `Conducted physical inspection, BOM verification, and structure audit for ${taskName.toLowerCase()}. Reconciled line usage against engineering drawing specifications.`;
+      bullets = [
+        `Physical line observation & part count verified`,
+        `ERP & engineering BOM structure reconciled`,
+        `Discrepancies rectified with store & planning`,
+        `Audit sign-off completed for running models`
+      ];
+    } else if (lower.includes("model") || lower.includes("trial") || lower.includes("pilot") || lower.includes("sample")) {
+      desc = `Executed pilot production trial, tooling readiness, and assembly flow for ${taskName.toLowerCase()}. Addressed line balancing issues and confirmed commercial readiness.`;
+      bullets = [
+        `Tooling & component readiness verified`,
+        `Pilot trial assembly completed on line`,
+        `Cycle time & line balance verified`,
+        `Approved for commercial mass production`
+      ];
+    } else {
+      const cleanWords = taskName.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+      const subject = cleanWords.slice(0, 3).join(' ') || taskName;
+      desc = `Engineered, verified, and standardized operational workflow for ${taskName.toLowerCase()}. Successfully implemented on the active manufacturing line.`;
+      bullets = [
+        `Layout & process study finalized for ${subject}`,
+        `Implemented standardized operating mechanism`,
+        `Eliminated manual bottleneck & reduced cycle time`,
+        `Production validation & operator training done`
+      ];
+    }
+
+    const descEl = document.getElementById('edit-slide-desc');
+    const impactEl = document.getElementById('edit-slide-impact');
+    if (descEl) descEl.value = desc;
+    if (impactEl) impactEl.value = bullets.join("\n");
+
+    this.renderModalLivePreview(taskId);
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✨ Generated concise details & short bullets for "${taskName}"!`, "success");
+    }
+  },
+
+  /**
+   * Renders the Before/After photo management slots inside the unified modal
+   */
+  renderModalPhotoSlots(taskId) {
+    const container = document.getElementById('modal-photos-slot-container');
+    if (!container) return;
+
+    let beforePhoto = null;
+    let afterPhoto = null;
+    if (typeof photoManager !== 'undefined') {
+      const p = photoManager.getTaskPhotos(taskId, this.selectedMonth);
+      if (p) {
+        beforePhoto = p.before_photo || p.photo_1 || null;
+        afterPhoto = p.after_photo || p.photo_2 || null;
+      }
+    }
+
+    container.innerHTML = `
+      <!-- Before Photo (Present Condition) -->
+      <div class="bg-white border ${beforePhoto ? 'border-slate-200' : 'border-dashed border-slate-300 hover:border-blue-400'} rounded-2xl p-3 flex flex-col justify-between shadow-xs transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${beforePhoto ? 'bg-emerald-500' : 'bg-slate-300'}"></span>
+            <span>1. Present Condition (Before)</span>
+          </span>
+          <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${beforePhoto ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-400'}">
+            ${beforePhoto ? 'ATTACHED' : 'EMPTY'}
+          </span>
+        </div>
+
+        <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center border border-slate-100">
+          ${beforePhoto ? `
+            <img src="${beforePhoto}" class="w-full h-full object-cover" alt="Before Photo" />
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition backdrop-blur-[1px]">
+              <label for="modal-photo-file-before" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 text-[10px] font-bold cursor-pointer shadow transition">
+                🔄 Replace
+              </label>
+              <button type="button" onclick="MonthlyReportView.deleteModalPhoto('${taskId}', 'before_photo')" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow transition">
+                🗑 Delete
+              </button>
+            </div>
+          ` : `
+            <label for="modal-photo-file-before" class="cursor-pointer flex flex-col items-center justify-center p-4 text-center w-full h-full hover:bg-blue-50/30 transition">
+              <span class="text-2xl mb-1 text-slate-400 group-hover:scale-110 transition">📸</span>
+              <span class="text-xs font-bold text-slate-700">Add Before Photo</span>
+              <span class="text-[10px] text-slate-400 mt-0.5">Click or Browse</span>
+            </label>
+          `}
+          <input type="file" id="modal-photo-file-before" accept="image/*" class="hidden" onchange="MonthlyReportView.uploadModalPhoto(event, '${taskId}', 'before_photo')" />
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+          <span class="text-slate-400 font-mono">16:9 Slide Canvas</span>
+          <div class="flex items-center gap-1.5">
+            <label for="modal-photo-file-before" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer transition">
+              ${beforePhoto ? '🔄 Replace' : '➕ Upload'}
+            </label>
+            ${beforePhoto ? `
+              <button type="button" onclick="MonthlyReportView.deleteModalPhoto('${taskId}', 'before_photo')" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold transition">
+                🗑
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- After Photo (Proposed Project / Hero) -->
+      <div class="bg-white border ${afterPhoto ? 'border-slate-200' : 'border-dashed border-slate-300 hover:border-blue-400'} rounded-2xl p-3 flex flex-col justify-between shadow-xs transition group">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${afterPhoto ? 'bg-sky-500' : 'bg-slate-300'}"></span>
+            <span>2. Proposed Project (After / Hero)</span>
+          </span>
+          <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${afterPhoto ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-slate-100 text-slate-400'}">
+            ${afterPhoto ? 'ATTACHED' : 'EMPTY'}
+          </span>
+        </div>
+
+        <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center border border-slate-100">
+          ${afterPhoto ? `
+            <img src="${afterPhoto}" class="w-full h-full object-cover" alt="After Photo" />
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition backdrop-blur-[1px]">
+              <label for="modal-photo-file-after" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 text-[10px] font-bold cursor-pointer shadow transition">
+                🔄 Replace
+              </label>
+              <button type="button" onclick="MonthlyReportView.deleteModalPhoto('${taskId}', 'after_photo')" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow transition">
+                🗑 Delete
+              </button>
+            </div>
+          ` : `
+            <label for="modal-photo-file-after" class="cursor-pointer flex flex-col items-center justify-center p-4 text-center w-full h-full hover:bg-blue-50/30 transition">
+              <span class="text-2xl mb-1 text-slate-400 group-hover:scale-110 transition">📸</span>
+              <span class="text-xs font-bold text-slate-700">Add After Photo</span>
+              <span class="text-[10px] text-slate-400 mt-0.5">Click or Browse</span>
+            </label>
+          `}
+          <input type="file" id="modal-photo-file-after" accept="image/*" class="hidden" onchange="MonthlyReportView.uploadModalPhoto(event, '${taskId}', 'after_photo')" />
+        </div>
+
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+          <span class="text-slate-400 font-mono">16:9 Hero Image</span>
+          <div class="flex items-center gap-1.5">
+            <label for="modal-photo-file-after" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer transition">
+              ${afterPhoto ? '🔄 Replace' : '➕ Upload'}
+            </label>
+            ${afterPhoto ? `
+              <button type="button" onclick="MonthlyReportView.deleteModalPhoto('${taskId}', 'after_photo')" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold transition">
+                🗑
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async uploadModalPhoto(event, taskId, slot) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Url = e.target.result;
+      if (typeof photoManager !== 'undefined') {
+        await photoManager.savePhoto(taskId, slot, base64Url, this.selectedMonth);
+      }
+      this.renderModalPhotoSlots(taskId);
+      this.renderModalLivePreview(taskId);
+      if (typeof window.showToast === 'function') {
+        window.showToast("📷 Photo attached! Live preview updated.", "success");
+      }
+    };
+    reader.readAsDataURL(file);
+  },
+
+  async deleteModalPhoto(taskId, slot) {
+    if (typeof photoManager !== 'undefined') {
+      await photoManager.removePhoto(taskId, slot, this.selectedMonth);
+    }
+    this.renderModalPhotoSlots(taskId);
+    this.renderModalLivePreview(taskId);
+    if (typeof window.showToast === 'function') {
+      window.showToast("🗑 Photo removed. Live preview updated.", "info");
+    }
+  },
+
+  /**
    * Opens the slide override editor for a specific task slide with live in-modal preview
+   * Requirement 4: Unified single modal for text edit, photo upload, and live preview
    */
   openModal(taskId) {
     if (!taskId) return;
@@ -77,7 +457,6 @@ const MonthlyReportView = {
       ? (Array.isArray(overrides.impact) ? overrides.impact.join("\n") : overrides.impact)
       : (breakdown && Array.isArray(breakdown.ai_impact) ? breakdown.ai_impact.join("\n") : "");
     const currentEngineer = overrides.engineer || (breakdown ? breakdown.engineer : "Concern Engineer");
-    const currentInvestment = overrides.investment || "In-house / Direct Implementation";
 
     const container = this.renderContainer();
     container.innerHTML = `
@@ -87,27 +466,29 @@ const MonthlyReportView = {
           <!-- Top Header -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-lg font-bold shadow-xs">
-                ✏️
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-blue-500/20">
+                🎨
               </div>
               <div>
                 <div class="flex items-center gap-2">
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    SLIDE EDITORIAL OVERRIDE
+                    SLIDE STUDIO &amp; EDITORIAL
                   </span>
                   <span class="text-xs font-mono text-slate-400">ID: ${taskId}</span>
                 </div>
-                <h3 class="text-base font-black text-slate-900 mt-0.5">Edit Slide Content &amp; Live In-Modal Preview</h3>
+                <h3 class="text-base font-black text-slate-900 mt-0.5">Customize Slide Content, Photos &amp; Live In-Modal Preview</h3>
               </div>
             </div>
             <button onclick="MonthlyReportView.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition">&times;</button>
           </div>
 
-          <!-- Body: Split 2-Column (Form on Left, Real-Time Preview on Right) -->
+          <!-- Body: Split 2-Column (Controls on Left, Real-Time Preview on Right) -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 py-4 overflow-y-auto flex-1">
             
-            <!-- Left: Editorial Form -->
-            <form id="slide-override-form" onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="space-y-3.5 text-xs">
+            <!-- Left: Unified Editorial & Photo Form -->
+            <form id="slide-override-form" onsubmit="MonthlyReportView.saveOverrides(event, '${taskId}')" class="space-y-4 text-xs">
+              
+              <!-- Slide Title -->
               <div>
                 <div class="flex items-center justify-between mb-1">
                   <label class="block font-bold text-slate-700">Slide Title (Headline) <span class="text-red-500">*</span></label>
@@ -118,13 +499,22 @@ const MonthlyReportView = {
                        class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-bold shadow-xs" required />
               </div>
 
+              <!-- 5-Step Description + AI Generation Button (Requirement 1) -->
               <div>
-                <label class="block font-bold text-slate-700 mb-1">5-Step Process Breakdown / Description</label>
-                <textarea id="edit-slide-desc" rows="4" 
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block font-bold text-slate-700">5-Step Process Breakdown / Description</label>
+                  <button type="button" onclick="MonthlyReportView.generateSlideDetails('${taskId}')"
+                          title="Auto-generate concise steps and short bullet points based on task name"
+                          class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] font-bold shadow-xs transition flex items-center gap-1 cursor-pointer">
+                    <span>✨</span> <span>Auto-Generate Details &amp; Bullets</span>
+                  </button>
+                </div>
+                <textarea id="edit-slide-desc" rows="3" 
                           oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
                           class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 leading-relaxed font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentDesc)}</textarea>
               </div>
 
+              <!-- Key Outcomes (Short bullets) -->
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Project Impact &amp; Outcomes (One bullet per line)</label>
                 <textarea id="edit-slide-impact" rows="3" 
@@ -132,21 +522,30 @@ const MonthlyReportView = {
                           class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentImpact)}</textarea>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-700 mb-1">Concern Engineer</label>
-                  <input type="text" id="edit-slide-engineer" value="${HELPERS.escapeHtml(currentEngineer)}" 
-                         oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
-                         class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+              <!-- Concern Engineer (Requirement 2: Investment/Budget Note removed) -->
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Concern Engineer</label>
+                <input type="text" id="edit-slide-engineer" value="${HELPERS.escapeHtml(currentEngineer)}" 
+                       oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                       class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+              </div>
+
+              <!-- PHOTO MANAGEMENT SECTION (Requirement 4: Integrated Photo Studio) -->
+              <div class="bg-slate-50/80 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-base">📷</span>
+                    <span class="font-bold text-slate-800 text-xs">Slide Photo Attachments (Before &amp; After)</span>
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-mono">16:9 Slide Canvas</span>
                 </div>
-                <div>
-                  <label class="block font-bold text-slate-700 mb-1">Investment / Budget Note</label>
-                  <input type="text" id="edit-slide-investment" value="${HELPERS.escapeHtml(currentInvestment)}" 
-                         oninput="MonthlyReportView.renderModalLivePreview('${taskId}')"
-                         class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-medium shadow-xs" />
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="modal-photos-slot-container">
+                  <!-- Rendered dynamically via renderModalPhotoSlots -->
                 </div>
               </div>
 
+              <!-- Actions -->
               <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <button type="button" onclick="MonthlyReportView.resetOverrides('${taskId}')" class="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition">
                   Reset to AI Defaults
@@ -155,16 +554,16 @@ const MonthlyReportView = {
                   <button type="button" onclick="MonthlyReportView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
                     Cancel
                   </button>
-                  <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5">
-                    <span>💾</span> <span>Save Overrides</span>
+                  <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5">
+                    <span>💾</span> <span>Save Slide Overrides</span>
                   </button>
                 </div>
               </div>
             </form>
 
-            <!-- Right: Real-Time 16:9 In-Modal Live Preview -->
+            <!-- Right: Real-Time In-Modal Live Preview (Requirement 3: Full text visible) -->
             <div class="bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800 shadow-inner">
-              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3 flex-shrink-0">
                 <div class="flex items-center gap-2">
                   <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                   <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Live Slide Preview</span>
@@ -175,13 +574,13 @@ const MonthlyReportView = {
                 </button>
               </div>
 
-              <!-- 16:9 Presentation Stage inside Modal -->
-              <div id="modal-slide-live-preview" class="w-full aspect-video bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col p-4 text-slate-800">
+              <!-- Presentation Stage inside Modal (Scrollable, full text visible) -->
+              <div id="modal-slide-live-preview" class="w-full min-h-[380px] max-h-[620px] bg-white rounded-xl overflow-y-auto shadow-2xl border border-slate-700 flex flex-col p-4 text-slate-800">
                 <!-- Injected via renderModalLivePreview -->
               </div>
 
-              <div class="pt-3 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-                <span>Walton Executive Theme &bull; 16:9</span>
+              <div class="pt-3 text-[11px] text-slate-400 flex items-center justify-between font-mono flex-shrink-0">
+                <span>Walton Executive Theme &bull; 16:9 Format</span>
                 <span class="text-emerald-400 font-bold">✨ Real-time synced</span>
               </div>
             </div>
@@ -192,12 +591,15 @@ const MonthlyReportView = {
       </div>
     `;
 
-    // Immediately render the live preview in the modal
+    // Render photo slots and live preview
+    this.renderModalPhotoSlots(taskId);
     this.renderModalLivePreview(taskId);
   },
 
   /**
    * Real-time in-modal 16:9 live slide preview renderer
+   * Requirement 3: All text is 100% visible without clipping
+   * Requirement 2: Investment/Budget note completely removed
    */
   renderModalLivePreview(taskId) {
     const previewEl = document.getElementById('modal-slide-live-preview');
@@ -207,13 +609,11 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
-    const investEl = document.getElementById('edit-slide-investment');
 
     const title = titleEl ? titleEl.value.trim() : `Task ${taskId}`;
     const desc = descEl ? descEl.value.trim() : "Standard operating procedure execution and engineering development.";
     const impactLines = impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [];
     const engineer = engineerEl ? engineerEl.value.trim() : "Concern Engineer";
-    const investment = investEl ? investEl.value.trim() : "In-house / Direct Implementation";
 
     // Fetch photos
     let photoBefore = null;
@@ -221,15 +621,15 @@ const MonthlyReportView = {
     if (typeof photoManager !== 'undefined') {
       const p = photoManager.getTaskPhotos(taskId, this.selectedMonth);
       if (p) {
-        photoBefore = p.before_photo || null;
-        photoAfter = p.after_photo || null;
+        photoBefore = p.before_photo || p.photo_1 || null;
+        photoAfter = p.after_photo || p.photo_2 || null;
       }
     }
 
     const hasPhotos = Boolean(photoBefore || photoAfter);
 
     previewEl.innerHTML = `
-      <div class="h-full w-full flex flex-col justify-between font-sans select-none overflow-hidden text-xs">
+      <div class="w-full flex flex-col justify-between font-sans select-none text-xs space-y-3">
         
         <!-- Top Presentation Bar -->
         <div class="flex items-center justify-between pb-2 border-b-2 border-red-600 flex-shrink-0">
@@ -246,62 +646,59 @@ const MonthlyReportView = {
           </span>
         </div>
 
-        <!-- Slide Heading -->
-        <div class="pt-2 flex-shrink-0">
-          <h4 class="text-sm font-black text-slate-900 leading-snug line-clamp-2">
+        <!-- Slide Heading (Requirement 2: No investment pill) -->
+        <div class="pt-1 flex-shrink-0">
+          <h4 class="text-sm sm:text-base font-black text-slate-900 leading-snug">
             ${HELPERS.escapeHtml(title)}
           </h4>
-          <div class="flex items-center gap-2 mt-1 flex-wrap text-[10px]">
-            <span class="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+          <div class="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
+            <span class="font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
               👤 ${HELPERS.escapeHtml(engineer)}
-            </span>
-            <span class="font-medium text-slate-600 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded">
-              💰 ${HELPERS.escapeHtml(investment)}
             </span>
           </div>
         </div>
 
-        <!-- Slide Content Grid: Process Steps + Impact Bullets + Photos -->
-        <div class="grid ${hasPhotos ? 'grid-cols-2' : 'grid-cols-1'} gap-3 py-2 flex-1 min-h-0 overflow-hidden">
+        <!-- Slide Content Grid: Process Steps + Impact Bullets + Photos (Requirement 3: Full text visible) -->
+        <div class="grid ${hasPhotos ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'} gap-3 py-1 flex-1">
           
           <!-- Left Text Details -->
-          <div class="flex flex-col justify-between space-y-2 overflow-hidden">
-            <!-- 5-Step Description -->
-            <div class="bg-blue-50/60 border-l-4 border-blue-500 p-2 rounded-r-lg">
-              <span class="text-[9px] font-mono font-bold text-blue-800 uppercase block mb-0.5">PROCESS BREAKDOWN:</span>
-              <p class="text-[11px] text-slate-700 leading-relaxed line-clamp-3">
+          <div class="flex flex-col space-y-2.5">
+            <!-- 5-Step Description (Full visible text) -->
+            <div class="bg-blue-50/70 border-l-4 border-blue-500 p-2.5 rounded-r-xl">
+              <span class="text-[10px] font-mono font-bold text-blue-900 uppercase block mb-1">PROCESS BREAKDOWN:</span>
+              <p class="text-xs text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
                 ${HELPERS.escapeHtml(desc)}
               </p>
             </div>
 
-            <!-- Impact Bullets -->
-            <div class="bg-slate-50 border border-slate-200 rounded-lg p-2">
-              <span class="text-[9px] font-mono font-bold text-slate-600 uppercase block mb-1">KEY OUTCOMES:</span>
-              <ul class="space-y-1">
-                ${impactLines.slice(0, 3).map(imp => `
-                  <li class="flex items-start gap-1.5 text-[10px] text-slate-700">
-                    <span class="text-emerald-600 font-bold flex-shrink-0">✔</span>
-                    <span class="line-clamp-1">${HELPERS.escapeHtml(imp)}</span>
+            <!-- Impact Bullets (ALL bullets visible without truncation) -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+              <span class="text-[10px] font-mono font-bold text-slate-700 uppercase block mb-1.5">KEY OUTCOMES / MILESTONES:</span>
+              <ul class="space-y-1.5">
+                ${impactLines.map(imp => `
+                  <li class="flex items-start gap-2 text-xs text-slate-800 leading-snug">
+                    <span class="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✔</span>
+                    <span class="break-words">${HELPERS.escapeHtml(imp)}</span>
                   </li>
                 `).join('')}
-                ${impactLines.length === 0 ? '<li class="text-[10px] text-slate-400 italic">No impact notes registered</li>' : ''}
+                ${impactLines.length === 0 ? '<li class="text-xs text-slate-400 italic">No milestone bullets registered</li>' : ''}
               </ul>
             </div>
           </div>
 
           <!-- Right: Photos (if any) -->
           ${hasPhotos ? `
-            <div class="grid ${photoBefore && photoAfter ? 'grid-cols-2' : 'grid-cols-1'} gap-2 h-full">
+            <div class="grid ${photoBefore && photoAfter ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5 items-start">
               ${photoBefore ? `
-                <div class="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
-                  <img src="${photoBefore}" class="w-full h-full object-cover" alt="Before">
-                  <span class="absolute top-1 left-1 px-1.5 py-0.2 bg-black/60 text-white rounded text-[8px] font-bold">BEFORE</span>
+                <div class="relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                  <img src="${photoBefore}" class="w-full aspect-video object-cover" alt="Before">
+                  <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-black/70 text-white rounded text-[9px] font-bold">PRESENT (BEFORE)</span>
                 </div>
               ` : ''}
               ${photoAfter ? `
-                <div class="relative bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
-                  <img src="${photoAfter}" class="w-full h-full object-cover" alt="After">
-                  <span class="absolute top-1 left-1 px-1.5 py-0.2 bg-emerald-600 text-white rounded text-[8px] font-bold">AFTER</span>
+                <div class="relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                  <img src="${photoAfter}" class="w-full aspect-video object-cover" alt="After">
+                  <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-emerald-700 text-white rounded text-[9px] font-bold">PROPOSED (AFTER)</span>
                 </div>
               ` : ''}
             </div>
@@ -310,9 +707,9 @@ const MonthlyReportView = {
         </div>
 
         <!-- Slide Footer Bar -->
-        <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[9px] font-mono text-slate-400 flex-shrink-0">
+        <div class="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-400 flex-shrink-0">
           <span>WALTON PROCESS AUTOMATION SYSTEM</span>
-          <span>SLIDE PREVIEW MODE</span>
+          <span>PRESENTATION SLIDE MODE</span>
         </div>
 
       </div>
@@ -327,7 +724,6 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
-    const investEl = document.getElementById('edit-slide-investment');
 
     let photoBefore = null;
     let photoAfter = null;
@@ -346,7 +742,6 @@ const MonthlyReportView = {
       description: descEl ? descEl.value.trim() : "",
       impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
       engineer: engineerEl ? engineerEl.value.trim() : "Concern Engineer",
-      investment: investEl ? investEl.value.trim() : "In-house / Direct Implementation",
       category: "Process development",
       status: "Completed",
       photo_before: photoBefore,
@@ -373,14 +768,12 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
-    const investEl = document.getElementById('edit-slide-investment');
 
     const overrides = {
       slide_title: titleEl ? titleEl.value.trim() : "",
       description: descEl ? descEl.value.trim() : "",
       impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
-      engineer: engineerEl ? engineerEl.value.trim() : "",
-      investment: investEl ? investEl.value.trim() : ""
+      engineer: engineerEl ? engineerEl.value.trim() : ""
     };
 
     // 1. Save to SyncEngine overrides map
@@ -511,9 +904,107 @@ const MonthlyReportView = {
       return Boolean(eFirst && filterFirst && eFirst === filterFirst);
     };
 
-    const displayedSlides = this.filterEngineer
+    // Dynamic Category Highlights (Requirement 6 & 7: Only categories with tasks > 0)
+    const reportCategoryCounts = {};
+    let reportCompletedProjects = 0;
+    let reportOngoingProjects = 0;
+
+    activeSlides.forEach(s => {
+      const cat = (s.category || 'Process Development').trim();
+      const normCat = cat.replace(/–/g, '-').trim();
+      const lowerCat = normCat.toLowerCase();
+      
+      if (s.is_project || lowerCat.includes('project')) {
+        if ((s.status || '').toLowerCase() === 'completed' || lowerCat.includes('complete')) {
+          reportCompletedProjects++;
+        } else {
+          reportOngoingProjects++;
+        }
+      } else {
+        reportCategoryCounts[normCat] = (reportCategoryCounts[normCat] || 0) + 1;
+      }
+    });
+
+    const highlightCards = [];
+    Object.entries(reportCategoryCounts).forEach(([catName, cnt]) => {
+      if (cnt <= 0) return;
+      const normKey = catName.toLowerCase().replace(/–/g, '-').trim();
+      const meta = (typeof REPORT_CATEGORY_META !== 'undefined' && (REPORT_CATEGORY_META[normKey] || REPORT_CATEGORY_META[catName.toLowerCase()])) || {
+        label: catName,
+        icon: "⚙️",
+        note: "Process Report Task",
+        bg: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+        border: "#94A3B8",
+        valColor: "#334155",
+        labelColor: "#1E293B",
+        shadow: "rgba(100,116,139,0.16)"
+      };
+      highlightCards.push({
+        id: `cat_${normKey.replace(/[^a-z0-9]/g, '_')}`,
+        val: cnt,
+        label: meta.label,
+        icon: meta.icon,
+        note: meta.note,
+        bg: meta.bg,
+        border: meta.border,
+        valColor: meta.valColor,
+        labelColor: meta.labelColor,
+        shadow: meta.shadow,
+        filterCategory: catName
+      });
+    });
+
+    if (reportCompletedProjects > 0) {
+      highlightCards.push({
+        id: "comp_proj",
+        val: reportCompletedProjects,
+        label: "Completed Projects",
+        icon: "🏆",
+        note: "Shop-Floor Commissioned",
+        bg: "linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)",
+        border: "#F87171",
+        valColor: "#B91C1C",
+        labelColor: "#7F1D1D",
+        shadow: "rgba(239,68,68,0.16)",
+        filterCategory: "Completed Projects"
+      });
+    }
+
+    if (reportOngoingProjects > 0) {
+      highlightCards.push({
+        id: "ongoing_proj",
+        val: reportOngoingProjects,
+        label: "New Projects / Ongoing",
+        icon: "🚀",
+        note: "Active Line Trials",
+        bg: "linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)",
+        border: "#22D3EE",
+        valColor: "#0E7490",
+        labelColor: "#164E63",
+        shadow: "rgba(6,182,212,0.16)",
+        filterCategory: "Ongoing Projects"
+      });
+    }
+
+    highlightCards.sort((a, b) => b.val - a.val);
+
+    let displayedSlides = this.filterEngineer
       ? activeSlides.filter(s => isEngMatch(s.engineer))
       : activeSlides;
+
+    if (this.filterCategory) {
+      const fCat = this.filterCategory.toLowerCase().replace(/–/g, '-').trim();
+      displayedSlides = displayedSlides.filter(s => {
+        const sCat = (s.category || '').toLowerCase().replace(/–/g, '-');
+        if (fCat.includes('complete') && (s.is_project || sCat.includes('project'))) {
+          return (s.status || '').toLowerCase() === 'completed' || sCat.includes('complete');
+        }
+        if (fCat.includes('ongoing') && (s.is_project || sCat.includes('project'))) {
+          return (s.status || '').toLowerCase() !== 'completed' && !sCat.includes('complete');
+        }
+        return sCat.includes(fCat) || (s.category || '').toLowerCase() === fCat;
+      });
+    }
 
     // Unique engineers for filter pills
     const uniqueEngineers = Array.from(new Set(activeSlides.map(s => {
@@ -577,6 +1068,69 @@ const MonthlyReportView = {
                 ⚙️ Task Slides: <strong>${activeSlides.length}</strong>
               </span>
             </div>
+          </div>
+        </div>
+
+        <!-- PROCESS ENGINEERING CORE WORK HIGHLIGHTS (Requirement 6 & 7: Dynamic Category Breakdown) -->
+        <div class="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-xl flex-shrink-0">
+                ⚙️
+              </div>
+              <div>
+                <h3 class="text-lg sm:text-xl font-black text-slate-900">
+                  Process Engineering Core Work Highlights (${month})
+                </h3>
+                <p class="text-xs sm:text-sm text-slate-500 font-medium">
+                  Categories with tasks approved for monthly presentation. Click any card to filter slide sequence.
+                </p>
+              </div>
+            </div>
+            ${this.filterCategory ? `
+              <button onclick="MonthlyReportView.handleCategoryFilter('')" class="px-3.5 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold border border-red-200 transition flex items-center gap-1.5 cursor-pointer">
+                <span>✕</span> <span>Reset Category Filter (${HELPERS.escapeHtml(this.filterCategory)})</span>
+              </button>
+            ` : `
+              <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                ${highlightCards.length} Active Categories
+              </span>
+            `}
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            ${highlightCards.length === 0 ? `
+              <div class="col-span-full py-8 text-center text-xs font-mono text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
+                No active categories with tasks found for ${month}.
+              </div>
+            ` : highlightCards.map((c, idx) => {
+              const totalCards = highlightCards.length;
+              const isOddTotal = (totalCards % 2 !== 0);
+              const isLast = (idx === totalCards - 1);
+              const spanClass = (isOddTotal && isLast) ? 'col-span-1 sm:col-span-2 lg:col-span-2' : '';
+              const isSelected = (this.filterCategory && this.filterCategory.toLowerCase() === c.filterCategory.toLowerCase());
+              return `
+                <div onclick="MonthlyReportView.handleCategoryFilter('${HELPERS.escapeHtml(c.filterCategory)}')"
+                     class="cursor-pointer rounded-2xl p-5 transition hover:scale-[1.02] hover:shadow-lg relative overflow-hidden flex flex-col justify-between ${spanClass} ${isSelected ? 'ring-2 ring-blue-600 shadow-md' : ''}"
+                     style="background: ${c.bg}; border: 1.5px solid ${c.border}; box-shadow: 0 4px 12px ${c.shadow};"
+                     title="Click to filter slide sequence by ${HELPERS.escapeHtml(c.filterCategory)}">
+                  <div class="flex items-center justify-between">
+                    <div class="text-4xl font-black font-mono tracking-tight" style="color: ${c.valColor};">
+                      ${c.val}
+                    </div>
+                    <span class="text-2xl">${c.icon}</span>
+                  </div>
+                  <div class="mt-3">
+                    <div class="text-base font-black leading-tight" style="color: ${c.labelColor};">
+                      ${c.label}
+                    </div>
+                    <div class="text-xs font-bold mt-1.5 inline-block px-2.5 py-0.5 rounded-md bg-white/80 border border-black/5" style="color: ${c.valColor};">
+                      ${c.note}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
 
@@ -736,13 +1290,10 @@ const MonthlyReportView = {
                         </p>
                       </div>
 
-                      <!-- Slide Card Actions -->
-                      <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <button onclick="SlidePreviewModal.openSingle(window.appState.syncEngine.getActiveSlides('${month}')[${idx}])" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer">
-                          <span>👁️</span> <span>Preview</span>
-                        </button>
-                        <button onclick="MonthlyReportView.openModal('${s.task_id}')" class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-50 text-xs font-bold text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 shadow-2xs transition flex items-center gap-1 cursor-pointer">
-                          <span>✏️</span> <span>Edit Slide</span>
+                      <!-- Slide Card Action (Unified Studio: Text, Photos & Live Preview) -->
+                      <div class="pt-3 border-t border-slate-100">
+                        <button onclick="MonthlyReportView.openModal('${s.task_id}')" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition flex items-center justify-center gap-2 cursor-pointer">
+                          <span>🎨</span> <span>Customize Slide (Text &amp; Photos)</span>
                         </button>
                       </div>
                     </div>

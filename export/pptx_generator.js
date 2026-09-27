@@ -416,8 +416,8 @@ class PPTXGenerator {
       });
     });
 
-    // 8 Colorful Process Pillars (4x2 Grid)
-    const categoryGrid = [
+    // 8 Colorful Process Pillars (Filtered to categories with tasks > 0)
+    const allCategoryGrid = [
       { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: "EFF6FF", border: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
       { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: "EEF2FF", border: "818CF8", valColor: "4338CA", labelColor: "312E81" },
       { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: "ECFDF5", border: "34D399", valColor: "047857", labelColor: "064E3B" },
@@ -428,29 +428,39 @@ class PPTXGenerator {
       { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: "ECFEFF", border: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
     ];
 
+    // Requirement 6 & 7: Only categories with tasks > 0
+    const activeGrid = allCategoryGrid.filter(k => parseInt(k.val, 10) > 0);
+    const categoryGrid = activeGrid.length > 0 ? activeGrid : allCategoryGrid.slice(0, 4);
+    const totalCards = categoryGrid.length;
+    const isOddTotal = (totalCards % 2 !== 0);
+
     categoryGrid.forEach((k, idx) => {
+      const isLast = (idx === totalCards - 1);
+      const spanTwo = (isOddTotal && isLast);
       const col = idx % 4;
       const row = Math.floor(idx / 4);
       const px = 0.8 + col * 2.98;
       const py = 2.78 + row * 1.95;
+      const cardW = spanTwo ? (2.82 * 2 + 0.16) : 2.82;
+      const innerW = spanTwo ? (cardW - 0.36) : 2.46;
 
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px, y: py, w: 2.82, h: 1.8,
+        x: px, y: py, w: cardW, h: 1.8,
         fill: { color: k.bg }, line: { color: k.border, width: 1.2 }, rectRadius: 0.1
       });
 
       slide.addText(`${k.icon}  ${k.val}`, {
-        x: px + 0.18, y: py + 0.15, w: 2.46, h: 0.5,
+        x: px + 0.18, y: py + 0.15, w: innerW, h: 0.5,
         fontFace: font, fontSize: 24, bold: true, color: k.valColor
       });
 
       slide.addText(k.label, {
-        x: px + 0.18, y: py + 0.7, w: 2.46, h: 0.38,
+        x: px + 0.18, y: py + 0.7, w: innerW, h: 0.38,
         fontFace: font, fontSize: 11, bold: true, color: k.labelColor
       });
 
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px + 0.18, y: py + 1.18, w: 2.46, h: 0.4,
+        x: px + 0.18, y: py + 1.18, w: innerW, h: 0.4,
         fill: { color: "FFFFFF" }, line: { color: k.border, width: 0.5 }, rectRadius: 0.05
       });
       slide.addText(k.note, {
@@ -830,23 +840,14 @@ class PPTXGenerator {
       x: 0.95, y: 4.75, w: 4.3, h: 1.25,
       fontFace: font, fontSize: 9, color: "334155", lineSpacing: 13
     });
-    // Engineer & Investment Capsules
+    // Engineer Capsule (Requirement 2: Investment removed for monthly report)
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 0.95, y: 6.15, w: 2.1, h: 0.42,
+      x: 0.95, y: 6.15, w: 4.3, h: 0.42,
       fill: { color: "F1F5F9" }, line: { color: "CBD5E1", width: 1 }, rectRadius: 0.08
     });
-    slide.addText(`👤 ${engineer}`, {
-      x: 0.95, y: 6.15, w: 2.1, h: 0.42,
+    slide.addText(`👤 Concern: ${engineer}`, {
+      x: 0.95, y: 6.15, w: 4.3, h: 0.42,
       fontFace: font, fontSize: 8.5, bold: true, color: "334155", align: "center", valign: "middle"
-    });
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x: 3.15, y: 6.15, w: 2.1, h: 0.42,
-      fill: { color: "E0F2FE" }, line: { color: "BAE6FD", width: 1 }, rectRadius: 0.08
-    });
-    slide.addText(`💰 ${investment}`, {
-      x: 3.15, y: 6.15, w: 2.1, h: 0.42,
-      fontFace: font, fontSize: 8.5, bold: true, color: "0369A1", align: "center", valign: "middle"
     });
 
     // Center: Radial Completion Ring (Gauge)
@@ -1086,21 +1087,12 @@ class PPTXGenerator {
       fontFace: font, fontSize: 9, color: "334155", lineSpacing: 13
     });
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: 1.0, y: 6.15, w: 2.05, h: 0.42,
+      x: 1.0, y: 6.15, w: 4.2, h: 0.42,
       fill: { color: "FFFFFF" }, line: { color: "FECACA", width: 1 }, rectRadius: 0.08
     });
-    slide.addText(`👤 ${engineer}`, {
-      x: 1.05, y: 6.15, w: 1.95, h: 0.42,
+    slide.addText(`👤 Concern: ${engineer}`, {
+      x: 1.0, y: 6.15, w: 4.2, h: 0.42,
       fontFace: font, fontSize: 8.5, bold: true, color: "334155", align: "center", valign: "middle"
-    });
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-      x: 3.15, y: 6.15, w: 2.05, h: 0.42,
-      fill: { color: "FFFFFF" }, line: { color: "FECACA", width: 1 }, rectRadius: 0.08
-    });
-    slide.addText(`💰 ${investment}`, {
-      x: 3.2, y: 6.15, w: 1.95, h: 0.42,
-      fontFace: font, fontSize: 8.5, bold: true, color: redPrimary, align: "center", valign: "middle"
     });
 
     // Center: Progress
@@ -2245,8 +2237,8 @@ class PPTXGenerator {
       });
     });
 
-    // 8 Colorful Process Pillars (4x2 Grid)
-    const categoryGrid = [
+    // 8 Colorful Process Pillars (Filtered to categories with tasks > 0)
+    const allCategoryGrid = [
       { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: "EFF6FF", border: "60A5FA", valColor: "1D4ED8", labelColor: "1E3A8A" },
       { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: "EEF2FF", border: "818CF8", valColor: "4338CA", labelColor: "312E81" },
       { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: "ECFDF5", border: "34D399", valColor: "047857", labelColor: "064E3B" },
@@ -2257,29 +2249,39 @@ class PPTXGenerator {
       { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: "ECFEFF", border: "22D3EE", valColor: "0E7490", labelColor: "164E63" }
     ];
 
+    // Requirement 6 & 7: Only categories with tasks > 0
+    const activeGrid = allCategoryGrid.filter(k => parseInt(k.val, 10) > 0);
+    const categoryGrid = activeGrid.length > 0 ? activeGrid : allCategoryGrid.slice(0, 4);
+    const totalCards = categoryGrid.length;
+    const isOddTotal = (totalCards % 2 !== 0);
+
     categoryGrid.forEach((k, idx) => {
+      const isLast = (idx === totalCards - 1);
+      const spanTwo = (isOddTotal && isLast);
       const col = idx % 4;
       const row = Math.floor(idx / 4);
       const px = 0.8 + col * 2.98;
       const py = 2.78 + row * 1.95;
+      const cardW = spanTwo ? (2.82 * 2 + 0.16) : 2.82;
+      const innerW = spanTwo ? (cardW - 0.36) : 2.46;
 
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px, y: py, w: 2.82, h: 1.8,
+        x: px, y: py, w: cardW, h: 1.8,
         fill: { color: k.bg }, line: { color: k.border, width: 1.2 }, rectRadius: 0.1
       });
 
       slide.addText(`${k.icon}  ${k.val}`, {
-        x: px + 0.18, y: py + 0.15, w: 2.46, h: 0.5,
+        x: px + 0.18, y: py + 0.15, w: innerW, h: 0.5,
         fontFace: font, fontSize: 24, bold: true, color: k.valColor
       });
 
       slide.addText(k.label, {
-        x: px + 0.18, y: py + 0.7, w: 2.46, h: 0.38,
+        x: px + 0.18, y: py + 0.7, w: innerW, h: 0.38,
         fontFace: font, fontSize: 11, bold: true, color: k.labelColor
       });
 
       slide.addShape(pptx.ShapeType.roundRect, {
-        x: px + 0.18, y: py + 1.18, w: 2.46, h: 0.4,
+        x: px + 0.18, y: py + 1.18, w: innerW, h: 0.4,
         fill: { color: "FFFFFF" }, line: { color: k.border, width: 0.5 }, rectRadius: 0.05
       });
       slide.addText(k.note, {
@@ -3180,7 +3182,7 @@ class PPTXGenerator {
         x: 2.8, y: 5.1, w: 3.8, h: 1.0,
         fontFace: font, fontSize: 9.5, color: "0F172A", lineSpacing: 14
       });
-      slide.addText(`Investment: ${investment}`, {
+      slide.addText(`Concern: ${task.concern_engineer || task.engineer || "Process Team"}`, {
         x: 2.8, y: 6.2, w: 3.8, h: 0.4,
         fontFace: font, fontSize: 9, bold: true, color: "0369A1"
       });

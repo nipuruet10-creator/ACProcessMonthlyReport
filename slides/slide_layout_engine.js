@@ -659,17 +659,13 @@ const SlideLayoutEngine = {
                 </div>
               </div>
 
-              <!-- Lower Section: Concern Engineer & Investment side by side -->
+              <!-- Lower Section: Concern Engineer (Requirement 2: Investment removed for monthly report) -->
               <div class="flex items-center gap-2 pt-1 border-t border-[#BAE6FD] flex-shrink-0 mt-0.5">
-                <div class="flex-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 flex items-center gap-1.5 shadow-xs overflow-hidden">
+                <div class="w-full px-2.5 py-1 rounded-lg bg-white border border-slate-200 flex items-center gap-1.5 shadow-xs overflow-hidden">
                   <span class="text-xs flex-shrink-0">👤</span>
                   <span class="text-[11px] font-bold text-slate-800 truncate" title="Concern Engineer: ${HELPERS.escapeHtml(engineer)}">
                     ${HELPERS.escapeHtml(engineer)}
                   </span>
-                </div>
-                <div class="px-2.5 py-1 rounded-lg bg-white border border-[#BAE6FD] flex items-center gap-1 shadow-xs flex-shrink-0">
-                  <span class="text-xs">💰</span>
-                  <span class="text-[11px] font-black text-[#0369A1] truncate">${HELPERS.escapeHtml(investment)}</span>
                 </div>
               </div>
             </div>
@@ -882,17 +878,13 @@ const SlideLayoutEngine = {
                 </div>
               </div>
 
-              <!-- Lower Section: Concern Engineer & Investment side by side -->
+              <!-- Lower Section: Concern Engineer (Requirement 2: Investment removed for monthly report) -->
               <div class="flex items-center gap-1.5 pt-1 border-t border-[#FECACA] flex-shrink-0 mt-0.5">
-                <div class="flex-1 px-2 py-0.5 rounded-lg bg-white border border-slate-200 flex items-center gap-1.5 shadow-xs overflow-hidden">
+                <div class="w-full px-2 py-0.5 rounded-lg bg-white border border-slate-200 flex items-center gap-1.5 shadow-xs overflow-hidden">
                   <span class="text-xs flex-shrink-0">👤</span>
                   <span class="text-[10px] font-bold text-slate-700 truncate" title="Concern Engineer: ${HELPERS.escapeHtml(engineer)}">
                     ${HELPERS.escapeHtml(engineer)}
                   </span>
-                </div>
-                <div class="px-2 py-0.5 rounded-lg bg-white border border-[#FECACA] flex items-center gap-1 shadow-xs flex-shrink-0">
-                  <span class="text-xs">💰</span>
-                  <span class="text-[10px] font-black text-[#C5161D] truncate">${HELPERS.escapeHtml(investment)}</span>
                 </div>
               </div>
             </div>
@@ -1395,11 +1387,11 @@ const SlideLayoutEngine = {
                 </p>
               </div>
 
-              <!-- Investment Bar -->
+              <!-- Engineer Bar (Requirement 2: Investment removed for monthly report) -->
               <div class="flex items-center gap-2 mt-2 pt-1.5 border-t border-sky-100">
-                <svg class="w-4 h-4 text-sky-700 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
+                <span class="text-xs">👤</span>
                 <span style="font-size: 10.5px; font-weight: 800; color: #075985;">
-                  Investment: <span style="font-weight: 600; color: #0C4A6E;">${investment}</span>
+                  Concern: <span style="font-weight: 600; color: #0C4A6E;">${HELPERS.escapeHtml(engineer)}</span>
                 </span>
               </div>
             </div>
@@ -2089,7 +2081,7 @@ const SlideLayoutEngine = {
       }
     ];
 
-    const categoryGrid = [
+    const allCategories = [
       { val: `${processCount}`, label: "Process Developed", note: "Standard Operating Procedures", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
       { val: `${toolsCount}`, label: "Tools Developed", note: "Jigs, Dies & Fixtures", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
       { val: `${partsCount}`, label: "Parts Developed", note: "Components & Sheet Metal", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
@@ -2099,6 +2091,10 @@ const SlideLayoutEngine = {
       { val: `${completedProjCount}`, label: "Completed Projects", note: "Shop-Floor Commissioned", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
       { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", note: "Active Line Trials", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
     ];
+
+    // Requirement 6 & 7: Display ONLY categories with tasks > 0; if odd count, last card spans gracefully
+    const activeCategoryGrid = allCategories.filter(k => parseInt(k.val, 10) > 0);
+    const categoryGrid = activeCategoryGrid.length > 0 ? activeCategoryGrid : allCategories.slice(0, 4);
 
     return `
     <div class="walton-dashboard-slide walton-overview-slide walton-executive-overview-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
@@ -2152,10 +2148,15 @@ const SlideLayoutEngine = {
         `).join('')}
       </div>
 
-      <!-- CATEGORY WORK DISTRIBUTION (8 COLORFUL PROCESS PILLARS) -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch;">
-        ${categoryGrid.map(k => `
-          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+      <!-- CATEGORY WORK DISTRIBUTION (COLORFUL PROCESS PILLARS) -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; flex: 1; min-height: 160px; align-items: stretch;">
+        ${categoryGrid.map((k, idx) => {
+          const totalCards = categoryGrid.length;
+          const isOdd = (totalCards % 2 !== 0);
+          const isLast = (idx === totalCards - 1);
+          const spanStyle = (isOdd && isLast) ? 'grid-column: span 2;' : '';
+          return `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 12px; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden; ${spanStyle}">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <div style="font-size: 26px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
               <span style="font-size: 15px; opacity: 0.9;">${k.icon}</span>
@@ -2163,7 +2164,8 @@ const SlideLayoutEngine = {
             <div style="font-size: 12px; font-weight: 800; color: ${k.labelColor}; margin-top: 4px; line-height: 1.2;">${k.label}</div>
             <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 2px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 1.5px 6px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">${k.note}</div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
 
       <!-- FOOTER -->
@@ -2460,7 +2462,7 @@ const SlideLayoutEngine = {
       yearlySavings = ct.displayCumulativeYTD || "BDT 0";
     }
 
-    const cards = [
+    const allCards = [
       { val: `${processCount}`, label: "Process Developed", icon: "⚙️", bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#60A5FA', valColor: '#1D4ED8', labelColor: '#1E3A8A' },
       { val: `${toolsCount}`, label: "Tools Developed", icon: "🔧", bg: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)', border: '#818CF8', valColor: '#4338CA', labelColor: '#312E81' },
       { val: `${partsCount}`, label: "Parts Developed", icon: "🔩", bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#34D399', valColor: '#047857', labelColor: '#064E3B' },
@@ -2470,6 +2472,10 @@ const SlideLayoutEngine = {
       { val: `${completedProjCount}`, label: "Completed Projects", icon: "🏆", bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#F87171', valColor: '#B91C1C', labelColor: '#7F1D1D' },
       { val: `${ongoingProjCount}`, label: "New Projects / Ongoing", icon: "🚀", bg: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '#22D3EE', valColor: '#0E7490', labelColor: '#164E63' }
     ];
+
+    // Requirement 6 & 7: Only categories with tasks > 0; if odd count, last card spans gracefully
+    const activeCards = allCards.filter(k => parseInt(k.val, 10) > 0);
+    const cards = activeCards.length > 0 ? activeCards : allCards.slice(0, 4);
 
     return `
     <div class="walton-dashboard-slide walton-final-summary-slide bg-white relative overflow-hidden rounded-xl shadow-2xl border border-slate-200" 
@@ -2510,9 +2516,14 @@ const SlideLayoutEngine = {
       </div>
 
       <!-- 8 VIBRANT DASHBOARD COLOR CARDS (DASHBOARD PATTERN) -->
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; flex: 1; min-height: 220px; align-items: stretch; margin: 4px 0 8px 0;">
-        ${cards.map(k => `
-          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; flex: 1; min-height: 220px; align-items: stretch; margin: 4px 0 8px 0;">
+        ${cards.map((k, idx) => {
+          const totalCards = cards.length;
+          const isOdd = (totalCards % 2 !== 0);
+          const isLast = (idx === totalCards - 1);
+          const spanStyle = (isOdd && isLast) ? 'grid-column: span 2;' : '';
+          return `
+          <div style="background: ${k.bg}; border: 1.5px solid ${k.border}; border-radius: 14px; padding: 12px 18px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); position: relative; overflow: hidden; ${spanStyle}">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <div style="font-size: 32px; font-weight: 900; color: ${k.valColor}; font-family: 'JetBrains Mono', monospace; line-height: 1;">${k.val}</div>
               <span style="font-size: 18px; opacity: 0.9;">${k.icon}</span>
@@ -2520,7 +2531,8 @@ const SlideLayoutEngine = {
             <div style="font-size: 13.5px; font-weight: 800; color: ${k.labelColor}; margin-top: 5px; line-height: 1.2;">${k.label}</div>
             <div style="font-size: 10px; font-weight: 700; color: ${k.valColor}; margin-top: 3px; line-height: 1.2; background: rgba(255,255,255,0.8); padding: 2px 7px; border-radius: 6px; display: inline-block; width: fit-content; border: 1px solid rgba(0,0,0,0.06);">Status: Verified 100%</div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
 
       <!-- OPERATIONAL AUDIT FOOTER BANNER -->

@@ -166,7 +166,7 @@ const App = {
     } else if (tabId === 'report-builder') {
       if (typeof ReportBuilderView !== 'undefined') await ReportBuilderView.render('report-builder-view-container');
     } else if (tabId === 'photo-manager') {
-      if (typeof PhotoManagerView !== 'undefined') await PhotoManagerView.render('photo-manager-view-container');
+      await this.switchTab('monthly-report');
     } else if (tabId === 'final-report') {
       if (typeof FinalEditorView !== 'undefined') await FinalEditorView.render('final-report-view-container');
     } else if (tabId === 'cost-savings') {
