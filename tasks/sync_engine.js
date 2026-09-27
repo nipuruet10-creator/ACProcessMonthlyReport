@@ -346,43 +346,7 @@ class SyncEngine {
         });
       }
 
-      // 5. Append permanent strategic projects to the end of the slide deck
-      let strategicProjects = [];
-      try {
-        const rawProj = localStorage.getItem('walton_strategic_projects_permanent_v1');
-        if (rawProj) strategicProjects = JSON.parse(rawProj);
-      } catch (e) {}
-
-      if (Array.isArray(strategicProjects)) {
-        strategicProjects.forEach(proj => {
-          if (proj && proj.task_name && !slides.some(s => s.task_id === proj.task_id)) {
-            const isCompleted = (proj.status === 'Completed' || proj.category === 'Completed Projects');
-            slides.push({
-              task_id: proj.task_id,
-              month: normalizedMonth,
-              engineer: proj.assignee || proj.engineer || "Concern Engineer",
-              raw_task_name: proj.task_name,
-              slide_title: proj.task_name,
-              description: proj.task_details || "Strategic automation & process development milestone.",
-              impact: [
-                "Zero defect manufacturing & cycle efficiency",
-                proj.deadline ? `Target: ${proj.deadline}` : "Target timeline adherence"
-              ],
-              category: proj.category || (isCompleted ? "Completed Projects" : "Ongoing Projects"),
-              status: isCompleted ? "Completed" : "Ongoing",
-              investment: proj.investment || "In-house / Direct Implementation",
-              is_project: true,
-              project_status: isCompleted ? "Completed" : "Ongoing",
-              has_manual_override: false,
-              photo: proj.photo || null,
-              photo_before: proj.photo_before || null,
-              photo_after: proj.photo_after || null
-            });
-          }
-        });
-      }
-
-      // 6. Strict Presentation Sequence: Standard process tasks first, Completed Projects next, Ongoing Projects at the very end
+      // 5. Strict Presentation Sequence: Standard process tasks first, Completed Projects next, Ongoing Projects at the very end
       const stdSlides = [];
       const completedProjSlides = [];
       const ongoingProjSlides = [];

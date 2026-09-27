@@ -238,8 +238,8 @@ const SlidePreviewModal = {
           </div>
 
           <!-- Slide Presentation Stage -->
-          <div class="my-3 flex-1 flex items-center justify-center overflow-auto p-1 bg-[#070A11] rounded-xl border border-slate-900 shadow-inner">
-            <div class="w-full max-w-5xl aspect-video bg-white rounded-lg overflow-hidden shadow-2xl flex items-center justify-center">
+          <div class="my-2 flex-1 flex items-center justify-center overflow-auto p-1 bg-[#070A11] rounded-xl border border-slate-900 shadow-inner">
+            <div class="w-full max-w-6xl 2xl:max-w-[1360px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl flex items-center justify-center">
               ${slideHtml}
             </div>
           </div>

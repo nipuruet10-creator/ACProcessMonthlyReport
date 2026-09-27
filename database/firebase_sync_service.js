@@ -592,6 +592,17 @@ const FirebaseSyncService = {
       if ((k === 'task_name' || k === 'task_details') && (!v || String(v).trim() === '') && localTask[k]) {
         continue;
       }
+
+      // PHOTO IMMUTABILITY: Never let remote empty string wipe a valid locally attached photo!
+      if (k === 'photo_1' || k === 'photo_2' || k === 'before_photo' || k === 'after_photo') {
+        if ((!v || String(v).trim() === '') && localTask[k]) {
+          continue;
+        }
+      }
+      if (k === 'clear_photos' && v === true && localTask._lastPhotoEditTime) {
+        continue;
+      }
+
       mergedTask[k] = v;
     }
 

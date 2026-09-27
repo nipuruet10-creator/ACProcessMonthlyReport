@@ -939,9 +939,13 @@ const MonthlyReportView = {
     if (typeof ReportBuilderView !== 'undefined' && ReportBuilderView.previewFullDeck) {
       ReportBuilderView.previewFullDeck(month);
     } else if (typeof SlidePreviewModal !== 'undefined' && SlidePreviewModal.openFullDeck) {
-      const activeSlides = window.appState && window.appState.syncEngine
+      const allTasks = window.appState && window.appState.workbookMgr ? window.appState.workbookMgr.getTasksForMonth(month) : [];
+      let activeSlides = window.appState && window.appState.syncEngine
         ? window.appState.syncEngine.getActiveSlides(month)
         : [];
+      if (allTasks && allTasks.length > 0) {
+        activeSlides = activeSlides.filter(s => s && s.task_id && allTasks.some(t => t.task_id === s.task_id));
+      }
       if (typeof photoManager !== 'undefined') {
         activeSlides.forEach(s => {
           const p = photoManager.getTaskPhotos(s.task_id, month);
@@ -973,6 +977,11 @@ const MonthlyReportView = {
     let activeSlides = (window.appState && window.appState.syncEngine)
       ? window.appState.syncEngine.getActiveSlides(month)
       : [];
+
+    // 1-to-1 Mapping Guarantee: Active slides must correspond exclusively to registered monthly tasks
+    if (allTasks && allTasks.length > 0) {
+      activeSlides = activeSlides.filter(s => s && s.task_id && allTasks.some(t => t.task_id === s.task_id));
+    }
 
     if (activeSlides.length === 0 && allTasks.length > 0) {
       activeSlides = allTasks.filter(t => t.include_in_report !== "NO" && t.monthly_report !== "NO").map((t, idx) => ({

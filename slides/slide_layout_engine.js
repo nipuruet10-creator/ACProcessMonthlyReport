@@ -294,85 +294,82 @@ const SlideLayoutEngine = {
             </div>
 
             <!-- Split Title with Red Left Accent Bar -->
-            <div class="flex items-stretch gap-3 my-1">
-              <div style="width: 5px; background: #C5161D; border-radius: 4px; flex-shrink: 0;"></div>
+            <div class="flex items-stretch gap-2.5 my-1">
+              <div style="width: 4px; background: #C5161D; border-radius: 4px; flex-shrink: 0;"></div>
               <div>
-                <h1 style="font-size: 23px; font-weight: 800; color: #0F172A; line-height: 1.15; margin: 0; letter-spacing: -0.01em;">
-                  ${titleLine1}
-                </h1>
-                <h1 style="font-size: 23px; font-weight: 800; color: #C5161D; line-height: 1.15; margin: 0; letter-spacing: -0.01em;">
-                  ${titleLine2}
+                <h1 style="font-size: ${titleFontSize}; font-weight: 800; color: #0F172A; line-height: 1.2; margin: 0; letter-spacing: -0.01em;">
+                  ${this.formatTitleWithAccent(fullRawTitle)}
                 </h1>
               </div>
             </div>
           </div>
 
           <!-- 3-Column Metadata Bar -->
-          <div class="grid grid-cols-3 gap-2 py-2 px-3.5 rounded-xl border border-slate-200 bg-slate-50/90 flex-shrink-0">
+          <div class="grid grid-cols-3 gap-2 py-1.5 px-3 rounded-xl border border-slate-200 bg-slate-50/90 flex-shrink-0">
             <!-- Concern Engineer -->
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+              <div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
               </div>
               <div class="overflow-hidden">
-                <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Concern Engineer</div>
-                <div style="font-size: 12.5px; font-weight: 800; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${engineer}</div>
+                <div style="font-size: 9px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Concern Engineer</div>
+                <div style="font-size: 11.5px; font-weight: 800; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${engineer}</div>
               </div>
             </div>
 
             <!-- Category -->
-            <div class="flex items-center gap-2 border-l border-slate-200 pl-2.5">
-              <div class="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+            <div class="flex items-center gap-2 border-l border-slate-200 pl-2">
+              <div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
               </div>
               <div class="overflow-hidden">
-                <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Category</div>
-                <div style="font-size: 12.5px; font-weight: 800; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${category}</div>
+                <div style="font-size: 9px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Category</div>
+                <div style="font-size: 11.5px; font-weight: 800; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${category}</div>
               </div>
             </div>
 
             <!-- Status -->
-            <div class="flex items-center gap-2 border-l border-slate-200 pl-2.5">
-              <div class="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+            <div class="flex items-center gap-2 border-l border-slate-200 pl-2">
+              <div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
               </div>
               <div>
-                <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Status</div>
-                <div class="flex items-center gap-1.5" style="font-size: 12.5px; font-weight: 800; color: #0F172A;">
-                  <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10B981;"></span>
+                <div style="font-size: 9px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.04em;">Status</div>
+                <div class="flex items-center gap-1.5" style="font-size: 11.5px; font-weight: 800; color: #0F172A;">
+                  <span style="display:inline-block; width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span>
                   <span>${status}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Project Overview Card (Flexible vertical space with line clamping) -->
-          <div class="px-4 py-2.5 rounded-xl border border-slate-200 flex-shrink-0 flex flex-col justify-center overflow-hidden" style="background: #F8FAFC; max-height: 98px;">
-            <div class="flex items-center gap-2 mb-1 flex-shrink-0">
-              <div class="w-4.5 h-4.5 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+          <!-- Project Overview Card (Full text visible without ellipsis) -->
+          <div class="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-center flex-shrink-0">
+            <div class="flex items-center gap-1.5 mb-1 flex-shrink-0">
+              <div class="w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
               </div>
-              <span style="font-size: 13.5px; font-weight: 800; color: #0F172A;">Project Overview</span>
+              <span style="font-size: 11.5px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.03em;">Project Overview</span>
             </div>
-            <p style="font-size: 13px; line-height: 1.5; color: #1E293B; margin: 0; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis;">
+            <div style="font-size: 11.5px; line-height: 1.45; color: #1E293B; margin: 0; font-weight: 500;">
               ${description}
-            </p>
+            </div>
           </div>
 
-          <!-- Key Impact Card (4 Bullets + 3 Trend Pills, clamped to prevent pushing footer) -->
-          <div class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
-            <div class="flex items-center gap-2 mb-1 flex-shrink-0">
-              <div class="w-4.5 h-4.5 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+          <!-- Key Impact Card (All deliverables visible) -->
+          <div class="px-3.5 py-2 rounded-xl border border-slate-200 bg-white flex-1 min-h-0 flex flex-col justify-start gap-1">
+            <div class="flex items-center gap-1.5 mb-0.5 flex-shrink-0">
+              <div class="w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center flex-shrink-0">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
               </div>
-              <span style="font-size: 13.5px; font-weight: 800; color: #0F172A;">Key Impact</span>
+              <span style="font-size: 11.5px; font-weight: 800; color: #0F172A; text-transform: uppercase; letter-spacing: 0.03em;">Key Impact &amp; Deliverables</span>
             </div>
 
-            <div class="flex flex-col justify-around h-full gap-2 flex-1 min-h-0 overflow-hidden py-1">
-              ${impacts.slice(0, 4).map(imp => `
-                <div class="flex items-start gap-2.5 overflow-hidden">
-                  <span class="w-4.5 h-4.5 rounded-md bg-red-600 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5 shadow-sm" style="line-height: 1;">✔</span>
-                  <span style="font-size: 13px; font-weight: 600; color: #1E293B; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis;">${imp.trim()}</span>
+            <div class="flex flex-col gap-1.5 flex-1 justify-around py-0.5">
+              ${impacts.slice(0, 3).map(imp => `
+                <div class="flex items-start gap-2">
+                  <span class="w-3.5 h-3.5 rounded bg-red-600 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5 shadow-xs" style="line-height: 1;">✔</span>
+                  <span style="font-size: 11px; font-weight: 600; color: #1E293B; line-height: 1.35;">${imp.trim()}</span>
                 </div>
               `).join("")}
             </div>
@@ -391,8 +388,14 @@ const SlideLayoutEngine = {
             <div class="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-md bg-amber-600/95 backdrop-blur-sm text-white font-extrabold text-[8.5px] uppercase tracking-wider shadow">
               1. PRESENT CONDITION (BEFORE)
             </div>
-            <img src="${photoBefore}" alt="Present Condition" class="w-full h-full object-cover transition-all duration-200" 
-                 onerror="this.src='assets/images/walton_red_reference_sample.jpg'; this.onerror=null;" />
+            ${photoBefore ? `
+              <img src="${photoBefore}" alt="Present Condition" class="w-full h-full object-cover transition-all duration-200" />
+            ` : `
+              <div class="w-full h-full flex flex-col items-center justify-center p-4 text-center text-slate-400">
+                <span class="text-2xl mb-1">📸</span>
+                <span class="text-[10px] font-bold text-slate-300">Before Photo Empty</span>
+              </div>
+            `}
             <!-- Floating Adjust Tool -->
             <div class="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition">
               <button onclick="SlideLayoutEngine.togglePhotoFit(this)" title="Toggle Fit/Fill" 
@@ -410,8 +413,14 @@ const SlideLayoutEngine = {
             <div class="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-md bg-red-600/95 backdrop-blur-sm text-white font-extrabold text-[8.5px] uppercase tracking-wider shadow">
               2. PROPOSED PROJECT (AFTER)
             </div>
-            <img src="${photoAfter}" alt="Proposed Project" class="w-full h-full object-cover transition-all duration-200" 
-                 onerror="this.src='assets/images/walton_red_reference_sample.jpg'; this.onerror=null;" />
+            ${photoAfter ? `
+              <img src="${photoAfter}" alt="Proposed Project" class="w-full h-full object-cover transition-all duration-200" />
+            ` : `
+              <div class="w-full h-full flex flex-col items-center justify-center p-4 text-center text-slate-400">
+                <span class="text-2xl mb-1">📸</span>
+                <span class="text-[10px] font-bold text-slate-300">After Photo Empty</span>
+              </div>
+            `}
             <!-- Floating Adjust Tool -->
             <div class="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition">
               <button onclick="SlideLayoutEngine.togglePhotoFit(this)" title="Toggle Fit/Fill" 
@@ -435,9 +444,24 @@ const SlideLayoutEngine = {
              ondragleave="this.classList.remove('ring-2', 'ring-red-500', 'ring-inset');"
              ondrop="this.classList.remove('ring-2', 'ring-red-500', 'ring-inset'); SlideLayoutEngine.handleImageDrop(event, '${slideData.task_id}', 'before_photo');">
           
-          <!-- Main Equipment Photo -->
-          <img src="${photoSingle}" alt="Process Development Implementation" class="w-full h-full object-cover transition-all duration-200" 
-               onerror="this.src='assets/images/walton_red_reference_sample.jpg'; this.onerror=null;" />
+          ${(photoBefore || photoAfter || (slideData.photo && !String(slideData.photo).includes('walton_red_reference_sample.jpg'))) ? `
+            <!-- Main Equipment Photo -->
+            <img src="${photoBefore || photoAfter || slideData.photo}" alt="Process Development Implementation" class="w-full h-full object-cover transition-all duration-200" />
+          ` : `
+            <!-- Modern Walton Process Engineering Placeholder -->
+            <div class="w-full h-full flex flex-col items-center justify-center p-6 text-center" 
+                 style="background: radial-gradient(circle at 50% 50%, #1E293B 0%, #0F172A 100%);">
+              <div class="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-3 shadow-inner">
+                <span style="font-size: 26px;">📸</span>
+              </div>
+              <div style="font-size: 13px; font-weight: 800; color: #F8FAFC; letter-spacing: 0.02em;">16:9 PROCESS TRIAL / EQUIPMENT PHOTO</div>
+              <div style="font-size: 10.5px; color: #94A3B8; margin-top: 4px; max-width: 260px; line-height: 1.4;">Click Replace or upload in Slide Studio to display implementation photo</div>
+              <button type="button" onclick="document.getElementById('frame-file-input-${slideData.task_id}').click()" 
+                      class="mt-4 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg transition flex items-center gap-1.5 cursor-pointer">
+                <span>📷</span><span>Upload Slide Photo</span>
+              </button>
+            </div>
+          `}
 
           <!-- Frame Toolbar: Fit/Fill Toggle & Direct Replace Button -->
           <div class="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition">

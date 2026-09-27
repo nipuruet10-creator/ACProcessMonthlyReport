@@ -102,55 +102,39 @@ class PhotoManager {
 
     // Determine Before Photo (p1)
     let p1 = null;
-    if (memMonth && (memMonth.before_photo !== undefined || memMonth.photo_1 !== undefined)) {
-      p1 = memMonth.before_photo || memMonth.photo_1 || null;
-    } else if (this.photoMap[taskId] && (this.photoMap[taskId].before_photo !== undefined || this.photoMap[taskId].photo_1 !== undefined)) {
-      p1 = this.photoMap[taskId].before_photo || this.photoMap[taskId].photo_1 || null;
-    } else {
+    if (memMonth && (memMonth.before_photo || memMonth.photo_1)) {
+      p1 = memMonth.before_photo || memMonth.photo_1;
+    } else if (this.photoMap[taskId] && (this.photoMap[taskId].before_photo || this.photoMap[taskId].photo_1)) {
+      p1 = this.photoMap[taskId].before_photo || this.photoMap[taskId].photo_1;
+    } else if (taskP1) {
       p1 = taskP1;
     }
 
     // Determine After Photo (p2)
     let p2 = null;
-    if (memMonth && (memMonth.after_photo !== undefined || memMonth.photo_2 !== undefined)) {
-      p2 = memMonth.after_photo || memMonth.photo_2 || null;
-    } else if (this.photoMap[taskId] && (this.photoMap[taskId].after_photo !== undefined || this.photoMap[taskId].photo_2 !== undefined)) {
-      p2 = this.photoMap[taskId].after_photo || this.photoMap[taskId].photo_2 || null;
-    } else {
+    if (memMonth && (memMonth.after_photo || memMonth.photo_2)) {
+      p2 = memMonth.after_photo || memMonth.photo_2;
+    } else if (this.photoMap[taskId] && (this.photoMap[taskId].after_photo || this.photoMap[taskId].photo_2)) {
+      p2 = this.photoMap[taskId].after_photo || this.photoMap[taskId].photo_2;
+    } else if (taskP2) {
       p2 = taskP2;
     }
 
-    // Hard defensive safeguard: if task in workbook is marked with empty string or cleared photos, never return a ghost photo
+    // Explicit deletion check: ONLY clear if explicit user deletion timestamp is newer than last edit
     if (t) {
-      if (t.photo_1 === "" || t.before_photo === "" || t._photoDeleted_before || t.clear_photos) {
+      if (t._photoDeleted_before && (!t._lastPhotoEditTime || t._photoDeleted_before > t._lastPhotoEditTime)) {
         p1 = null;
-        if (this.photoMap[taskId]) {
-          this.photoMap[taskId].before_photo = null;
-          this.photoMap[taskId].photo_1 = null;
-        }
-        if (monthKey && this.photoMap[monthKey]) {
-          this.photoMap[monthKey].before_photo = null;
-          this.photoMap[monthKey].photo_1 = null;
-        }
       }
-      if (t.photo_2 === "" || t.after_photo === "" || t._photoDeleted_after || t.clear_photos) {
+      if (t._photoDeleted_after && (!t._lastPhotoEditTime || t._photoDeleted_after > t._lastPhotoEditTime)) {
         p2 = null;
-        if (this.photoMap[taskId]) {
-          this.photoMap[taskId].after_photo = null;
-          this.photoMap[taskId].photo_2 = null;
-        }
-        if (monthKey && this.photoMap[monthKey]) {
-          this.photoMap[monthKey].after_photo = null;
-          this.photoMap[monthKey].photo_2 = null;
-        }
       }
     }
 
     return {
-      photo_1: p1,
-      photo_2: p2,
-      before_photo: p1,
-      after_photo: p2
+      photo_1: p1 || null,
+      photo_2: p2 || null,
+      before_photo: p1 || null,
+      after_photo: p2 || null
     };
   }
 
@@ -168,6 +152,15 @@ class PhotoManager {
       compressedData = await PhotoStorageProvider.fileToBase64(file);
     } else {
       compressedData = "";
+    }
+
+    if (!compressedData) {
+      compressedData = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = ev => res(ev.target.result);
+        r.onerror = () => res("");
+        r.readAsDataURL(file);
+      });
     }
 
     let syncThumbnail = "";
@@ -304,6 +297,9 @@ class PhotoManager {
           // Real-time Firebase Broadcast (syncs uploaded photo immediately to peer laptops!)
           if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
             FirebaseSyncService.updateCell(activeM, taskId, photoKey, base64Url);
+            FirebaseSyncService.updateCell(activeM, taskId, isBefore ? 'before_photo' : 'after_photo', base64Url);
+            FirebaseSyncService.updateCell(activeM, taskId, 'clear_photos', null);
+            FirebaseSyncService.updateCell(activeM, taskId, isBefore ? '_photoDeleted_before' : '_photoDeleted_after', null);
             FirebaseSyncService.pushTask(activeM, targetTask);
           }
 
