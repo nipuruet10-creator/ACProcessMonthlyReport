@@ -40,15 +40,15 @@ class MonthWorkbookManager {
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
 
-    // 🛡️ USER DIRECTIVE: Complete clean slate for SEP-2026 across all client browsers
+    // 🛡️ 100% PURE FIREBASE ARCHITECTURE: Hard wipe SEP-2026 clean everywhere (0 tasks)
     try {
-      const WIPE_FLAG = 'walton_sep2026_hard_wiped_v5';
+      const WIPE_FLAG = 'walton_pure_firebase_clean_v1';
       if (!localStorage.getItem(WIPE_FLAG)) {
         this.workbooks["SEP-2026"] = [];
         localStorage.removeItem("walton_deleted_task_ids");
         localStorage.setItem(WIPE_FLAG, 'true');
         this.save();
-        console.log("🧹 Wiped SEP-2026 to 0 tasks for clean slate.");
+        console.log("🧹 100% Pure Firebase Architecture: Initialized SEP-2026 to 0 tasks.");
       }
     } catch (e) {}
 

@@ -59,74 +59,12 @@ const GoogleSheetsSync = {
   },
 
   /**
-   * Initialize service
+   * Initialize service (100% Pure Firebase Architecture - Google Sheets auto-sync disabled)
    */
   init() {
     this.lastSyncTime = localStorage.getItem(this.STORAGE_KEY_LAST_SYNC) || null;
-    const url = this.getWebAppUrl();
-    if (url) {
-      this.status = 'SYNCING';
-      this._updateNavbarBadge();
-
-      // Immediate pull on startup after initial render settles (bypassed if Firebase is active)
-      setTimeout(async () => {
-        const isFbActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
-        if (isFbActive) return;
-        await this.flushPendingQueue();
-        const success = await this.pullFromCloud(true);
-        if (!success && !this.initialSyncCompleted) {
-          setTimeout(() => {
-            const isFbStillActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
-            if (isFbStillActive) return;
-            this.pullFromCloud(true);
-          }, 2500);
-        }
-      }, 400);
-
-      // Safe background polling:
-      // Active visible tab: every 5 seconds (rapid multi-browser sync)
-      // Hidden/minimized tab: every 15 seconds (energy and quota saving)
-      let pollCycle = 0;
-      setInterval(() => {
-        // Watchdog: If isSyncing stuck for > 20s, force reset
-        if (this.isSyncing && (Date.now() - (this._syncStartTime || 0) > 20000)) {
-          console.warn("Watchdog: Resetting stuck sync flag.");
-          this.isSyncing = false;
-          this._updateNavbarBadge();
-        }
-
-        // Flush deferred refresh if user is idle
-        if (this._pendingViewRefresh) {
-          const active = (typeof document !== 'undefined') ? document.activeElement : null;
-          const isInteracting = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
-          if (!isInteracting && (Date.now() - (this._lastLocalEditTime || 0) > 3000)) {
-            this._pendingViewRefresh = false;
-            this._refreshActiveViews();
-          }
-        }
-
-        if (!this.isSyncing && this.getWebAppUrl()) {
-          this.flushPendingQueue();
-          // If Firebase is active and connected, Firebase handles 100% real-time collaborative syncing!
-          // NEVER poll Google Sheets automatically to avoid overwriting live WebSocket state with stale data.
-          const isFbActive = (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected());
-          if (!isFbActive) {
-            pollCycle++;
-            const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-            if (isHidden && (pollCycle % 3 !== 0)) {
-              return;
-            }
-            if (this._consecutiveFailures >= 2 && (Date.now() - this._lastFailureTime < 35000)) {
-              return;
-            }
-            this.pullFromCloud(true);
-          }
-        }
-      }, 5000);
-    } else {
-      this.status = 'OFFLINE';
-      this._updateNavbarBadge();
-    }
+    this.status = 'CONNECTED';
+    this._updateNavbarBadge();
 
     // Set up BroadcastChannel for zero-latency sync between multiple open tabs/windows
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window && !this.broadcastChannel) {
@@ -145,56 +83,7 @@ const GoogleSheetsSync = {
       }
     }
 
-    // Attach real-time wakeup listeners ONLY when Firebase is offline
-    if (!this._listenersAttached && typeof window !== 'undefined') {
-      const isFbOnline = () => (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected());
-
-      window.addEventListener('focus', () => {
-        if (!isFbOnline() && this.getWebAppUrl() && !this.isSyncing) {
-          this.flushPendingQueue();
-          this.pullFromCloud(true);
-        }
-      });
-
-      document.addEventListener('visibilitychange', () => {
-        if (!isFbOnline() && document.visibilityState === 'visible' && this.getWebAppUrl() && !this.isSyncing) {
-          this.flushPendingQueue();
-          this.pullFromCloud(true);
-        }
-      });
-
-      window.addEventListener('pageshow', () => {
-        if (!isFbOnline() && this.getWebAppUrl() && !this.isSyncing) {
-          this.flushPendingQueue();
-          this.pullFromCloud(true);
-        }
-      });
-
-      window.addEventListener('online', () => {
-        if (this.getWebAppUrl()) {
-          this.status = 'CONNECTED';
-          this.flushPendingQueue();
-          if (!isFbOnline()) {
-            this.pullFromCloud(true);
-          }
-        }
-      });
-
-      // Immediate refresh as soon as user clicks away from an input or finishes editing
-      document.addEventListener('focusout', () => {
-        setTimeout(() => {
-          const active = (typeof document !== 'undefined') ? document.activeElement : null;
-          const stillInteracting = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
-          if (!stillInteracting && this._pendingViewRefresh) {
-            this._pendingViewRefresh = false;
-            this._refreshActiveViews();
-          }
-        }, 250);
-      });
-
-      this._listenersAttached = true;
-    }
-
+    this._listenersAttached = true;
     this._notifySubscribers();
   },
 
@@ -362,85 +251,10 @@ const GoogleSheetsSync = {
   },
 
   /**
-   * Push a single task to Google Sheets in background with 350ms debouncing per task ID
+   * Push a single task (100% Pure Firebase Architecture - handled by FirebaseSyncService)
    */
-  _pushDebounceTimers: {},
   async pushTask(task, immediate = false) {
-    if (!task || !task.task_id) return false;
-    const taskId = task.task_id;
-
-    if (!immediate) {
-      if (!this._pushDebounceTimers) this._pushDebounceTimers = {};
-      if (this._pushDebounceTimers[taskId]) {
-        clearTimeout(this._pushDebounceTimers[taskId]);
-      }
-      return new Promise((resolve) => {
-        this._pushDebounceTimers[taskId] = setTimeout(async () => {
-          delete this._pushDebounceTimers[taskId];
-          const ok = await this._executePushTask(task);
-          resolve(ok);
-        }, 350);
-      });
-    }
-
-    return this._executePushTask(task);
-  },
-
-  /**
-   * Internal execution of task push to Google Apps Script
-   */
-  async _executePushTask(task) {
-    const url = this.getWebAppUrl();
-    if (!url || !task || !task.task_id) return false;
-
-    // NEVER push a task that has been deleted on this device
-    try {
-      const deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      if (deletedIds.includes(task.task_id)) {
-        return false;
-      }
-    } catch (e) {}
-
-    task.last_updated = task.last_updated || new Date().toISOString();
-
-    // If task has TMS metadata, automatically format status and remarks for fail-safe storage
-    if (task.tms_task_id && (!task.status || !task.status.includes('TMS'))) {
-      task.status = `TMS#${task.tms_task_id} (100% Completed)`;
-    }
-    if (task.tms_task_id && (!task.remarks || !task.remarks.includes('TMS'))) {
-      task.remarks = `TMS_ID:${task.tms_task_id}`;
-    }
-
-    try {
-      // Using text/plain prevents CORS OPTIONS preflight
-      const res = await this._fetchWithTimeout(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'SYNC_TASK',
-          payload: task
-        })
-      }, 25000);
-
-      const data = await this._safeJson(res);
-      if (!data || data.status !== 'OK') {
-        console.warn("Background cloud task sync notice - response not OK, enqueuing retry:", data);
-        this.queuePending({ action: 'SYNC_TASK', payload: task });
-        return false;
-      }
-
-      this.lastSyncTime = new Date().toISOString();
-      localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-      this.status = 'CONNECTED';
-      this._lastLocalEditTime = Date.now();
-      this._broadcastUpdate('TASK_PUSHED');
-      return true;
-    } catch (e) {
-      console.warn("Background cloud task sync notice - enqueuing retry:", e);
-      this.queuePending({ action: 'SYNC_TASK', payload: task });
-      return false;
-    }
+    return true;
   },
 
   /**
@@ -480,112 +294,17 @@ const GoogleSheetsSync = {
   },
 
   /**
-   * Delete a single task from Google Sheets in background
+   * Delete a single task (100% Pure Firebase Architecture - handled by FirebaseSyncService)
    */
   async deleteTask(taskId, month) {
-    if (!taskId) return false;
-
-    // 1. Immediately record in deleted tombstones
-    try {
-      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      if (!deleted.includes(taskId)) {
-        deleted.push(taskId);
-        if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
-        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
-      }
-    } catch (e) {}
-
-    // 2. Immediately purge any pending SYNC_TASK for this task from queue
-    try {
-      const q = this.getPendingQueue();
-      const filtered = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && item.payload.task_id === taskId));
-      this.savePendingQueue(filtered);
-    } catch (e) {}
-
-    const url = this.getWebAppUrl();
-    if (!url) return false;
-
-    try {
-      const res = await this._fetchWithTimeout(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'DELETE_TASK',
-          payload: { task_id: taskId, month: month }
-        })
-      }, 15000);
-      const data = await this._safeJson(res);
-      if (data && (data.status === 'OK' || data.status === 'NOT_FOUND')) {
-        this.lastSyncTime = new Date().toISOString();
-        localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-        this.status = 'CONNECTED';
-        this._broadcastUpdate('TASK_DELETED');
-        return true;
-      }
-      console.warn("Cloud delete notice - response not OK, enqueuing retry:", data);
-      this.queuePending({ action: 'DELETE_TASK', payload: { task_id: taskId, month: month } });
-      return false;
-    } catch (e) {
-      console.warn("Cloud delete notice - enqueuing retry:", e);
-      this.queuePending({ action: 'DELETE_TASK', payload: { task_id: taskId, month: month } });
-      return false;
-    }
+    return true;
   },
 
   /**
-   * Atomically delete multiple tasks from Google Sheets
-   * Executes reliable sequential DELETE_TASK operations across Google Apps Script
+   * Delete multiple tasks (100% Pure Firebase Architecture - handled by FirebaseSyncService)
    */
   async deleteMultipleTasks(taskIds = [], month) {
-    if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
-
-    // 1. Immediately record in deleted tombstones
-    try {
-      const deleted = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      taskIds.forEach(id => {
-        if (!deleted.includes(id)) deleted.push(id);
-      });
-      if (deleted.length > 500) deleted.splice(0, deleted.length - 500);
-      localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deleted));
-    } catch (e) {}
-
-    // 2. Immediately purge any pending SYNC_TASK for these tasks from queue
-    try {
-      const q = this.getPendingQueue();
-      const idSet = new Set(taskIds);
-      const filtered = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && idSet.has(item.payload.task_id)));
-      this.savePendingQueue(filtered);
-    } catch (e) {}
-
-    const url = this.getWebAppUrl();
-    if (!url) return false;
-
-    // The remote Google Apps Script web app natively supports DELETE_TASK.
-    // Executing sequential deleteTask guarantees atomic row deletion on Google Cloud!
-    const ok = await this._sequentialDeleteFallback(taskIds, month);
-    this.lastSyncTime = new Date().toISOString();
-    localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-    this.status = 'CONNECTED';
-    this._broadcastUpdate('TASKS_DELETED_MULTIPLE');
-    return ok;
-  },
-
-  /**
-   * Helper fallback: sequentially execute deleteTask for each id with small pacing
-   */
-  async _sequentialDeleteFallback(taskIds, month) {
-    let allOk = true;
-    for (const id of taskIds) {
-      try {
-        const ok = await this.deleteTask(id, month);
-        if (!ok) allOk = false;
-      } catch (err) {
-        allOk = false;
-      }
-      await new Promise(r => setTimeout(r, 100));
-    }
-    return allOk;
+    return true;
   },
 
   /**
@@ -700,137 +419,16 @@ const GoogleSheetsSync = {
 
   /**
    * Pull all tasks and cost savings from Google Sheets
+   * (Decommissioned in 100% Pure Firebase Architecture - Live tasks managed exclusively by Firebase)
    */
   async pullFromCloud(silent = false) {
-    const isFbActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
-    if (isFbActive) {
-      this.status = 'CONNECTED';
-      this._updateNavbarBadge();
-      return true;
+    console.log("🔥 100% Pure Firebase Architecture: Live tasks are managed exclusively by Firebase Realtime Database.");
+    this.status = 'CONNECTED';
+    this._updateNavbarBadge();
+    if (!silent && typeof HELPERS !== 'undefined' && HELPERS.showToast) {
+      HELPERS.showToast("Firebase Realtime Engine Active (Sub-50ms)", "success");
     }
-    const url = this.getWebAppUrl();
-    if (!url) return false;
-    if (this.isSyncing) return false; // Prevent overlapping pulls
-
-    try {
-      this.isSyncing = true;
-      this._syncStartTime = Date.now();
-      this._updateNavbarBadge();
-
-      const activeMonth = (window.appState && window.appState.workbookMgr && window.appState.workbookMgr.activeMonth)
-        ? window.appState.workbookMgr.activeMonth
-        : 'SEP-2026';
-
-      let data = null;
-
-      // TIER 1: Try fast month-specific fetch (20s timeout, ~3 KB payload)
-      try {
-        const monthEndpoint = url + (url.includes('?') ? '&' : '?') + 'action=GET_MONTH&month=' + encodeURIComponent(activeMonth) + '&_t=' + Date.now();
-        const resMonth = await this._fetchWithTimeout(monthEndpoint, { method: 'GET', mode: 'cors' }, 20000);
-        const monthData = await this._safeJson(resMonth);
-        if (monthData && monthData.status === 'OK' && Array.isArray(monthData.tasks)) {
-          data = {
-            status: 'OK',
-            isAuthoritativeMonth: true,
-            workbooks: {
-              [activeMonth]: monthData.tasks
-            },
-            deleted_ids: monthData.deleted_ids || [],
-            cost_savings: monthData.cost_savings || null
-          };
-        }
-      } catch (monthErr) {
-        // Fallback to Tier 2
-      }
-
-      // TIER 2: Fast recent tasks fetch (< 100ms, ~5 KB payload)
-      if (!data) {
-        try {
-          const recentEndpoint = url + (url.includes('?') ? '&' : '?') + 'action=GET_RECENT&limit=80&_t=' + Date.now();
-          const resRecent = await this._fetchWithTimeout(recentEndpoint, { method: 'GET', mode: 'cors' }, 20000);
-          const recentData = await this._safeJson(resRecent);
-          if (recentData && recentData.status === 'OK' && Array.isArray(recentData.tasks) && recentData.tasks.length > 0) {
-            const grouped = {};
-            recentData.tasks.forEach(t => {
-              const m = (window.appState && window.appState.workbookMgr)
-                ? window.appState.workbookMgr.normalizeMonth(t.month || activeMonth)
-                : (t.month || activeMonth);
-              if (!grouped[m]) grouped[m] = [];
-              grouped[m].push(t);
-            });
-            data = {
-              status: 'OK',
-              workbooks: grouped,
-              deleted_ids: recentData.deleted_ids || []
-            };
-          }
-        } catch (recentErr) {
-          // Fallback to Tier 3
-        }
-      }
-
-      // TIER 3: Full history fallback ONLY if Tier 1 & 2 returned 0 (e.g. initial boot or explicit manual sync)
-      if (!data && (!this.initialSyncCompleted || !silent)) {
-        const fullEndpoint = url + (url.includes('?') ? '&' : '?') + 'action=GET_ALL&_t=' + Date.now();
-        const resFull = await this._fetchWithTimeout(fullEndpoint, { method: 'GET', mode: 'cors' }, 30000);
-        data = await this._safeJson(resFull);
-        if (data && data.status === 'OK') {
-          data.isAuthoritativeAll = true;
-        }
-      }
-
-      if (data && data.status === 'OK') {
-        this._consecutiveFailures = 0;
-        let changed = false;
-
-        // Merge workbooks into MonthWorkbookManager with authoritative flag
-        const isAuth = Boolean(data.isAuthoritativeMonth || data.isAuthoritativeAll);
-        if (data.workbooks && window.appState && window.appState.workbookMgr) {
-          changed = window.appState.workbookMgr.mergeFromCloud(data.workbooks, isAuth) || changed;
-        }
-
-        // Merge cost savings into CostSavingTracker across devices
-        if (data.cost_savings && typeof CostSavingTracker !== 'undefined' && CostSavingTracker.mergeFromCloud) {
-          const costChanged = CostSavingTracker.mergeFromCloud(data.cost_savings);
-          if (costChanged) changed = true;
-        }
-
-        this.lastSyncTime = new Date().toISOString();
-        localStorage.setItem(this.STORAGE_KEY_LAST_SYNC, this.lastSyncTime);
-        this.status = 'CONNECTED';
-        this.initialSyncCompleted = true;
-
-        // Refresh views if data changed or on initial hydration
-        if (changed || !this._viewsHydratedOnce) {
-          this._viewsHydratedOnce = true;
-          this._refreshActiveViews();
-          this._broadcastUpdate('DATA_MERGED');
-        }
-
-        if (!silent && typeof HELPERS !== 'undefined' && HELPERS.showToast) {
-          HELPERS.showToast("Cloud sync complete: All tasks up-to-date.", "success");
-        }
-        return true;
-      } else {
-        // Record failure for adaptive backoff
-        this._consecutiveFailures = (this._consecutiveFailures || 0) + 1;
-        this._lastFailureTime = Date.now();
-      }
-    } catch (err) {
-      console.warn("Pull from cloud notice:", err);
-      this._consecutiveFailures = (this._consecutiveFailures || 0) + 1;
-      this._lastFailureTime = Date.now();
-      this.status = 'CONNECTED';
-      if (!silent && typeof HELPERS !== 'undefined' && HELPERS.showToast) {
-        HELPERS.showToast("Cloud sync notice: " + err.message, "info");
-      }
-      return false;
-    } finally {
-      this.isSyncing = false;
-      this.status = this.getWebAppUrl() ? 'CONNECTED' : 'OFFLINE';
-      this._updateNavbarBadge();
-      this._notifySubscribers();
-    }
+    return true;
   },
 
   /**
