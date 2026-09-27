@@ -101,10 +101,12 @@ const App = {
       FirebaseSyncService.init();
     }
 
-    // Background Non-blocking Slide Sync Pipeline (Runs smoothly without freezing UI)
-    syncEngine.syncMonth(workbookMgr.activeMonth).catch(e => {
-      console.warn("Background sync notification:", e);
-    });
+    // Deferred Background Slide Sync (Runs smoothly in idle time without blocking UI interaction)
+    setTimeout(() => {
+      syncEngine.syncMonth(workbookMgr.activeMonth).catch(e => {
+        console.warn("Background sync notification:", e);
+      });
+    }, 1500);
 
     console.log("System initialized successfully.");
   },

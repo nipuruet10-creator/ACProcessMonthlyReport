@@ -322,13 +322,19 @@ const FirebaseSyncService = {
     this.unbindCurrentMonth();
 
     this.currentListeningMonth = normMonth;
-    this._monthRef = this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks`);
-
     // 0. Initial Hydration: Load all current tasks from Firebase on startup/connect
-    this.hydrateMonth(normMonth);
+    this._initialHydrationDone = false;
+    this.hydrateMonth(normMonth).then(() => {
+      this._initialHydrationDone = true;
+    }).catch(e => {
+      console.warn("Hydrate notice:", e);
+      this._initialHydrationDone = true;
+    });
 
-    // 1. child_added: Another user created a new task row
+    // 1. child_added: Another user created a new task row (skip initial batch already processed by hydrateMonth)
     this._monthRef.on('child_added', (snapshot) => {
+      if (!this._initialHydrationDone) return;
+
       const task = snapshot.val();
       if (!task || typeof task !== 'object') return;
       if (!task.task_id) task.task_id = snapshot.key;
@@ -442,6 +448,16 @@ const FirebaseSyncService = {
     this.currentListeningMonth = null;
   },
 
+  _debouncedSaveWb() {
+    if (this._wbSaveTimer) clearTimeout(this._wbSaveTimer);
+    this._wbSaveTimer = setTimeout(() => {
+      this._wbSaveTimer = null;
+      if (window.appState && window.appState.workbookMgr) {
+        window.appState.workbookMgr.save();
+      }
+    }, 300);
+  },
+
   /**
    * Handle remote task added
    */
@@ -476,14 +492,14 @@ const FirebaseSyncService = {
         if ((k === 'task_name' || k === 'task_details') && (!v || String(v).trim() === '') && existing[k]) continue;
         existing[k] = v;
       }
-      wbMgr.save();
+      this._debouncedSaveWb();
       return;
     }
 
     // Add to in-memory workbook without pushing back
     if (!wbMgr.workbooks[month]) wbMgr.workbooks[month] = [];
     wbMgr.workbooks[month].push(task);
-    wbMgr.save();
+    this._debouncedSaveWb();
 
     // If currently viewing Monthly Input, append row smoothly into DOM
     if (window.appState.activeTab === 'monthly-input' && typeof MonthlyInputView !== 'undefined') {
@@ -638,7 +654,7 @@ const FirebaseSyncService = {
     }
 
     tasks[idx] = mergedTask;
-    wbMgr.save();
+    this._debouncedSaveWb();
 
     changedKeys.forEach(field => {
       // Ignore local echo if user just typed this field locally

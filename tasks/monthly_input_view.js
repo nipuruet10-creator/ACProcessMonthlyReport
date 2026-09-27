@@ -368,7 +368,14 @@ const MonthlyInputView = {
         task[field] = value;
         task._lastFieldEditTime = Date.now();
         task.last_updated = new Date().toISOString();
-        window.appState.workbookMgr.save();
+        if (!this._storageSaveTimer) {
+          this._storageSaveTimer = setTimeout(() => {
+            this._storageSaveTimer = null;
+            if (window.appState && window.appState.workbookMgr) {
+              window.appState.workbookMgr.save();
+            }
+          }, 400);
+        }
       }
 
       if (typeof FirebaseSyncService !== 'undefined') {
@@ -1940,8 +1947,12 @@ const MonthlyInputView = {
   },
 
   updateEngineerSummary() {
-    this.updateRankingTable();
-    this.updatePillCounts();
+    if (this._engSummaryTimer) clearTimeout(this._engSummaryTimer);
+    this._engSummaryTimer = setTimeout(() => {
+      this._engSummaryTimer = null;
+      this.updateRankingTable();
+      this.updatePillCounts();
+    }, 40);
   },
 
   getEngineersList() {

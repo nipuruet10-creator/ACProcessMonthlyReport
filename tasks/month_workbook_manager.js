@@ -1107,7 +1107,7 @@ class MonthWorkbookManager {
       });
 
       // Handle un-synced local tasks and remote deletions safely across multiple devices
-      const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
+      const shouldReconcile = isAuthoritative || remoteList.length > 0;
       if (shouldReconcile) {
         const filtered = localTasks.filter(lt => {
           if (!lt || !lt.task_id) return false;
@@ -1120,9 +1120,18 @@ class MonthWorkbookManager {
           if (remoteIdSet.has(lt.task_id)) {
             lt._syncedToCloud = true;
             delete lt._isLocalDraft;
+            return true;
           }
 
-          // NEVER prune local tasks just because Google Sheets didn't list them yet
+          // In Authoritative Cloud Mode (Firebase is single source of truth):
+          // If task does not exist in Firebase, prune it unless it was newly created locally in the last 2 minutes
+          if (isAuthoritative) {
+            const isRecentDraft = Boolean(lt._isLocalDraft && lt.created_at && (Date.now() - new Date(lt.created_at).getTime() < 120000));
+            if (!isRecentDraft) {
+              return false; // Prune stale/deleted ghost task permanently
+            }
+          }
+
           return true;
         });
 
