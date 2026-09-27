@@ -184,7 +184,8 @@ class SyncEngine {
           photo_after: photoAfter,
           status: overrides.status || "Completed",
           investment: overrides.investment || (task.investment || "In-house / Direct Implementation"),
-          has_manual_override: Object.keys(overrides).length > 0
+          has_manual_override: Object.keys(overrides).length > 0,
+          manual_override_time: overrides.updated_at || null
         };
 
         activeSlides.push(slideData);
@@ -285,6 +286,19 @@ class SyncEngine {
         }
       });
 
+      // Synchronize category, engineer, task name from current workbook task
+      slides.forEach(s => {
+        const t = validTaskMap.get(s.task_id);
+        if (t) {
+          if (t.category) s.category = t.category;
+          if (t.task_name) s.raw_task_name = t.task_name;
+          if (t.concern_engineer || t.engineer || t.assignee) {
+            s.engineer = t.concern_engineer || t.engineer || t.assignee;
+          }
+          if (t.status) s.status = t.status;
+        }
+      });
+
       // Save sanitized slides if count changed
       if (slides.length !== originalLen) {
         try {
@@ -309,6 +323,7 @@ class SyncEngine {
           if (overrides.category) s.category = overrides.category;
           if (overrides.status) s.status = overrides.status;
           s.has_manual_override = true;
+          s.manual_override_time = overrides.updated_at || null;
         }
       });
 

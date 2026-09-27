@@ -329,6 +329,10 @@ const MonthlyInputView = {
           }
         }
       }
+
+      if (field === 'category' && window.appState && window.appState.syncEngine) {
+        window.appState.syncEngine.setManualOverride(taskId, { category: cleanVal });
+      }
       
       // If Assignee was changed, re-render immediately so the task transfers to that respective concern engineer's tab!
       if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
@@ -441,9 +445,9 @@ const MonthlyInputView = {
     const supervisors = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getSupervisors)
       ? MasterDataManager.getSupervisors()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.SUPERVISORS) ? MASTER_LISTS.SUPERVISORS : []);
-    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getRoutineCategories)
-      ? MasterDataManager.getRoutineCategories()
-      : ((typeof MasterDataManager !== 'undefined') ? MasterDataManager.getCategories() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []));
+    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getCategories)
+      ? MasterDataManager.getCategories()
+      : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
 
     const activeProfile = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_active_engineer_profile') : null;
     const defaultEng = this.filterEngineer || activeProfile || ((engineers[0] && engineers[0].display) ? engineers[0].display : "Sazzad (50463)");
@@ -1825,13 +1829,15 @@ const MonthlyInputView = {
           </div>
         </td>
 
-        <!-- Category Dropdown (Soft Blue Pill) -->
-        <td class="py-1.5 px-2 text-center border-r border-slate-200 align-middle">
-          <select id="task-category-select-${t.task_id}" 
-                  onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
-                  class="bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-1 text-[11px] font-medium text-center focus:outline-none cursor-pointer max-w-[125px] truncate">
-            ${((t.category && !categories.includes(t.category)) ? [t.category, ...categories] : categories).map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-          </select>
+        <!-- Category Dropdown (Clean, bounded within cell box) -->
+        <td class="py-1.5 px-2 border-r border-slate-200 align-middle">
+          <div class="relative w-full">
+            <select id="task-category-select-${t.task_id}" 
+                    onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'category', this.value)"
+                    class="w-full h-8 bg-blue-50/70 hover:bg-blue-100/60 text-blue-700 border border-blue-200 hover:border-blue-300 focus:border-blue-500 rounded-lg px-2 py-0.5 text-xs font-semibold text-left focus:outline-none cursor-pointer transition truncate">
+              ${((t.category && !categories.includes(t.category)) ? [t.category, ...categories] : categories).map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+          </div>
         </td>
 
         <!-- Task Point (Centered, Clean Box - HOD Protected) -->
@@ -2104,9 +2110,9 @@ const MonthlyInputView = {
       ? MasterDataManager.getEngineers()
       : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
 
-    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getRoutineCategories) 
-      ? MasterDataManager.getRoutineCategories() 
-      : ((typeof MasterDataManager !== 'undefined') ? MasterDataManager.getCategories() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []));
+    const categories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getCategories) 
+      ? MasterDataManager.getCategories() 
+      : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.CATEGORIES : []);
 
     const rankingData = workbookMgr.calculatePointsRanking(month);
     const { ranking, totalTasksSum, totalWbsSum, totalActualSum } = rankingData;
@@ -2386,9 +2392,9 @@ const MonthlyInputView = {
               <colgroup>
                 <col style="width: 32px;">   <!-- Checkbox -->
                 <col style="width: 38px;">   <!-- SL (#) -->
-                <col style="width: 35%;">    <!-- Task Name (Expanded for readability) -->
+                <col style="width: 34%;">    <!-- Task Name (Expanded for readability) -->
                 <col style="width: 19%;">    <!-- Task Details (Reduced width as requested) -->
-                <col style="width: 130px;">  <!-- Category -->
+                <col style="width: 145px;">  <!-- Category -->
                 <col style="width: 60px;">   <!-- Point -->
                 <col style="width: 135px;">  <!-- Supervisor -->
                 <col style="width: 135px;">  <!-- Assignee -->

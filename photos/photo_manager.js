@@ -180,6 +180,10 @@ class PhotoManager {
     return this.setTaskPhoto(taskId, slot, compressedData, syncThumbnail, month);
   }
 
+  async savePhoto(taskId, slot, base64Url, month = null) {
+    return this.setTaskPhoto(taskId, slot, base64Url, null, month);
+  }
+
   async setTaskPhoto(taskId, slot, base64Url, syncThumbnail = null, month = null) {
     if (!taskId || !base64Url) return null;
     let m = month;

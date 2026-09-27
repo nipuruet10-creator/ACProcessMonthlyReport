@@ -410,29 +410,66 @@ const MonthlyReportView = {
   async uploadModalPhoto(event, taskId, slot) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Url = e.target.result;
+    try {
       if (typeof photoManager !== 'undefined') {
-        await photoManager.savePhoto(taskId, slot, base64Url, this.selectedMonth);
+        if (photoManager.savePhotoFile) {
+          await photoManager.savePhotoFile(taskId, slot, file, this.selectedMonth);
+        } else if (photoManager.setTaskPhoto || photoManager.savePhoto) {
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            const base64Url = e.target.result;
+            if (photoManager.savePhoto) {
+              await photoManager.savePhoto(taskId, slot, base64Url, this.selectedMonth);
+            } else {
+              await photoManager.setTaskPhoto(taskId, slot, base64Url, null, this.selectedMonth);
+            }
+            this.renderModalPhotoSlots(taskId);
+            this.renderModalLivePreview(taskId);
+            if (typeof window.showToast === 'function') {
+              window.showToast("📷 Photo attached! Live preview updated.", "success");
+            }
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
       }
       this.renderModalPhotoSlots(taskId);
       this.renderModalLivePreview(taskId);
       if (typeof window.showToast === 'function') {
         window.showToast("📷 Photo attached! Live preview updated.", "success");
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Photo upload error:", err);
+    }
   },
 
   async deleteModalPhoto(taskId, slot) {
-    if (typeof photoManager !== 'undefined') {
+    if (typeof photoManager !== 'undefined' && photoManager.removePhoto) {
       await photoManager.removePhoto(taskId, slot, this.selectedMonth);
     }
     this.renderModalPhotoSlots(taskId);
     this.renderModalLivePreview(taskId);
     if (typeof window.showToast === 'function') {
       window.showToast("🗑 Photo removed. Live preview updated.", "info");
+    }
+  },
+
+  /**
+   * Format compact override timestamp (Requirement 5)
+   */
+  formatOverrideTime(ts) {
+    if (!ts) return "";
+    try {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return String(ts).slice(0, 16);
+      const day = String(d.getDate()).padStart(2, '0');
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const mon = monthNames[d.getMonth()];
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${day} ${mon} ${hours}:${mins}`;
+    } catch (e) {
+      return "";
     }
   },
 
@@ -449,14 +486,27 @@ const MonthlyReportView = {
     const overrides = window.appState && window.appState.syncEngine
       ? window.appState.syncEngine.getManualOverride(taskId) || {}
       : {};
+    const task = window.appState && window.appState.workbookMgr
+      ? window.appState.workbookMgr.getTask(this.selectedMonth, taskId)
+      : null;
+    const allSlides = window.appState && window.appState.syncEngine
+      ? window.appState.syncEngine.getActiveSlides(this.selectedMonth)
+      : [];
+    const currentSlide = allSlides.find(s => s && s.task_id === taskId) || null;
 
-    const rawTaskName = breakdown ? breakdown.original_task_name : "Task " + taskId;
+    const rawTaskName = (task && task.task_name) ? task.task_name : (breakdown ? breakdown.original_task_name : "Task " + taskId);
     const currentTitle = overrides.slide_title || (breakdown ? breakdown.ai_report_title : rawTaskName);
-    const currentDesc = overrides.description || (breakdown ? breakdown.ai_description : "");
+    const currentDesc = overrides.description || (breakdown ? breakdown.ai_description : ((task && task.task_details) ? task.task_details : ""));
     const currentImpact = overrides.impact
       ? (Array.isArray(overrides.impact) ? overrides.impact.join("\n") : overrides.impact)
       : (breakdown && Array.isArray(breakdown.ai_impact) ? breakdown.ai_impact.join("\n") : "");
-    const currentEngineer = overrides.engineer || (breakdown ? breakdown.engineer : "Concern Engineer");
+    const currentEngineer = overrides.engineer || (task ? (task.concern_engineer || task.assignee || task.engineer) : null) || (breakdown ? breakdown.engineer : "Concern Engineer");
+
+    const allCategories = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getCategories)
+      ? MasterDataManager.getCategories()
+      : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.CATEGORIES) ? MASTER_LISTS.CATEGORIES : ["Process development", "Completed Projects", "Ongoing Projects"]);
+
+    const currentCategory = overrides.category || (task ? task.category : null) || (currentSlide ? currentSlide.category : null) || (breakdown ? breakdown.ai_category : "Process development");
 
     const container = this.renderContainer();
     container.innerHTML = `
@@ -470,11 +520,16 @@ const MonthlyReportView = {
                 🎨
               </div>
               <div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
                     SLIDE STUDIO &amp; EDITORIAL
                   </span>
                   <span class="text-xs font-mono text-slate-400">ID: ${taskId}</span>
+                  ${(overrides && overrides.updated_at) ? `
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                      ✏️ Overridden at ${this.formatOverrideTime(overrides.updated_at)}
+                    </span>
+                  ` : ''}
                 </div>
                 <h3 class="text-base font-black text-slate-900 mt-0.5">Customize Slide Content, Photos &amp; Live In-Modal Preview</h3>
               </div>
@@ -522,6 +577,16 @@ const MonthlyReportView = {
                           class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-sans shadow-xs resize-none">${HELPERS.escapeHtml(currentImpact)}</textarea>
               </div>
 
+              <!-- Slide Category (Requirement 1: Category dropdown in Monthly Report) -->
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Slide Category (Auto-updates Report Metrics)</label>
+                <select id="edit-slide-category" 
+                        onchange="MonthlyReportView.renderModalLivePreview('${taskId}')"
+                        class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500 font-bold shadow-xs cursor-pointer">
+                  ${allCategories.map(c => `<option value="${c}" ${c === currentCategory ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+
               <!-- Concern Engineer (Requirement 2: Investment/Budget Note removed) -->
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Concern Engineer</label>
@@ -547,11 +612,11 @@ const MonthlyReportView = {
 
               <!-- Actions -->
               <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <button type="button" onclick="MonthlyReportView.resetOverrides('${taskId}')" class="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition">
+                <button type="button" onclick="MonthlyReportView.resetOverrides('${taskId}')" class="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer">
                   Reset to AI Defaults
                 </button>
                 <div class="flex items-center gap-2">
-                  <button type="button" onclick="MonthlyReportView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                  <button type="button" onclick="MonthlyReportView.closeModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
                     Cancel
                   </button>
                   <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-xs font-black text-white shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5">
@@ -561,12 +626,12 @@ const MonthlyReportView = {
               </div>
             </form>
 
-            <!-- Right: Real-Time In-Modal Live Preview (Requirement 3: Full text visible) -->
-            <div class="bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800 shadow-inner">
-              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3 flex-shrink-0">
+            <!-- Right: Real-Time In-Modal Live Preview (Requirement 4: 1:1 Report Slide Format) -->
+            <div class="bg-slate-900 rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-slate-800 shadow-inner overflow-hidden">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2 flex-shrink-0">
                 <div class="flex items-center gap-2">
                   <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Live Slide Preview</span>
+                  <span class="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">Exact Presentation Slide Preview</span>
                 </div>
                 <button type="button" onclick="MonthlyReportView.openModalFullScreenPreview('${taskId}')" 
                         class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 border border-slate-700 transition flex items-center gap-1 cursor-pointer">
@@ -574,13 +639,13 @@ const MonthlyReportView = {
                 </button>
               </div>
 
-              <!-- Presentation Stage inside Modal (Scrollable, full text visible) -->
-              <div id="modal-slide-live-preview" class="w-full min-h-[380px] max-h-[620px] bg-white rounded-xl overflow-y-auto shadow-2xl border border-slate-700 flex flex-col p-4 text-slate-800">
+              <!-- Presentation Stage inside Modal (Responsive 16:9 Presentation Slide Canvas) -->
+              <div id="modal-slide-live-preview" class="w-full flex-1 flex items-center justify-center max-h-[620px] overflow-y-auto my-auto rounded-xl shadow-2xl">
                 <!-- Injected via renderModalLivePreview -->
               </div>
 
-              <div class="pt-3 text-[11px] text-slate-400 flex items-center justify-between font-mono flex-shrink-0">
-                <span>Walton Executive Theme &bull; 16:9 Format</span>
+              <div class="pt-2 text-[11px] text-slate-400 flex items-center justify-between font-mono flex-shrink-0">
+                <span>Walton Executive Theme &bull; 16:9 Slide Canvas</span>
                 <span class="text-emerald-400 font-bold">✨ Real-time synced</span>
               </div>
             </div>
@@ -598,7 +663,7 @@ const MonthlyReportView = {
 
   /**
    * Real-time in-modal 16:9 live slide preview renderer
-   * Requirement 3: All text is 100% visible without clipping
+   * Requirement 4: Authentic report slide layout with live photos
    * Requirement 2: Investment/Budget note completely removed
    */
   renderModalLivePreview(taskId) {
@@ -609,11 +674,13 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
+    const catEl = document.getElementById('edit-slide-category');
 
     const title = titleEl ? titleEl.value.trim() : `Task ${taskId}`;
     const desc = descEl ? descEl.value.trim() : "Standard operating procedure execution and engineering development.";
     const impactLines = impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [];
     const engineer = engineerEl ? engineerEl.value.trim() : "Concern Engineer";
+    const category = catEl ? catEl.value.trim() : "Process development";
 
     // Fetch photos
     let photoBefore = null;
@@ -626,94 +693,37 @@ const MonthlyReportView = {
       }
     }
 
-    const hasPhotos = Boolean(photoBefore || photoAfter);
+    const isCompleted = (category === 'Completed Projects' || category.toLowerCase().includes('completed project'));
+    const isProj = Boolean(category && category.toLowerCase().includes('project'));
 
-    previewEl.innerHTML = `
-      <div class="w-full flex flex-col justify-between font-sans select-none text-xs space-y-3">
-        
-        <!-- Top Presentation Bar -->
-        <div class="flex items-center justify-between pb-2 border-b-2 border-red-600 flex-shrink-0">
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-red-600 text-white shadow-xs">
-              WALTON
-            </span>
-            <span class="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
-              AC PROCESS DEVELOPMENT &bull; ${this.selectedMonth}
-            </span>
-          </div>
-          <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-mono text-[10px] font-bold border border-blue-200">
-            ID: ${taskId}
-          </span>
+    const slideData = {
+      task_id: taskId,
+      month: this.selectedMonth,
+      slide_title: title,
+      raw_task_name: title,
+      description: desc,
+      impact: impactLines,
+      engineer: engineer,
+      category: category,
+      status: isCompleted ? "Completed" : (isProj ? "Ongoing" : "Completed"),
+      is_project: isProj,
+      photo_before: photoBefore,
+      photo_after: photoAfter,
+      photo: photoBefore || photoAfter,
+      has_dual_photo: Boolean(photoBefore && photoAfter),
+      has_manual_override: true,
+      project_type: isProj ? (isCompleted ? "Strategic Project • Completed" : "Strategic Project • Ongoing") : category
+    };
+
+    if (typeof SlideLayoutEngine !== 'undefined') {
+      previewEl.innerHTML = `
+        <div class="w-full flex items-center justify-center p-1" style="max-width: 680px; width: 100%;">
+          ${SlideLayoutEngine.renderTaskSlide(slideData, 1, 1)}
         </div>
-
-        <!-- Slide Heading (Requirement 2: No investment pill) -->
-        <div class="pt-1 flex-shrink-0">
-          <h4 class="text-sm sm:text-base font-black text-slate-900 leading-snug">
-            ${HELPERS.escapeHtml(title)}
-          </h4>
-          <div class="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
-            <span class="font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-              👤 ${HELPERS.escapeHtml(engineer)}
-            </span>
-          </div>
-        </div>
-
-        <!-- Slide Content Grid: Process Steps + Impact Bullets + Photos (Requirement 3: Full text visible) -->
-        <div class="grid ${hasPhotos ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'} gap-3 py-1 flex-1">
-          
-          <!-- Left Text Details -->
-          <div class="flex flex-col space-y-2.5">
-            <!-- 5-Step Description (Full visible text) -->
-            <div class="bg-blue-50/70 border-l-4 border-blue-500 p-2.5 rounded-r-xl">
-              <span class="text-[10px] font-mono font-bold text-blue-900 uppercase block mb-1">PROCESS BREAKDOWN:</span>
-              <p class="text-xs text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
-                ${HELPERS.escapeHtml(desc)}
-              </p>
-            </div>
-
-            <!-- Impact Bullets (ALL bullets visible without truncation) -->
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-              <span class="text-[10px] font-mono font-bold text-slate-700 uppercase block mb-1.5">KEY OUTCOMES / MILESTONES:</span>
-              <ul class="space-y-1.5">
-                ${impactLines.map(imp => `
-                  <li class="flex items-start gap-2 text-xs text-slate-800 leading-snug">
-                    <span class="text-emerald-600 font-bold flex-shrink-0 mt-0.5">✔</span>
-                    <span class="break-words">${HELPERS.escapeHtml(imp)}</span>
-                  </li>
-                `).join('')}
-                ${impactLines.length === 0 ? '<li class="text-xs text-slate-400 italic">No milestone bullets registered</li>' : ''}
-              </ul>
-            </div>
-          </div>
-
-          <!-- Right: Photos (if any) -->
-          ${hasPhotos ? `
-            <div class="grid ${photoBefore && photoAfter ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5 items-start">
-              ${photoBefore ? `
-                <div class="relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-xs">
-                  <img src="${photoBefore}" class="w-full aspect-video object-cover" alt="Before">
-                  <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-black/70 text-white rounded text-[9px] font-bold">PRESENT (BEFORE)</span>
-                </div>
-              ` : ''}
-              ${photoAfter ? `
-                <div class="relative bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-xs">
-                  <img src="${photoAfter}" class="w-full aspect-video object-cover" alt="After">
-                  <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-emerald-700 text-white rounded text-[9px] font-bold">PROPOSED (AFTER)</span>
-                </div>
-              ` : ''}
-            </div>
-          ` : ''}
-
-        </div>
-
-        <!-- Slide Footer Bar -->
-        <div class="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-400 flex-shrink-0">
-          <span>WALTON PROCESS AUTOMATION SYSTEM</span>
-          <span>PRESENTATION SLIDE MODE</span>
-        </div>
-
-      </div>
-    `;
+      `;
+    } else {
+      previewEl.innerHTML = `<div class="p-6 text-center text-slate-400 font-mono text-xs">SlideLayoutEngine not available</div>`;
+    }
   },
 
   /**
@@ -724,6 +734,7 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
+    const catEl = document.getElementById('edit-slide-category');
 
     let photoBefore = null;
     let photoAfter = null;
@@ -735,20 +746,27 @@ const MonthlyReportView = {
       }
     }
 
+    const category = catEl ? catEl.value.trim() : "Process development";
+    const isCompleted = (category === 'Completed Projects' || category.toLowerCase().includes('completed project'));
+    const isProj = Boolean(category && category.toLowerCase().includes('project'));
+
     const draftSlide = {
       task_id: taskId,
       month: this.selectedMonth,
       slide_title: titleEl ? titleEl.value.trim() : `Task ${taskId}`,
+      raw_task_name: titleEl ? titleEl.value.trim() : `Task ${taskId}`,
       description: descEl ? descEl.value.trim() : "",
       impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
       engineer: engineerEl ? engineerEl.value.trim() : "Concern Engineer",
-      category: "Process development",
-      status: "Completed",
+      category: category,
+      status: isCompleted ? "Completed" : (isProj ? "Ongoing" : "Completed"),
+      is_project: isProj,
       photo_before: photoBefore,
       photo_after: photoAfter,
       photo: photoBefore || photoAfter,
       has_dual_photo: Boolean(photoBefore && photoAfter),
-      has_manual_override: true
+      has_manual_override: true,
+      project_type: isProj ? (isCompleted ? "Strategic Project • Completed" : "Strategic Project • Ongoing") : category
     };
 
     if (typeof SlidePreviewModal !== 'undefined' && SlidePreviewModal.openSingle) {
@@ -768,12 +786,16 @@ const MonthlyReportView = {
     const descEl = document.getElementById('edit-slide-desc');
     const impactEl = document.getElementById('edit-slide-impact');
     const engineerEl = document.getElementById('edit-slide-engineer');
+    const catEl = document.getElementById('edit-slide-category');
+
+    const newCategory = catEl ? catEl.value.trim() : null;
 
     const overrides = {
       slide_title: titleEl ? titleEl.value.trim() : "",
       description: descEl ? descEl.value.trim() : "",
       impact: impactEl ? impactEl.value.trim().split("\n").filter(l => l.trim().length > 0) : [],
-      engineer: engineerEl ? engineerEl.value.trim() : ""
+      engineer: engineerEl ? engineerEl.value.trim() : "",
+      ...(newCategory ? { category: newCategory } : {})
     };
 
     // 1. Save to SyncEngine overrides map
@@ -785,7 +807,21 @@ const MonthlyReportView = {
       }
     }
 
-    // 2. Direct cache synchronization for instant presentation reload
+    // 2. Permanently sync category to underlying workbook task so system never overwrites it
+    if (newCategory && window.appState && window.appState.workbookMgr) {
+      window.appState.workbookMgr.updateTask(this.selectedMonth, taskId, {
+        category: newCategory,
+        last_updated: new Date().toISOString()
+      });
+      window.appState.workbookMgr.save();
+    }
+
+    // 3. Real-time Firebase broadcast if online
+    if (newCategory && typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'category', newCategory);
+    }
+
+    // 4. Direct cache synchronization for instant presentation reload
     try {
       const cacheKey = `walton_pd_active_slides_${this.selectedMonth}`;
       const saved = localStorage.getItem(cacheKey);
@@ -796,7 +832,8 @@ const MonthlyReportView = {
           cachedSlides[idx] = {
             ...cachedSlides[idx],
             ...overrides,
-            has_manual_override: true
+            has_manual_override: true,
+            manual_override_time: new Date().toISOString()
           };
           localStorage.setItem(cacheKey, JSON.stringify(cachedSlides));
         }
@@ -807,6 +844,11 @@ const MonthlyReportView = {
 
     this.closeModal();
     this.render();
+
+    // 5. Automatically refresh Dashboard metrics and category counts
+    if (typeof DashboardController !== 'undefined' && DashboardController.render) {
+      DashboardController.render(this.selectedMonth);
+    }
 
     if (typeof window.showToast === 'function') {
       window.showToast(`✨ Slide overrides saved for task ${taskId}! Presentation preview updated.`, "success");
@@ -1071,69 +1113,6 @@ const MonthlyReportView = {
           </div>
         </div>
 
-        <!-- PROCESS ENGINEERING CORE WORK HIGHLIGHTS (Requirement 6 & 7: Dynamic Category Breakdown) -->
-        <div class="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm">
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-xl flex-shrink-0">
-                ⚙️
-              </div>
-              <div>
-                <h3 class="text-lg sm:text-xl font-black text-slate-900">
-                  Process Engineering Core Work Highlights (${month})
-                </h3>
-                <p class="text-xs sm:text-sm text-slate-500 font-medium">
-                  Categories with tasks approved for monthly presentation. Click any card to filter slide sequence.
-                </p>
-              </div>
-            </div>
-            ${this.filterCategory ? `
-              <button onclick="MonthlyReportView.handleCategoryFilter('')" class="px-3.5 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold border border-red-200 transition flex items-center gap-1.5 cursor-pointer">
-                <span>✕</span> <span>Reset Category Filter (${HELPERS.escapeHtml(this.filterCategory)})</span>
-              </button>
-            ` : `
-              <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                ${highlightCards.length} Active Categories
-              </span>
-            `}
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            ${highlightCards.length === 0 ? `
-              <div class="col-span-full py-8 text-center text-xs font-mono text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
-                No active categories with tasks found for ${month}.
-              </div>
-            ` : highlightCards.map((c, idx) => {
-              const totalCards = highlightCards.length;
-              const isOddTotal = (totalCards % 2 !== 0);
-              const isLast = (idx === totalCards - 1);
-              const spanClass = (isOddTotal && isLast) ? 'col-span-1 sm:col-span-2 lg:col-span-2' : '';
-              const isSelected = (this.filterCategory && this.filterCategory.toLowerCase() === c.filterCategory.toLowerCase());
-              return `
-                <div onclick="MonthlyReportView.handleCategoryFilter('${HELPERS.escapeHtml(c.filterCategory)}')"
-                     class="cursor-pointer rounded-2xl p-5 transition hover:scale-[1.02] hover:shadow-lg relative overflow-hidden flex flex-col justify-between ${spanClass} ${isSelected ? 'ring-2 ring-blue-600 shadow-md' : ''}"
-                     style="background: ${c.bg}; border: 1.5px solid ${c.border}; box-shadow: 0 4px 12px ${c.shadow};"
-                     title="Click to filter slide sequence by ${HELPERS.escapeHtml(c.filterCategory)}">
-                  <div class="flex items-center justify-between">
-                    <div class="text-4xl font-black font-mono tracking-tight" style="color: ${c.valColor};">
-                      ${c.val}
-                    </div>
-                    <span class="text-2xl">${c.icon}</span>
-                  </div>
-                  <div class="mt-3">
-                    <div class="text-base font-black leading-tight" style="color: ${c.labelColor};">
-                      ${c.label}
-                    </div>
-                    <div class="text-xs font-bold mt-1.5 inline-block px-2.5 py-0.5 rounded-md bg-white/80 border border-black/5" style="color: ${c.valColor};">
-                      ${c.note}
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-
         <!-- SLIDE PRESENTATION DECK OVERVIEW SECTION (Requirement 3: Sequential Slide-by-Slide Cards) -->
         <div class="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm space-y-6">
           
@@ -1259,8 +1238,8 @@ const MonthlyReportView = {
                               </span>
                             ` : ''}
                             ${isOverridden ? `
-                              <span class="text-[9px] font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded" title="Slide content edited manually">
-                                ✏️ Overridden
+                              <span class="text-[9px] font-mono font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded shadow-xs" title="Slide content edited manually at ${s.manual_override_time || ''}">
+                                ✏️ Overridden ${this.formatOverrideTime(s.manual_override_time)}
                               </span>
                             ` : ''}
                             <span class="text-[10px] font-mono text-slate-400">${s.task_id}</span>
@@ -1347,6 +1326,69 @@ const MonthlyReportView = {
               </button>
             </div>
 
+          </div>
+        </div>
+
+        <!-- PROCESS ENGINEERING CORE WORK HIGHLIGHTS (Requirement 3: Positioned at Bottom of Monthly Report Hub) -->
+        <div class="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-xl flex-shrink-0">
+                ⚙️
+              </div>
+              <div>
+                <h3 class="text-lg sm:text-xl font-black text-slate-900">
+                  Process Engineering Core Work Highlights (${month})
+                </h3>
+                <p class="text-xs sm:text-sm text-slate-500 font-medium">
+                  Categories with tasks approved for monthly presentation. Click any card to filter slide sequence.
+                </p>
+              </div>
+            </div>
+            ${this.filterCategory ? `
+              <button onclick="MonthlyReportView.handleCategoryFilter('')" class="px-3.5 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold border border-red-200 transition flex items-center gap-1.5 cursor-pointer">
+                <span>✕</span> <span>Reset Category Filter (${HELPERS.escapeHtml(this.filterCategory)})</span>
+              </button>
+            ` : `
+              <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                ${highlightCards.length} Active Categories
+              </span>
+            `}
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            ${highlightCards.length === 0 ? `
+              <div class="col-span-full py-8 text-center text-xs font-mono text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
+                No active categories with tasks found for ${month}.
+              </div>
+            ` : highlightCards.map((c, idx) => {
+              const totalCards = highlightCards.length;
+              const isOddTotal = (totalCards % 2 !== 0);
+              const isLast = (idx === totalCards - 1);
+              const spanClass = (isOddTotal && isLast) ? 'col-span-1 sm:col-span-2 lg:col-span-2' : '';
+              const isSelected = (this.filterCategory && this.filterCategory.toLowerCase() === c.filterCategory.toLowerCase());
+              return `
+                <div onclick="MonthlyReportView.handleCategoryFilter('${HELPERS.escapeHtml(c.filterCategory)}')"
+                     class="cursor-pointer rounded-2xl p-5 transition hover:scale-[1.02] hover:shadow-lg relative overflow-hidden flex flex-col justify-between ${spanClass} ${isSelected ? 'ring-2 ring-blue-600 shadow-md' : ''}"
+                     style="background: ${c.bg}; border: 1.5px solid ${c.border}; box-shadow: 0 4px 12px ${c.shadow};"
+                     title="Click to filter slide sequence by ${HELPERS.escapeHtml(c.filterCategory)}">
+                  <div class="flex items-center justify-between">
+                    <div class="text-4xl font-black font-mono tracking-tight" style="color: ${c.valColor};">
+                      ${c.val}
+                    </div>
+                    <span class="text-2xl">${c.icon}</span>
+                  </div>
+                  <div class="mt-3">
+                    <div class="text-base font-black leading-tight" style="color: ${c.labelColor};">
+                      ${c.label}
+                    </div>
+                    <div class="text-xs font-bold mt-1.5 inline-block px-2.5 py-0.5 rounded-md bg-white/80 border border-black/5" style="color: ${c.valColor};">
+                      ${c.note}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
 
