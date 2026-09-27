@@ -40,25 +40,11 @@ class MonthWorkbookManager {
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
 
-    // 🛡️ 100% PURE FIREBASE ARCHITECTURE: Hard wipe SEP-2026 clean everywhere (0 tasks)
-    try {
-      const WIPE_FLAG = 'walton_pure_firebase_clean_v1';
-      if (!localStorage.getItem(WIPE_FLAG)) {
-        this.workbooks["SEP-2026"] = [];
-        localStorage.removeItem("walton_deleted_task_ids");
-        localStorage.setItem(WIPE_FLAG, 'true');
-        this.save();
-        console.log("🧹 100% Pure Firebase Architecture: Initialized SEP-2026 to 0 tasks.");
-      }
-    } catch (e) {}
-
-    // Clean up SEP-2026: remove any Sazzad (50463) or empty placeholder tasks
+    // Clean up invalid or empty placeholder tasks only
     if (this.workbooks["SEP-2026"] && Array.isArray(this.workbooks["SEP-2026"])) {
       const initialCount = this.workbooks["SEP-2026"].length;
       this.workbooks["SEP-2026"] = this.workbooks["SEP-2026"].filter(t => {
         if (!t || !t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...') return false;
-        const a = (t.assignee || t.engineer || '');
-        if (a.includes('Sazzad') || a.includes('50463')) return false;
         return true;
       });
       if (this.workbooks["SEP-2026"].length !== initialCount) {
@@ -66,12 +52,11 @@ class MonthWorkbookManager {
       }
     }
 
-    // SEP-2026 starts clean and empty for live user entries and cloud sync
+    // SEP-2026 initialized if missing
     if (!this.workbooks["SEP-2026"] || !Array.isArray(this.workbooks["SEP-2026"])) {
       this.workbooks["SEP-2026"] = [];
       this.save();
     }
-    try { localStorage.setItem('walton_pd_sep2026_seeded', 'true'); } catch (e) {}
   }
 
   getDefaultSep2026Tasks() {

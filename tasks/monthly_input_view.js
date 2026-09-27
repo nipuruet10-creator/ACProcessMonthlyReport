@@ -1941,6 +1941,66 @@ const MonthlyInputView = {
 
   updateEngineerSummary() {
     this.updateRankingTable();
+    this.updatePillCounts();
+  },
+
+  getEngineersList() {
+    return (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineers)
+      ? MasterDataManager.getEngineers()
+      : ((typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) ? MASTER_LISTS.ENGINEERS : []);
+  },
+
+  updatePillCounts() {
+    const bar = document.getElementById('engineer-filter-pills-bar');
+    if (!bar) return;
+    const allTasks = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.getTasksForMonth(this.selectedMonth) : [];
+    const engineerCounts = {};
+    allTasks.forEach(t => {
+      const eng = (t.assignee || t.engineer || '').trim();
+      if (eng) {
+        engineerCounts[eng] = (engineerCounts[eng] || 0) + 1;
+      }
+    });
+    const engineers = this.getEngineersList();
+    const engineerTabsList = [];
+    const addedEngs = new Set();
+    Object.keys(engineerCounts).sort((a, b) => engineerCounts[b] - engineerCounts[a]).forEach(engName => {
+      addedEngs.add(engName.toLowerCase());
+      engineerTabsList.push({ display: engName, count: engineerCounts[engName] });
+    });
+    engineers.forEach(eng => {
+      const dName = eng.display || eng.name;
+      if (!addedEngs.has(dName.toLowerCase()) && !addedEngs.has((eng.name || '').toLowerCase())) {
+        addedEngs.add(dName.toLowerCase());
+        engineerTabsList.push({ display: dName, count: 0 });
+      }
+    });
+
+    const engineerTabsHtml = engineerTabsList.map(e => {
+      const isSel = (this.filterEngineer === e.display || this.filterEngineer === e.display.split(' ')[0]);
+      return `
+        <button type="button" onclick="MonthlyInputView.handleEngineerFilter('${HELPERS.escapeHtml(e.display)}')" 
+                class="px-2.5 py-1 rounded-xl text-[11px] font-semibold transition flex items-center gap-1.5 shadow-2xs border ${isSel ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
+          <span class="whitespace-nowrap">👤 ${HELPERS.escapeHtml(e.display)}</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${isSel ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}">${e.count}</span>
+        </button>
+      `;
+    }).join('');
+
+    bar.innerHTML = `
+      <span class="text-xs font-bold text-slate-700 px-1 flex items-center gap-1 flex-shrink-0">
+        <span>👤</span> <span>Engineers:</span>
+      </span>
+      <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
+              class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-2xs border ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
+        <span class="whitespace-nowrap">👥 All Personnel</span>
+        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'}">${allTasks.length}</span>
+      </button>
+      ${engineerTabsHtml}
+    `;
+
+    const kpiTotalTasks = document.getElementById('kpi-total-tasks-val');
+    if (kpiTotalTasks) kpiTotalTasks.textContent = allTasks.length;
   },
 
   renderRankingTableHtml(ranking, totalTasksSum, totalWbsSum) {
@@ -2188,8 +2248,8 @@ const MonthlyInputView = {
       const isSel = (this.filterEngineer === e.display || this.filterEngineer === e.display.split(' ')[0]);
       return `
         <button type="button" onclick="MonthlyInputView.handleEngineerFilter('${HELPERS.escapeHtml(e.display)}')" 
-                class="px-2.5 py-1 rounded-full text-[11px] font-semibold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border flex-shrink-0 ${isSel ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
-          <span>👤 ${HELPERS.escapeHtml(e.display)}</span>
+                class="px-2.5 py-1 rounded-xl text-[11px] font-semibold transition flex items-center gap-1.5 shadow-2xs border ${isSel ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}">
+          <span class="whitespace-nowrap">👤 ${HELPERS.escapeHtml(e.display)}</span>
           <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${isSel ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}">${e.count}</span>
         </button>
       `;
@@ -2266,15 +2326,15 @@ const MonthlyInputView = {
           </div>
         </div>
 
-        <!-- ENGINEERS FILTER PILLS (Requirement 2: Strictly 1 Single Line Layout) -->
+        <!-- ENGINEERS FILTER PILLS (Responsive multi-screen layout - Zero horizontal scrolling required) -->
         <div class="bg-white rounded-2xl p-2.5 border border-slate-200/90 shadow-xs">
-          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar whitespace-nowrap">
-            <span class="text-xs font-bold text-slate-700 whitespace-nowrap px-1 flex items-center gap-1 flex-shrink-0">
+          <div id="engineer-filter-pills-bar" class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-bold text-slate-700 px-1 flex items-center gap-1 flex-shrink-0">
               <span>👤</span> <span>Engineers:</span>
             </span>
             <button type="button" onclick="MonthlyInputView.handleEngineerFilter('')" 
-                    class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-xs border flex-shrink-0 ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
-              <span>👥 All Personnel</span>
+                    class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 shadow-2xs border ${!this.filterEngineer ? 'bg-[#1E293B] text-white border-[#1E293B]' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'}">
+              <span class="whitespace-nowrap">👥 All Personnel</span>
               <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold ${!this.filterEngineer ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'}">${allTasks.length}</span>
             </button>
             ${engineerTabsHtml}

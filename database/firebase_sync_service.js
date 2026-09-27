@@ -186,10 +186,8 @@ const FirebaseSyncService = {
             continue;
           }
 
-          // 🛡️ STRICT REJECTION: Sazzad (50463) or empty placeholder tasks for SEP-2026 must be purged!
-          const eng = (t.assignee || t.engineer || '');
-          if (normMonth === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...')) {
-            console.warn(`🛡️ Purging Sazzad / blank task ${t.task_id} from Firebase...`);
+          // Purge empty placeholder tasks only
+          if (!t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...') {
             this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
             continue;
           }
@@ -262,8 +260,7 @@ const FirebaseSyncService = {
           try { curDel = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]'); } catch(e) {}
           if (curDel.includes(lt.task_id)) return false;
 
-          const eng = (lt.assignee || lt.engineer || '');
-          if (normMonth === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !lt.task_name || !lt.task_name.trim() || lt.task_name === 'Enter Task Name...')) {
+          if (!lt.task_name || !lt.task_name.trim() || lt.task_name === 'Enter Task Name...') {
             return false;
           }
 
@@ -462,8 +459,7 @@ const FirebaseSyncService = {
       return;
     }
 
-    const eng = (task.assignee || task.engineer || '');
-    if (month === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...')) {
+    if (!task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...') {
       return;
     }
 
@@ -539,8 +535,7 @@ const FirebaseSyncService = {
       return;
     }
 
-    const engChanged = (task.assignee || task.engineer || '');
-    if (month === 'SEP-2026' && (engChanged.includes('Sazzad') || engChanged.includes('50463') || !task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...')) {
+    if (!task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...') {
       return;
     }
 
@@ -1105,17 +1100,21 @@ const FirebaseSyncService = {
     if (this.isConnected()) {
       badge.innerHTML = `
         <button onclick="if(window.appState) window.appState.switchTab('settings')" 
-                title="⚡ Google Firebase Realtime Active: Sub-50ms instant live sync active across all laptops!" 
+                title="⚡ Firebase Realtime Active: Sub-50ms instant live sync active across all laptops!" 
                 class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer shadow-xs">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-          <span class="font-bold">⚡ Real-Time Live</span>
+          <span class="font-bold">⚡ Firebase Live</span>
         </button>
       `;
     } else {
-      // Fallback to Google Sheets badge
-      if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync._updateNavbarBadge) {
-        GoogleSheetsSync._updateNavbarBadge();
-      }
+      badge.innerHTML = `
+        <button onclick="if(window.appState) window.appState.switchTab('settings')" 
+                title="Firebase Database: Click to configure settings" 
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 hover:text-slate-800 transition-colors cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>⚡ Firebase Realtime</span>
+        </button>
+      `;
     }
   }
 };

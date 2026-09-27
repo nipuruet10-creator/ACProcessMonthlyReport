@@ -64,7 +64,6 @@ const GoogleSheetsSync = {
   init() {
     this.lastSyncTime = localStorage.getItem(this.STORAGE_KEY_LAST_SYNC) || null;
     this.status = 'CONNECTED';
-    this._updateNavbarBadge();
 
     // Set up BroadcastChannel for zero-latency sync between multiple open tabs/windows
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window && !this.broadcastChannel) {
@@ -586,36 +585,7 @@ const GoogleSheetsSync = {
   },
 
   _updateNavbarBadge() {
-    const badge = document.getElementById('navbar-cloud-sync-badge');
-    if (!badge) return;
-
-    if (this.status === 'SYNCING' || (this.isSyncing && !this.initialSyncCompleted)) {
-      badge.innerHTML = `
-        <button onclick="GoogleSheetsSync.pullFromCloud(false)" title="Connecting and syncing with Google Sheets..." 
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 transition-colors">
-          <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-          <span>Syncing...</span>
-        </button>
-      `;
-    } else if (this.status === 'CONNECTED') {
-      badge.innerHTML = `
-        <button onclick="GoogleSheetsSync.pullFromCloud(false)" title="Cloud Sync Active (Google Sheets). Click to refresh." 
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span>Cloud Synced</span>
-        </button>
-      `;
-    } else if (this.status === 'OFFLINE') {
-      badge.innerHTML = `
-        <button onclick="if(window.appState) window.appState.switchTab('settings')" title="Click to connect Google Sheets" 
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 hover:text-slate-700 transition-colors">
-          <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-          <span>Offline</span>
-        </button>
-      `;
-    } else {
-      badge.innerHTML = '';
-    }
+    // Pure Firebase Architecture: Navbar badge managed strictly by FirebaseSyncService
   }
 };
 

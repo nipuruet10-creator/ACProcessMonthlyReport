@@ -101,11 +101,6 @@ const App = {
       FirebaseSyncService.init();
     }
 
-    // Initialize Google Sheets Cloud Sync Engine
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.init) {
-      GoogleSheetsSync.init();
-    }
-
     // Background Non-blocking Slide Sync Pipeline (Runs smoothly without freezing UI)
     syncEngine.syncMonth(workbookMgr.activeMonth).catch(e => {
       console.warn("Background sync notification:", e);
@@ -138,15 +133,6 @@ const App = {
     }
 
     await this.refreshCurrentTab();
-
-    // Non-blocking background sync whenever user navigates tabs to ensure fresh data across devices
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pullFromCloud) {
-      setTimeout(() => {
-        if (!GoogleSheetsSync.isSyncing) {
-          GoogleSheetsSync.pullFromCloud(true);
-        }
-      }, 100);
-    }
   },
 
   async refreshCurrentTab() {
@@ -231,21 +217,18 @@ const App = {
   },
 
   /**
-   * Fast global sync: pulls latest cloud updates from Google Sheets and compiles local slides
+   * Fast global sync: pulls latest cloud updates from Firebase and compiles local slides
    */
   async triggerGlobalSync() {
     const activeMonth = (window.appState && window.appState.workbookMgr) ? window.appState.workbookMgr.activeMonth : 'SEP-2026';
     if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
       await FirebaseSyncService.hydrateMonth(activeMonth);
     }
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
-      await GoogleSheetsSync.pullFromCloud(false);
-    }
     if (typeof ReportBuilderView !== 'undefined' && ReportBuilderView.triggerSync) {
       await ReportBuilderView.triggerSync();
     }
     if (typeof window.showToast === 'function') {
-      window.showToast("⚡ Cloud & Multi-PC Sync Complete! All data up-to-date.", "success");
+      window.showToast("⚡ Firebase Live Sync Complete! All data up-to-date.", "success");
     }
   },
 
