@@ -185,6 +185,15 @@ const FirebaseSyncService = {
             this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
             continue;
           }
+
+          // 🛡️ STRICT REJECTION: Sazzad (50463) or empty placeholder tasks for SEP-2026 must be purged!
+          const eng = (t.assignee || t.engineer || '');
+          if (normMonth === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...')) {
+            console.warn(`🛡️ Purging Sazzad / blank task ${t.task_id} from Firebase...`);
+            this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
+            continue;
+          }
+
           // Auto-repair supervisor to Kamrul (44819)
           if (!t.supervisor || String(t.supervisor).toLowerCase().includes('sazzad') || String(t.supervisor).includes('50463')) {
             t.supervisor = 'Kamrul (44819)';
@@ -248,10 +257,15 @@ const FirebaseSyncService = {
         const localTasks = wbMgr.getTasksForMonth(normMonth);
         const newLocalDrafts = localTasks.filter(lt => {
           if (!lt || !lt.task_id) return false;
-          if (deletedSet.has(lt.task_id) && !lt._isLocalDraft) return false;
+          if (deletedSet.has(lt.task_id)) return false;
           let curDel = [];
           try { curDel = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]'); } catch(e) {}
-          if (curDel.includes(lt.task_id) && !lt._isLocalDraft) return false;
+          if (curDel.includes(lt.task_id)) return false;
+
+          const eng = (lt.assignee || lt.engineer || '');
+          if (normMonth === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !lt.task_name || !lt.task_name.trim() || lt.task_name === 'Enter Task Name...')) {
+            return false;
+          }
 
           // Only push if explicitly marked as local draft (newly created row)
           return Boolean(lt._isLocalDraft && !fbData[lt.task_id]);
@@ -456,6 +470,11 @@ const FirebaseSyncService = {
       return;
     }
 
+    const eng = (task.assignee || task.engineer || '');
+    if (month === 'SEP-2026' && (eng.includes('Sazzad') || eng.includes('50463') || !task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...')) {
+      return;
+    }
+
     const wbMgr = window.appState.workbookMgr;
     const existing = wbMgr.getTask(month, task.task_id);
     if (existing) {
@@ -525,6 +544,11 @@ const FirebaseSyncService = {
     } catch (e) {}
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_changed rejected tombstoned task: ${task.task_id}`);
+      return;
+    }
+
+    const engChanged = (task.assignee || task.engineer || '');
+    if (month === 'SEP-2026' && (engChanged.includes('Sazzad') || engChanged.includes('50463') || !task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...')) {
       return;
     }
 

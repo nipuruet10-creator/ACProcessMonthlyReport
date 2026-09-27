@@ -102,17 +102,21 @@ const GoogleSheetsSync = {
         }
 
         if (!this.isSyncing && this.getWebAppUrl()) {
-          pollCycle++;
-          const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-          if (isHidden && (pollCycle % 3 !== 0)) {
-            return;
-          }
-          // If backed off due to temporary Google rate limiting, wait 35 seconds
-          if (this._consecutiveFailures >= 2 && (Date.now() - this._lastFailureTime < 35000)) {
-            return;
-          }
           this.flushPendingQueue();
-          this.pullFromCloud(true);
+          // If Firebase is active and connected, Firebase handles 100% real-time collaborative syncing!
+          // NEVER poll Google Sheets automatically to avoid overwriting live WebSocket state with stale data.
+          const isFbActive = (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected());
+          if (!isFbActive) {
+            pollCycle++;
+            const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+            if (isHidden && (pollCycle % 3 !== 0)) {
+              return;
+            }
+            if (this._consecutiveFailures >= 2 && (Date.now() - this._lastFailureTime < 35000)) {
+              return;
+            }
+            this.pullFromCloud(true);
+          }
         }
       }, 5000);
     } else {
@@ -137,24 +141,26 @@ const GoogleSheetsSync = {
       }
     }
 
-    // Attach real-time wakeup listeners on window focus, visibilitychange, pageshow, and online state
+    // Attach real-time wakeup listeners ONLY when Firebase is offline
     if (!this._listenersAttached && typeof window !== 'undefined') {
+      const isFbOnline = () => (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected());
+
       window.addEventListener('focus', () => {
-        if (this.getWebAppUrl() && !this.isSyncing) {
+        if (!isFbOnline() && this.getWebAppUrl() && !this.isSyncing) {
           this.flushPendingQueue();
           this.pullFromCloud(true);
         }
       });
 
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.getWebAppUrl() && !this.isSyncing) {
+        if (!isFbOnline() && document.visibilityState === 'visible' && this.getWebAppUrl() && !this.isSyncing) {
           this.flushPendingQueue();
           this.pullFromCloud(true);
         }
       });
 
       window.addEventListener('pageshow', () => {
-        if (this.getWebAppUrl() && !this.isSyncing) {
+        if (!isFbOnline() && this.getWebAppUrl() && !this.isSyncing) {
           this.flushPendingQueue();
           this.pullFromCloud(true);
         }
@@ -164,20 +170,11 @@ const GoogleSheetsSync = {
         if (this.getWebAppUrl()) {
           this.status = 'CONNECTED';
           this.flushPendingQueue();
-          this.pullFromCloud(true);
+          if (!isFbOnline()) {
+            this.pullFromCloud(true);
+          }
         }
       });
-
-      // Quick multi-PC wake-up on user interaction
-      let lastActivityPull = 0;
-      const onUserActivity = () => {
-        const now = Date.now();
-        if (now - lastActivityPull > 8000 && this.getWebAppUrl() && !this.isSyncing) {
-          lastActivityPull = now;
-          this.pullFromCloud(true);
-        }
-      };
-      window.addEventListener('pointerdown', onUserActivity, { passive: true });
 
       // Immediate refresh as soon as user clicks away from an input or finishes editing
       document.addEventListener('focusout', () => {

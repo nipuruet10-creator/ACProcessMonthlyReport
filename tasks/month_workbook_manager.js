@@ -7,113 +7,6 @@
  * WALTON Hi-Tech Industries PLC
  */
 
-if (typeof window !== 'undefined') {
-  window.GENUINE_TASK_IDS = new Set();
-}
-var GENUINE_TASK_IDS = new Set();
-
-const GENUINE_TASKS_SEP_2026 = [
-  {
-    task_id: "SEP-2026-001-EE2",
-    month: "SEP-2026",
-    assignee: "Faiyaz (54634)",
-    engineer: "Faiyaz (54634)",
-    concern_engineer: "Faiyaz (54634)",
-    supervisor: "Kamrul (44819)",
-    task_name: "CNC Turret Punch Machine PSI",
-    task_details: "• Machine physical inspection & setup\n• Tooling punch matrix alignment check\n• Test sample run for sheet metal cabinet",
-    category: "Major Developments – Parts",
-    points: 100,
-    task_point: 100,
-    monthly_report: "YES",
-    include_in_report: "YES",
-    status: "TMS#104867 (100% Completed)",
-    tms_status: "YES",
-    tms_task_id: "104867",
-    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104867",
-    remarks: "TMS_ID:104867"
-  },
-  {
-    task_id: "SEP-2026-002-4YT",
-    month: "SEP-2026",
-    assignee: "Faiyaz (54634)",
-    engineer: "Faiyaz (54634)",
-    concern_engineer: "Faiyaz (54634)",
-    supervisor: "Kamrul (44819)",
-    task_name: "Powder coating project",
-    task_details: "• Powder coating line parameter optimization\n• Paint adhesion test & curing temperature check\n• Thickness measurement across surface",
-    category: "Process development",
-    points: 100,
-    task_point: 100,
-    monthly_report: "YES",
-    include_in_report: "YES",
-    status: "TMS#104869 (100% Completed)",
-    tms_status: "YES",
-    tms_task_id: "104869",
-    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104869",
-    remarks: "TMS_ID:104869"
-  },
-  {
-    task_id: "SEP-2026-003-SJ2",
-    month: "SEP-2026",
-    assignee: "Sazzad (50463)",
-    engineer: "Sazzad (50463)",
-    concern_engineer: "Sazzad (50463)",
-    supervisor: "Kamrul (44819)",
-    task_name: "Compressor Jacket 24M0610 Die Setup and trial",
-    task_details: "• Die positioning & clamping on hydraulic press\n• First-off dimension check against drawing\n• Batch trial run & stroke clearance validation",
-    category: "Process development",
-    points: 60,
-    task_point: 60,
-    monthly_report: "YES",
-    include_in_report: "YES",
-    status: "TMS#104868 (100% Completed)",
-    tms_status: "YES",
-    tms_task_id: "104868",
-    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104868",
-    remarks: "TMS_ID:104868"
-  },
-  {
-    task_id: "SEP-2026-004-C44",
-    month: "SEP-2026",
-    assignee: "Faiyaz (54634)",
-    engineer: "Faiyaz (54634)",
-    concern_engineer: "Faiyaz (54634)",
-    supervisor: "Kamrul (44819)",
-    task_name: "Screen Printing",
-    task_details: "• Mesh screen tensioning & stencil preparation\n• Ink viscosity trial on front control panel\n• Cure cycle & rubbing resistance check",
-    category: "Process development",
-    points: 60,
-    task_point: 60,
-    monthly_report: "YES",
-    include_in_report: "YES",
-    status: "TMS#104870 (100% Completed)",
-    tms_status: "YES",
-    tms_task_id: "104870",
-    tms_url: "http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104870",
-    remarks: "TMS_ID:104870"
-  },
-  {
-    task_id: "SEP-2026-005-A3D",
-    month: "SEP-2026",
-    assignee: "Sazzad (50463)",
-    engineer: "Sazzad (50463)",
-    concern_engineer: "Sazzad (50463)",
-    supervisor: "Kamrul (44819)",
-    task_name: "Compressor Jacket Foil trial on 12J",
-    task_details: "• Foil material specification verification\n• Application trial on 12J compressor jacket line\n• Heat insulation and bond inspection",
-    category: "Process development",
-    points: 60,
-    task_point: 60,
-    monthly_report: "YES",
-    include_in_report: "YES",
-    status: "Completed",
-    tms_status: "NO",
-    tms_task_id: "",
-    remarks: ""
-  }
-];
-
 class MonthWorkbookManager {
   constructor(storageKey = "walton_pd_month_workbooks_v2") {
     this.storageKey = storageKey;
@@ -146,6 +39,20 @@ class MonthWorkbookManager {
 
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
+
+    // Clean up SEP-2026: remove any Sazzad (50463) or empty placeholder tasks
+    if (this.workbooks["SEP-2026"] && Array.isArray(this.workbooks["SEP-2026"])) {
+      const initialCount = this.workbooks["SEP-2026"].length;
+      this.workbooks["SEP-2026"] = this.workbooks["SEP-2026"].filter(t => {
+        if (!t || !t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...') return false;
+        const a = (t.assignee || t.engineer || '');
+        if (a.includes('Sazzad') || a.includes('50463')) return false;
+        return true;
+      });
+      if (this.workbooks["SEP-2026"].length !== initialCount) {
+        this.save();
+      }
+    }
 
     // SEP-2026 starts clean and empty for live user entries and cloud sync
     if (!this.workbooks["SEP-2026"] || !Array.isArray(this.workbooks["SEP-2026"])) {
@@ -987,8 +894,8 @@ class MonthWorkbookManager {
       remoteList.forEach(rt => {
         if (!rt || !rt.task_id) return;
 
-        // Suppress tasks deleted on this device (only for non-authoritative background pulls)
-        if (!isAuthoritative && deletedIds.includes(rt.task_id)) {
+        // Strict Tombstone Defense: A task deleted by the user MUST NEVER resurrect!
+        if (deletedIds.includes(rt.task_id)) {
           if (localMap.has(rt.task_id)) {
             const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
             if (idx !== -1) {
@@ -1205,67 +1112,26 @@ class MonthWorkbookManager {
       // Handle un-synced local tasks and remote deletions safely across multiple devices
       const shouldReconcile = isAuthoritative || remoteList.length > 0 || (Array.isArray(remoteList) && isAuthoritative);
       if (shouldReconcile) {
-        const newlyPrunedIds = [];
-        const pendingQ = (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue)
-          ? GoogleSheetsSync.getPendingQueue()
-          : [];
-
         const filtered = localTasks.filter(lt => {
           if (!lt || !lt.task_id) return false;
+          // Strict Tombstone: If user explicitly deleted this task, prune it
           if (deletedIds.includes(lt.task_id)) {
             return false;
           }
 
-          if (!remoteIdSet.has(lt.task_id)) {
-            // CRITICAL: NEVER prune active local drafts or tasks created/edited recently!
-            if (lt._isLocalDraft || (lt._lastFieldEditTime && Date.now() - lt._lastFieldEditTime < 60000) || (lt.created_at && Date.now() - new Date(lt.created_at).getTime() < 120000)) {
-              return true;
-            }
-            if (isAuthoritative || (remoteIdSet.size > 0 && lt._syncedToCloud)) {
-              newlyPrunedIds.push(lt.task_id);
-              return false;
-            }
-            return true;
+          // If remote list has this task, mark as synced to cloud
+          if (remoteIdSet.has(lt.task_id)) {
+            lt._syncedToCloud = true;
+            delete lt._isLocalDraft;
           }
-          // Present in remote list: flag as synced to cloud
-          lt._syncedToCloud = true;
-          delete lt._isLocalDraft;
+
+          // NEVER prune local tasks just because Google Sheets didn't list them yet
           return true;
         });
 
         if (filtered.length !== localTasks.length) {
           this.workbooks[norm] = filtered;
           anyChanges = true;
-        }
-
-        if (isAuthoritative) {
-          deletedIds = deletedIds.filter(id => !remoteIdSet.has(id));
-          try {
-            localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedIds));
-          } catch (e) {}
-        }
-
-        // Add newly pruned IDs to deletedIds tombstones so they can NEVER resurrect!
-        if (newlyPrunedIds.length > 0) {
-          newlyPrunedIds.forEach(id => {
-            if (!deletedIds.includes(id)) deletedIds.push(id);
-          });
-          try {
-            if (deletedIds.length > 500) deletedIds.splice(0, deletedIds.length - 500);
-            localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedIds));
-          } catch (e) {}
-
-          // Purge any pending SYNC_TASK for newly pruned IDs from the pending queue
-          if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getPendingQueue && GoogleSheetsSync.savePendingQueue) {
-            try {
-              const q = GoogleSheetsSync.getPendingQueue();
-              const pruneSet = new Set(newlyPrunedIds);
-              const cleanQ = q.filter(item => !(item.action === 'SYNC_TASK' && item.payload && pruneSet.has(item.payload.task_id)));
-              if (cleanQ.length !== q.length) {
-                GoogleSheetsSync.savePendingQueue(cleanQ);
-              }
-            } catch (e) {}
-          }
         }
       }
 
