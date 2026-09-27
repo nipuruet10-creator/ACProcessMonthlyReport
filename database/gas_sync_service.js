@@ -68,12 +68,16 @@ const GoogleSheetsSync = {
       this.status = 'SYNCING';
       this._updateNavbarBadge();
 
-      // Immediate pull on startup after initial render settles
+      // Immediate pull on startup after initial render settles (bypassed if Firebase is active)
       setTimeout(async () => {
+        const isFbActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
+        if (isFbActive) return;
         await this.flushPendingQueue();
         const success = await this.pullFromCloud(true);
         if (!success && !this.initialSyncCompleted) {
           setTimeout(() => {
+            const isFbStillActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
+            if (isFbStillActive) return;
             this.pullFromCloud(true);
           }, 2500);
         }
@@ -698,6 +702,12 @@ const GoogleSheetsSync = {
    * Pull all tasks and cost savings from Google Sheets
    */
   async pullFromCloud(silent = false) {
+    const isFbActive = typeof window !== 'undefined' && window.FirebaseSync && (window.FirebaseSync.status === 'CONNECTED' || window.FirebaseSync.status === 'CONNECTING');
+    if (isFbActive) {
+      this.status = 'CONNECTED';
+      this._updateNavbarBadge();
+      return true;
+    }
     const url = this.getWebAppUrl();
     if (!url) return false;
     if (this.isSyncing) return false; // Prevent overlapping pulls

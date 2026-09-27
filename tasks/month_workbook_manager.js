@@ -40,6 +40,18 @@ class MonthWorkbookManager {
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
 
+    // 🛡️ USER DIRECTIVE: Complete clean slate for SEP-2026 across all client browsers
+    try {
+      const WIPE_FLAG = 'walton_sep2026_hard_wiped_v5';
+      if (!localStorage.getItem(WIPE_FLAG)) {
+        this.workbooks["SEP-2026"] = [];
+        localStorage.removeItem("walton_deleted_task_ids");
+        localStorage.setItem(WIPE_FLAG, 'true');
+        this.save();
+        console.log("🧹 Wiped SEP-2026 to 0 tasks for clean slate.");
+      }
+    } catch (e) {}
+
     // Clean up SEP-2026: remove any Sazzad (50463) or empty placeholder tasks
     if (this.workbooks["SEP-2026"] && Array.isArray(this.workbooks["SEP-2026"])) {
       const initialCount = this.workbooks["SEP-2026"].length;

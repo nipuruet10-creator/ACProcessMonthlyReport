@@ -290,15 +290,7 @@ const FirebaseSyncService = {
       } else {
         // Firebase has 0 tasks for this month: Authoritatively synchronize local to match Firebase (0 tasks)
         if (wbMgr.workbooks && Array.isArray(wbMgr.workbooks[normMonth])) {
-          wbMgr.workbooks[normMonth] = wbMgr.workbooks[normMonth].filter(lt => lt && lt.task_id && !deletedSet.has(lt.task_id) && lt._isLocalDraft);
-          wbMgr.save();
-        }
-        const localDrafts = (wbMgr.workbooks && wbMgr.workbooks[normMonth]) ? wbMgr.workbooks[normMonth].filter(lt => lt && lt._isLocalDraft) : [];
-        if (localDrafts.length > 0) {
-          for (const ld of localDrafts) {
-            await this.pushTask(normMonth, ld);
-            delete ld._isLocalDraft;
-          }
+          wbMgr.workbooks[normMonth] = [];
           wbMgr.save();
         }
         console.log(`🔥 Firebase Hydrated: Month ${normMonth} has 0 tasks in cloud.`);
