@@ -87,8 +87,8 @@ const ProjectsView = {
         deadline: "5 Months (Target: Dec, 2026)",
         task_details: "1. Vision inspection sensor calibration. 2. Robot path teaching. 3. Joint penetration validation. 4. Real-time defect detection sign-off.",
         supervisor: "Kamrul (44819)",
-        assignee: "Mahmud (51020)",
-        engineer: "Mahmud (51020)",
+        assignee: "Sazzad (50463)",
+        engineer: "Sazzad (50463)",
         points: 65,
         is_project: true,
         created_at: new Date().toISOString()
@@ -102,6 +102,20 @@ const ProjectsView = {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // Cleanse any legacy reference to inactive personnel
+          let cleaned = false;
+          parsed.forEach(p => {
+            const assLower = String(p.assignee || '').toLowerCase();
+            const engLower = String(p.engineer || '').toLowerCase();
+            if (assLower.includes('mahmud') || assLower.includes('51020') || engLower.includes('mahmud') || engLower.includes('51020')) {
+              p.assignee = "Sazzad (50463)";
+              p.engineer = "Sazzad (50463)";
+              cleaned = true;
+            }
+          });
+          if (cleaned) {
+            this.saveProjects(parsed);
+          }
           return parsed;
         }
       }

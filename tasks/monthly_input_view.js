@@ -693,7 +693,7 @@ const MonthlyInputView = {
     const checked = Array.from(document.querySelectorAll('.task-row-checkbox:checked'));
     if (checked.length === 0) return;
 
-    const taskIds = checked.map(cb => cb.dataset.taskId).filter(Boolean);
+    const taskIds = checked.map(cb => cb.dataset.taskId || cb.value).filter(Boolean);
     if (taskIds.length === 0) return;
 
     if (!confirm(`Are you sure you want to delete ${taskIds.length} selected task(s) from ${this.selectedMonth}?`)) {
@@ -741,6 +741,11 @@ const MonthlyInputView = {
 
       const selectAllCb = document.getElementById('task-select-all');
       if (selectAllCb) selectAllCb.checked = false;
+
+      const remaining = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
+      if (!remaining || remaining.length === 0) {
+        this.render();
+      }
     }, 250);
 
     // 5. Silent background slide compilation (never blocks or shakes UI)
@@ -1402,6 +1407,10 @@ const MonthlyInputView = {
           }
         }
 
+        if (!this.isHodPointUnlocked()) {
+          pts = "";
+        }
+
         parsedTasks.push({
           engineer: engineerName,
           assignee: assigneeDisplay,
@@ -1791,7 +1800,7 @@ const MonthlyInputView = {
         <!-- Checkbox Selection -->
         <td class="py-1.5 px-2 text-center border-r border-slate-200 align-middle">
           <input type="checkbox" class="task-row-checkbox w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
-                 data-task-id="${t.task_id}" onchange="MonthlyInputView.updateBulkDeleteButton()" />
+                 value="${t.task_id}" data-task-id="${t.task_id}" onchange="MonthlyInputView.updateBulkDeleteButton()" />
         </td>
 
         <!-- SL -->
@@ -2060,17 +2069,6 @@ const MonthlyInputView = {
 
       const month = this.selectedMonth;
       let allTasks = workbookMgr.getTasksForMonth(month);
-
-      // Auto-heal September 2026 tasks if empty or missing
-      if (month === 'SEP-2026' && (!allTasks || allTasks.length === 0)) {
-        if (typeof workbookMgr.getDefaultSep2026Tasks === 'function') {
-          allTasks = workbookMgr.getDefaultSep2026Tasks();
-          if (workbookMgr.workbooks) {
-            workbookMgr.workbooks['SEP-2026'] = allTasks;
-            workbookMgr.save();
-          }
-        }
-      }
 
       const months = workbookMgr.getAllMonths();
 

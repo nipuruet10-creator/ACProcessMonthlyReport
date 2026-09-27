@@ -7,26 +7,10 @@
  * WALTON Hi-Tech Industries PLC
  */
 
-if (typeof window !== 'undefined' && !window.GENUINE_TASK_IDS) {
-  window.GENUINE_TASK_IDS = new Set([
-    'SEP-2026-001-EE2',
-    'SEP-2026-002-4YT',
-    'SEP-2026-003-SJ2',
-    'SEP-2026-004-C44',
-    'SEP-2026-005-A3D',
-    'SEP-2026-005-FR5'
-  ]);
+if (typeof window !== 'undefined') {
+  window.GENUINE_TASK_IDS = new Set();
 }
-var GENUINE_TASK_IDS = (typeof window !== 'undefined' && window.GENUINE_TASK_IDS)
-  ? window.GENUINE_TASK_IDS
-  : new Set([
-      'SEP-2026-001-EE2',
-      'SEP-2026-002-4YT',
-      'SEP-2026-003-SJ2',
-      'SEP-2026-004-C44',
-      'SEP-2026-005-A3D',
-      'SEP-2026-005-FR5'
-    ]);
+var GENUINE_TASK_IDS = new Set();
 
 const GENUINE_TASKS_SEP_2026 = [
   {
@@ -163,24 +147,14 @@ class MonthWorkbookManager {
     // Re-enforce retention after hydration to ensure Jan-Jul never persists
     this.enforceTwoMonthRetention();
 
-    // Ensure September 2026 has all 5 genuine tasks initialized and auto-healed
-    if (!this.workbooks["SEP-2026"] || this.workbooks["SEP-2026"].length === 0) {
+    // Seed September 2026 tasks only on first initial system bootstrap
+    const hasSeededSep = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_pd_sep2026_seeded') : null;
+    if (!hasSeededSep && (!this.workbooks["SEP-2026"] || !Array.isArray(this.workbooks["SEP-2026"]))) {
       this.workbooks["SEP-2026"] = this.getDefaultSep2026Tasks();
       this.save();
-    } else {
-      const sep = this.workbooks["SEP-2026"];
-      const existingIds = new Set(sep.map(t => t.task_id));
-      let added = false;
-      this.getDefaultSep2026Tasks().forEach(defTask => {
-        if (!existingIds.has(defTask.task_id)) {
-          sep.push({ ...defTask });
-          added = true;
-        }
-      });
-      if (added) {
-        sep.sort((a, b) => (a.task_id || '').localeCompare(b.task_id || '', undefined, { numeric: true, sensitivity: 'base' }));
-        this.save();
-      }
+      try { localStorage.setItem('walton_pd_sep2026_seeded', 'true'); } catch (e) {}
+    } else if (!this.workbooks["SEP-2026"]) {
+      this.workbooks["SEP-2026"] = [];
     }
   }
 
@@ -193,27 +167,21 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
-    // Load and sanitize deleted task IDs - GENUINE_TASK_IDS can NEVER be tombstoned
+    // Load deleted task IDs without artificial immunity
     let deletedIds = [];
     try {
-      const raw = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      const cleaned = raw.filter(id => !GENUINE_TASK_IDS.has(id));
-      if (cleaned.length !== raw.length) {
-        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
-      }
-      deletedIds = cleaned;
+      deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
     } catch (e) {}
     const deletedSet = new Set(deletedIds);
 
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        // Purge tombstoned tasks from in-memory workbooks, but strictly protect GENUINE_TASK_IDS
+        // Purge tombstoned tasks from in-memory workbooks
         if (deletedSet.size > 0) {
           const initCount = this.workbooks[k].length;
           this.workbooks[k] = this.workbooks[k].filter(t => {
             if (!t || !t.task_id) return false;
-            if (GENUINE_TASK_IDS.has(t.task_id)) return true; // IMMUNE
             return !deletedSet.has(t.task_id);
           });
           if (this.workbooks[k].length !== initCount) {
@@ -500,33 +468,10 @@ class MonthWorkbookManager {
       }
     }
 
-    // Auto-repair known task names and TMS locks across browser reloads
+    // Auto-repair known initial task name across browser reloads
     this.workbooks[m].forEach(t => {
       if (t.task_id === 'SEP-2026-005-A3D' && (!t.task_name || t.task_name === 'New Engineering Task')) {
         t.task_name = 'Compressor Jacket Foil trial on 12J';
-      }
-      // Auto-correct rows 6 & 8 to genuine Walton TMS task IDs
-      const tName = (t.task_name || '').toLowerCase();
-      if (tName.includes('new die setup for 18m') || tName.includes('foil compressor jacket new die setup')) {
-        t.tms_task_id = '104888';
-        t.tms_url = 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104888';
-        t.status = 'TMS#104888 (100% Completed)';
-        t.remarks = 'TMS_ID:104888';
-      }
-      if (tName.includes('assembly line reclocation') || tName.includes('assembly line relocation') || (tName.includes('assembly line') && tName.includes('rac'))) {
-        t.tms_task_id = '104889';
-        t.tms_url = 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104889';
-        t.status = 'TMS#104889 (100% Completed)';
-        t.remarks = 'TMS_ID:104889';
-      }
-      if (typeof TmsSyncService !== 'undefined' && TmsSyncService.getTmsInfo) {
-        const info = TmsSyncService.getTmsInfo(t);
-        if (info && info.tms_task_id && (!t.tms_task_id || t.tms_task_id === '104871' || t.tms_task_id === '104872')) {
-          t.tms_task_id = info.tms_task_id;
-          t.tms_url = info.tms_url;
-          t.status = `TMS#${info.tms_task_id} (100% Completed)`;
-          t.remarks = `TMS_ID:${info.tms_task_id}`;
-        }
       }
     });
 
@@ -795,11 +740,6 @@ class MonthWorkbookManager {
 
   deleteTask(month, taskId) {
     if (!taskId) return false;
-    // CRITICAL IMMUNITY: GENUINE_TASK_IDS can NEVER be deleted
-    if (GENUINE_TASK_IDS.has(taskId)) {
-      console.warn(`🛡️ Protected task ${taskId} cannot be deleted.`);
-      return false;
-    }
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return false;
     const initialLen = this.workbooks[m].length;
@@ -857,9 +797,6 @@ class MonthWorkbookManager {
 
   deleteMultipleTasks(month, taskIds = []) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
-    // Filter out genuine protected tasks
-    taskIds = taskIds.filter(id => !GENUINE_TASK_IDS.has(id));
-    if (taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return { success: true, deletedCount: 0, count: 0 };
     const initialLen = this.workbooks[m].length;

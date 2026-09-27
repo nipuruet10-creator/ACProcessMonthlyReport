@@ -827,25 +827,20 @@ const TmsSyncService = {
       };
     }
 
-    // 4. Check persistent LocalStorage cache by EXACT taskId or task_name
+    // 4. Check persistent LocalStorage cache by EXACT taskId only (NEVER by task_name!)
     try {
       const cache = JSON.parse(localStorage.getItem('walton_tms_synced_records') || '{}');
       if (task.task_id && cache[task.task_id]) {
         return cache[task.task_id];
       }
-      if (task.task_name && cache[task.task_name.trim().toLowerCase()]) {
-        return cache[task.task_name.trim().toLowerCase()];
-      }
     } catch (e) {}
 
-    // 5. Pre-configured known genuine tasks from Walton TMS (Locked permanence)
+    // 5. Pre-configured known initial tasks by EXACT taskId only (NEVER by task_name)
     const KNOWN_TMS_TASKS = {
       'SEP-2026-001-EE2': '104867',
       'SEP-2026-002-4YT': '104869',
       'SEP-2026-003-SJ2': '104868',
-      'SEP-2026-004-C44': '104870',
-      'SEP-2026-001': '104812',
-      'SEP-2026-002-PXV': '104813'
+      'SEP-2026-004-C44': '104870'
     };
 
     if (task.task_id && KNOWN_TMS_TASKS[task.task_id]) {
@@ -853,51 +848,6 @@ const TmsSyncService = {
       return {
         tms_task_id: id,
         tms_url: `http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=${id}`,
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-
-    // Robust matching by task name for known tasks
-    const nameLower = (task.task_name || '').toLowerCase().trim();
-    if (nameLower.includes('cnc turret punch') || nameLower.includes('turret punch machine')) {
-      return {
-        tms_task_id: '104867',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104867',
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-    if (nameLower.includes('powder coating')) {
-      return {
-        tms_task_id: '104869',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104869',
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-    if (nameLower.includes('compressor jacket 24m0610')) {
-      return {
-        tms_task_id: '104868',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104868',
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-    if (nameLower.includes('screen printing')) {
-      return {
-        tms_task_id: '104870',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104870',
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-    if (nameLower.includes('die setup for 18m') || nameLower.includes('foil compressor jacket new die setup')) {
-      return {
-        tms_task_id: '104888',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104888',
-        tms_synced_at: task.last_updated || new Date().toISOString()
-      };
-    }
-    if (nameLower.includes('assembly line reclocation') || nameLower.includes('assembly line relocation') || (nameLower.includes('assembly line') && nameLower.includes('rac'))) {
-      return {
-        tms_task_id: '104889',
-        tms_url: 'http://192.168.118.138/adm/repo1/mod/tms/index.php?m=task&&page=single_task2&a=view&&code=104889',
         tms_synced_at: task.last_updated || new Date().toISOString()
       };
     }

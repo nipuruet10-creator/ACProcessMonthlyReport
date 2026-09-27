@@ -40,8 +40,8 @@ const DEFAULT_CATEGORIES = [
   "Others"
 ];
 
-const REMOVED_ENGINEER_IDS = new Set(["28117", "37486", "40121", "39635", "46484", "51121", "2571", "44819"]);
-const REMOVED_ENGINEER_NAMES = new Set(["shishir", "rana", "mehedi", "shahria", "kasfia", "takvir", "nurul", "kamrul"]);
+const REMOVED_ENGINEER_IDS = new Set(["28117", "37486", "40121", "39635", "46484", "51121", "2571", "44819", "51020"]);
+const REMOVED_ENGINEER_NAMES = new Set(["shishir", "rana", "mehedi", "shahria", "kasfia", "takvir", "nurul", "kamrul", "mahmud"]);
 
 function loadMasterEngineers() {
   try {
