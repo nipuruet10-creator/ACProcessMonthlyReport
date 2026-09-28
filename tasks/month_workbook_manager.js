@@ -472,6 +472,138 @@ class MonthWorkbookManager {
     return newTask;
   }
 
+  /**
+   * High-speed bulk insertion of multiple tasks into a month workbook
+   * Saves to disk once and broadcasts in batch to avoid any UI lag
+   */
+  addTasksBatch(month, taskList = []) {
+    const m = this.normalizeMonth(month);
+    if (!this.workbooks[m]) {
+      this.workbooks[m] = [];
+    }
+    if (!Array.isArray(taskList) || taskList.length === 0) return [];
+
+    const formatName = (n) => (typeof MasterDataManager !== 'undefined' && MasterDataManager.formatNameWithId)
+      ? MasterDataManager.formatNameWithId(n)
+      : (n || "").trim();
+
+    const prefix = `${m}-`;
+    let maxSeq = 0;
+    const usedIds = new Set();
+
+    this.workbooks[m].forEach(t => {
+      if (t.task_id) {
+        usedIds.add(t.task_id);
+        if (t.task_id.startsWith(prefix)) {
+          const numPart = t.task_id.substring(prefix.length).split('-')[0];
+          const num = parseInt(numPart, 10);
+          if (!isNaN(num) && num > maxSeq) {
+            maxSeq = num;
+          }
+        }
+      }
+    });
+
+    let deletedIds = new Set();
+    try {
+      const d = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+      d.forEach(id => deletedIds.add(id));
+    } catch (e) {}
+
+    const createdTasks = [];
+    const nowIso = new Date().toISOString();
+    let tombstoneModified = false;
+
+    for (const t of taskList) {
+      let engineerOrAssignee = t.assignee || t.engineer || "Sazzad (50463)";
+      let taskName = (t.task_name || "").trim();
+      let includeInReport = t.include_in_report === "NO" ? "NO" : "YES";
+      let taskDetails = (t.task_details || "").trim();
+      let category = (t.category || "Process development").trim();
+      let points = (t.points !== "" && t.points !== undefined && t.points !== null && !isNaN(parseFloat(t.points))) ? parseFloat(t.points) : "";
+      let supervisor = t.supervisor || "Kamrul (44819)";
+
+      maxSeq++;
+      let randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      let candidateId = `${prefix}${String(maxSeq).padStart(3, "0")}-${randSuffix}`;
+
+      let attempts = 0;
+      while ((usedIds.has(candidateId) || deletedIds.has(candidateId)) && attempts < 500) {
+        maxSeq++;
+        attempts++;
+        randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+        candidateId = `${prefix}${String(maxSeq).padStart(3, "0")}-${randSuffix}`;
+      }
+
+      usedIds.add(candidateId);
+      if (deletedIds.has(candidateId)) {
+        deletedIds.delete(candidateId);
+        tombstoneModified = true;
+      }
+
+      const cleanAssignee = formatName(engineerOrAssignee);
+      const cleanSupervisor = formatName(supervisor);
+
+      const isProject = Boolean(t.is_project || category === 'Ongoing Projects' || category === 'Completed Projects');
+      const projectStatus = t.project_status || (category === 'Completed Projects' ? 'Completed' : (isProject ? 'Ongoing' : ''));
+      const deadline = t.deadline || "";
+
+      const newTask = {
+        task_id: candidateId,
+        month: m,
+        assignee: cleanAssignee,
+        engineer: cleanAssignee,
+        supervisor: cleanSupervisor,
+        task_name: taskName,
+        task_details: taskDetails,
+        category: category,
+        points: points,
+        include_in_report: includeInReport,
+        status: "",
+        remarks: "",
+        photo_1: "",
+        photo_2: "",
+        is_project: isProject,
+        project_status: projectStatus,
+        deadline: deadline,
+        _isLocalDraft: true,
+        created_at: nowIso,
+        last_updated: nowIso,
+        updated_at: nowIso
+      };
+
+      this.workbooks[m].push(newTask);
+      createdTasks.push(newTask);
+    }
+
+    if (tombstoneModified) {
+      try {
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedIds)));
+      } catch (e) {}
+    }
+
+    // Persist all inserted tasks in localStorage in ONE single write
+    this.save();
+
+    // Broadcast batch to Firebase RTDB in background
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      if (typeof FirebaseSyncService.pushTasksBatch === 'function') {
+        FirebaseSyncService.pushTasksBatch(m, createdTasks).catch(console.warn);
+      } else {
+        createdTasks.forEach(tk => FirebaseSyncService.pushTask(m, tk));
+      }
+    }
+
+    // Push to Google Sheets asynchronously in background
+    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.pushTask) {
+      createdTasks.forEach(tk => {
+        GoogleSheetsSync.pushTask(tk).catch(() => {});
+      });
+    }
+
+    return createdTasks;
+  }
+
   updateTask(month, taskId, updates = {}) {
     const m = this.normalizeMonth(month);
     const tasks = this.workbooks[m] || [];

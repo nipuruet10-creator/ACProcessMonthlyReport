@@ -1057,6 +1057,39 @@ const FirebaseSyncService = {
   },
 
   /**
+   * Fast batch push of multiple tasks to Firebase using multi-path atomic update
+   */
+  async pushTasksBatch(month, taskArray = []) {
+    if (!this.isConnected() || !Array.isArray(taskArray) || taskArray.length === 0) return false;
+    const normMonth = (window.appState && window.appState.workbookMgr)
+      ? window.appState.workbookMgr.normalizeMonth(month)
+      : month;
+
+    try {
+      let deletedList = new Set();
+      try {
+        const d = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
+        d.forEach(id => deletedList.add(id));
+      } catch (e) {}
+
+      const updates = {};
+      taskArray.forEach(task => {
+        if (task && task.task_id && !deletedList.has(task.task_id)) {
+          updates[`walton_monthly_report/workbooks/${normMonth}/tasks/${task.task_id}`] = task;
+        }
+      });
+
+      if (Object.keys(updates).length > 0) {
+        await this.db.ref().update(updates);
+      }
+      return true;
+    } catch (e) {
+      console.warn("Firebase pushTasksBatch notice:", e);
+      return false;
+    }
+  },
+
+  /**
    * Delete task from Firebase (atomically with tombstone recording)
    */
   async deleteTask(month, taskId) {

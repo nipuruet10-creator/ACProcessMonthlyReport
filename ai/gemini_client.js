@@ -500,41 +500,32 @@ class GeminiClient {
 
     const provider = this.getProvider();
 
-    // Helper to sanitize and normalize AI reply into 4-5 numbered steps
+    // Helper to sanitize and normalize AI reply into concise 3-4 word bullet points
     const sanitizeSteps = (raw) => {
       if (!raw || typeof raw !== 'string') return "";
       let s = raw.trim();
 
-      // 1. Remove thinking / reasoning XML tags from reasoning models (e.g. DeepSeek-R1)
+      // 1. Remove thinking / reasoning XML tags from reasoning models
       s = s.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-      // 2. Locate the start of the actual numbered steps (e.g. "1. ")
-      const firstStepMatch = s.search(/\b1[\.\)]\s/);
-      if (firstStepMatch !== -1) {
-        s = s.substring(firstStepMatch);
-      } else {
-        // Strip common conversational filler prefixes
-        s = s.replace(/^(?:The user wants|Here is|Sure|Here are|Okay|Below are|As an engineer|Step[- ]by[- ]step)[\s\S]*?:/i, '').trim();
+      // 2. Strip common conversational filler prefixes
+      s = s.replace(/^(?:The user wants|Here is|Sure|Here are|Okay|Below are|As an engineer|Step[- ]by[- ]step)[\s\S]*?:/i, '').trim();
+
+      // 3. Remove markdown bold/italics/quotes
+      s = s.replace(/[*_#`"]/g, '');
+
+      // 4. Use helper to strictly enforce 3-4 words per bullet point
+      const helpers = (typeof HELPERS !== 'undefined') ? HELPERS : (typeof require !== 'undefined' ? require('../utils/helpers') : null);
+      if (helpers && helpers.formatDetailsAsShortBullets) {
+        s = helpers.formatDetailsAsShortBullets(s);
       }
 
-      // 3. Remove markdown bold/italics/bullet symbols
-      s = s.replace(/[*_#`]/g, '');
-
-      // 4. Standardize any bullet/number variations e.g. "1) " -> "1. ", "- 1. " -> "1. "
-      s = s.replace(/^\s*[-•*]\s*/gm, '');
-      s = s.replace(/\b(\d+)[\)]\s/g, '$1. ');
-
-      // 5. Convert multiline steps to single spaced string
-      s = s.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
-
-      // 6. Ensure it has at least 3 numbered points; if not, reject and use template fallback
-      const stepCount = (s.match(/\b\d+\.\s/g) || []).length;
-      if (stepCount < 3) return "";
-
+      // Ensure it has valid bullet content
+      if (!s || s.length < 10) return "";
       return s;
     };
 
-    // 1. Try OpenRouter
+    // 1. Try OpenRouter (with strict 1500ms timeout race)
     if (provider === "openrouter" && this.getOpenRouterKey()) {
       try {
         const prompt = `You are an industrial process development engineer at Walton AC factory.
@@ -542,30 +533,35 @@ Task Name: "${cleanName}"
 Category: "${category || "Process development"}"
 
 INSTRUCTIONS:
-Break down this exact task into 4 to 5 sequential, concrete, shop-floor engineering steps.
-Include specific engineering actions relevant to "${cleanName}" (e.g., CAD design, tooling fabrication, CNC machining, sensor/pneumatic setup, line trial run, cycle time verification, SOP documentation).
+Generate 4 to 5 bullet points for this engineering task.
+EACH bullet point must be strictly 3 to 4 words and directly related to "${cleanName}".
 
-STRICT OUTPUT FORMAT:
-- Output ONLY 4 to 5 numbered steps.
-- Format strictly as: "1. [Step 1] 2. [Step 2] 3. [Step 3] 4. [Step 4] 5. [Step 5]".
-- Absolutely NO introductory phrases, NO thinking/reasoning text, NO conversational filler (do NOT say "The user wants...", "Here are the steps...", etc.).
-- Start directly with "1. ".`;
+FORMAT:
+• [3-4 words] • [3-4 words] • [3-4 words] • [3-4 words]
 
-        const reply = await this.callOpenRouter([
-          { role: "system", content: "You are an expert industrial manufacturing process engineer at Walton AC factory. Output strictly 4 to 5 numbered engineering steps. Start immediately with '1. '. Do not write any thoughts, notes, or intros." },
+EXAMPLE:
+• 3D CAD modeling • Tooling fixture fabrication • Line trial run • Final SOP handover
+
+Output ONLY the bullet points. Start immediately with "• ". Do NOT include intro, numbers, or explanation.`;
+
+        const openRouterCall = this.callOpenRouter([
+          { role: "system", content: "You are an expert industrial manufacturing engineer at Walton AC factory. Output strictly 4 to 5 bullet points of 3-4 words each. Start immediately with '• '." },
           { role: "user", content: prompt }
-        ], 0.2, 450, false);
+        ], 0.2, 200, false);
+
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500));
+        const reply = await Promise.race([openRouterCall, timeoutPromise]);
 
         const cleaned = sanitizeSteps(reply);
         if (cleaned) {
           return cleaned;
         }
       } catch (err) {
-        console.warn("OpenRouter step generation notice:", err.message);
+        console.warn("OpenRouter fast step generation notice:", err.message);
       }
     }
 
-    // 2. Try Gemini
+    // 2. Try Gemini (with strict 1500ms timeout race)
     const geminiKey = this.getApiKey();
     if (provider === "gemini" && geminiKey) {
       try {
@@ -574,35 +570,42 @@ STRICT OUTPUT FORMAT:
 Task Name: "${cleanName}"
 Category: "${category || "Process development"}"
 
-Break down this task into 4 to 5 sequential, realistic engineering steps directly related to "${cleanName}".
-Format strictly as: "1. Step 1 2. Step 2 3. Step 3 4. Step 4 5. Step 5".
-No intro, no markdown, no filler. Start directly with "1. ".`;
+Generate 4 to 5 bullet points directly related to "${cleanName}".
+Each bullet point MUST be strictly 3 to 4 words.
+Format strictly as: "• [3-4 words] • [3-4 words] • [3-4 words] • [3-4 words]".
+No intro, no markdown, no numbers. Start directly with "• ".`;
 
-        const response = await fetch(url, {
+        const geminiCall = fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 350 }
+            generationConfig: { temperature: 0.2, maxOutputTokens: 200 }
           })
+        }).then(async res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            return data.candidates[0].content.parts[0].text.trim();
+          }
+          return "";
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-            const text = data.candidates[0].content.parts[0].text.trim();
-            const cleaned = sanitizeSteps(text);
-            if (cleaned) {
-              return cleaned;
-            }
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500));
+        const text = await Promise.race([geminiCall, timeoutPromise]);
+
+        if (text) {
+          const cleaned = sanitizeSteps(text);
+          if (cleaned) {
+            return cleaned;
           }
         }
       } catch (err) {
-        console.warn("Gemini step generation notice:", err.message);
+        console.warn("Gemini fast step generation notice:", err.message);
       }
     }
 
-    // 3. High-Quality Deterministic Local Fallback (Guaranteed 4-5 numbered steps tailored to taskName)
+    // 3. High-Quality Instant Deterministic Local Fallback (< 2ms guaranteed 3-4 word bullets)
     return this.templates.generateEngineeringSteps(cleanName, category);
   }
 

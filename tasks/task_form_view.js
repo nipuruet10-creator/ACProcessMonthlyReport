@@ -45,7 +45,11 @@ const TaskFormView = {
 
     try {
       if (window.appState && window.appState.aiClient && window.appState.aiClient.generateTaskSteps) {
-        steps = await window.appState.aiClient.generateTaskSteps(taskName, category);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("AI timeout")), 1500));
+        steps = await Promise.race([
+          window.appState.aiClient.generateTaskSteps(taskName, category),
+          timeoutPromise
+        ]);
       }
     } catch (e) {
       // Fallback
@@ -56,12 +60,16 @@ const TaskFormView = {
     }
 
     if (!steps) {
-      steps = `1. Study process requirements for ${taskName}. 2. Fabricate tooling & assemble prototype. 3. Perform production trial run. 4. Complete quality sign-off and SOP.`;
+      steps = "• 3D CAD modeling • Tooling fixture fabrication • Line trial run • Final SOP handover";
+    }
+
+    if (typeof HELPERS !== 'undefined' && HELPERS.formatDetailsAsShortBullets) {
+      steps = HELPERS.formatDetailsAsShortBullets(steps);
     }
 
     detailsInput.value = steps;
     if (typeof window.showToast === 'function') {
-      window.showToast("\u2728 AI generated tailored milestone details!", "success");
+      window.showToast("✨ AI generated 3-4 word bullet points!", "success");
     }
   },
 

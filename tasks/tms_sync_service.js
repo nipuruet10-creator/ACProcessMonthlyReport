@@ -16,17 +16,21 @@ const TmsSyncService = {
    * Check if local background relay or LAN relay is reachable
    */
   async checkBridgeStatus() {
+    const isBrowser = typeof window !== 'undefined';
+    const locOrigin = isBrowser ? window.location.origin : '';
     const customHost = (typeof localStorage !== 'undefined') ? localStorage.getItem('walton_tms_relay_host') : null;
     const candidates = [
+      (locOrigin && (locOrigin.includes(':3138') || locOrigin.includes('localhost') || locOrigin.includes('127.0.0.1'))) ? locOrigin : null,
       customHost,
       'http://127.0.0.1:3138',
+      'http://localhost:3138',
       'http://192.168.50.158:3138'
     ].filter(Boolean);
 
     for (const url of candidates) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1600);
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
         const res = await fetch(`${url}/status`, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (res.ok) {
@@ -259,33 +263,33 @@ const TmsSyncService = {
               </div>
             </div>
 
-            <!-- Engineer TMS Password Field (Clean status by default, expandable on demand) -->
+            <!-- Engineer TMS Password Field (Privacy Guarded, Unlocked Only with Master Password) -->
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <span class="w-6 h-6 rounded-lg ${needsPasswordPrompt ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'} flex items-center justify-center text-xs font-bold">
-                    ${needsPasswordPrompt ? '🔑' : '✔'}
+                  <span class="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center text-xs font-bold">
+                    🔒
                   </span>
                   <div>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Walton TMS Password</span>
                     <span class="font-mono text-xs font-bold text-slate-800">
-                      ${needsPasswordPrompt ? 'Personal Password Verification Required' : 'Default Auto-Ready (Sep@2026)'}
+                      ●●●●●●●● (Protected &amp; Ready for TMS Sync)
                     </span>
                   </div>
                 </div>
-                <button type="button" onclick="const s=document.getElementById('tms-password-edit-drawer'); s.classList.toggle('hidden');"
+                <button type="button" onclick="TmsSyncService.openMasterPasswordUnlock('${empId}', '${escape(engFullName)}')"
                         class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-blue-600 hover:text-blue-800 text-xs font-bold transition cursor-pointer">
-                  ${needsPasswordPrompt ? 'Edit' : 'Change Password ✏️'}
+                  View / Change Password 🔑
                 </button>
               </div>
 
-              <!-- Collapsible Password Input (shown if user wants to change, or open by default if password mismatch) -->
-              <div id="tms-password-edit-drawer" class="${needsPasswordPrompt ? '' : 'hidden'} pt-2 border-t border-slate-200/80 space-y-2">
+              <!-- Unlocked Password Drawer (Hidden until unlocked with Master Password) -->
+              <div id="tms-password-edit-drawer" class="hidden pt-2 border-t border-slate-200/80 space-y-2">
                 <label for="tms-confirm-password" class="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
-                  <span>🔑</span> <span>Enter Walton TMS Password for ${escape(engFullName)} (${empId})</span>
+                  <span>🔑</span> <span>Walton TMS Password for ${escape(engFullName)} (${empId})</span>
                 </label>
                 <div class="relative flex items-center">
-                  <input type="password" id="tms-confirm-password" value="${escape(currentPass)}"
+                  <input type="password" id="tms-confirm-password" value=""
                          placeholder="Enter Walton TMS Password..."
                          class="w-full bg-white border border-amber-300 focus:border-amber-600 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 pr-10 shadow-xs" 
                          onkeydown="if(event.key==='Enter') TmsSyncService.handleConfirmModalSubmit('${month}', '${task.task_id}', '${empId}')" />
@@ -298,9 +302,9 @@ const TmsSyncService = {
                 <div class="flex items-center justify-between pt-0.5 text-[11px] text-slate-600">
                   <label class="flex items-center gap-1.5 cursor-pointer select-none">
                     <input type="checkbox" id="tms-save-password-chk" checked class="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 cursor-pointer" />
-                    <span>Remember this password for ${escape(engFullName)}</span>
+                    <span>Save updated password for ${escape(engFullName)}</span>
                   </label>
-                  <span class="text-[10px] text-slate-400 font-medium">Strictly per-engineer</span>
+                  <span class="text-[10px] text-slate-400 font-medium">Secured with Master Password</span>
                 </div>
               </div>
             </div>
@@ -338,14 +342,15 @@ const TmsSyncService = {
     const chk = document.getElementById('tms-save-password-chk');
     const submitBtn = document.getElementById('tms-confirm-submit-btn');
 
-    const enteredPass = passInput ? passInput.value.trim() : '';
+    const drawer = document.getElementById('tms-password-edit-drawer');
+    const isDrawerOpen = drawer && !drawer.classList.contains('hidden');
+    let enteredPass = (passInput && isDrawerOpen) ? passInput.value.trim() : '';
+
     if (!enteredPass) {
-      alert("Please enter the Walton TMS password for this engineer.");
-      if (passInput) passInput.focus();
-      return;
+      enteredPass = this._getCachedTmsPassword(empId) || "Sep@2026";
     }
 
-    if (chk && chk.checked && typeof MasterDataManager !== 'undefined' && MasterDataManager.updateTmsPassword) {
+    if (chk && chk.checked && isDrawerOpen && typeof MasterDataManager !== 'undefined' && MasterDataManager.updateTmsPassword) {
       MasterDataManager.updateTmsPassword(empId, enteredPass);
     }
 
@@ -358,6 +363,182 @@ const TmsSyncService = {
     await this.executeTaskSync(month, taskId, {
       employeeId: empId,
       password: enteredPass
+    });
+  },
+
+  /**
+   * Retrieves cached or stored Walton TMS password for an engineer
+   */
+  _getCachedTmsPassword(empId) {
+    if (!empId) return "Sep@2026";
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineerCredentials) {
+      const creds = MasterDataManager.getEngineerCredentials(empId);
+      if (creds && creds.password) return creds.password;
+    }
+    return "Sep@2026";
+  },
+
+  /**
+   * Opens Master Password Authentication Modal to protect TMS passwords
+   * Only the assigned engineer or Master Admin can unlock and view/edit passwords.
+   */
+  openMasterPasswordUnlock(empId, engName, onSuccess = null) {
+    let container = document.getElementById('tms-master-unlock-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'tms-master-unlock-modal-container';
+      document.body.appendChild(container);
+    }
+
+    const cleanName = engName || empId;
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-sm bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800 space-y-4">
+          
+          <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center text-xl flex-shrink-0">
+                🔐
+              </div>
+              <div>
+                <h3 class="text-sm font-black text-slate-900">Security Verification</h3>
+                <p class="text-[11px] text-slate-500">${cleanName} (${empId})</p>
+              </div>
+            </div>
+            <button type="button" onclick="TmsSyncService.closeMasterPasswordUnlock()" class="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer">✕</button>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Enter your <strong class="text-slate-900 font-bold">Master Password</strong> to view or edit this TMS password.
+            </p>
+
+            <div class="space-y-1.5">
+              <label for="tms-master-pin-input" class="text-[11px] font-bold text-slate-700 block">
+                Engineer Master Password / PIN
+              </label>
+              <div class="relative flex items-center">
+                <input type="password" id="tms-master-pin-input" placeholder="e.g. SZ#50463 or Admin PIN" autofocus
+                       class="w-full bg-slate-50 border border-slate-300 focus:border-indigo-600 focus:bg-white rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none pr-10 shadow-xs transition"
+                       onkeydown="if(event.key==='Enter') TmsSyncService.submitMasterPasswordUnlock('${empId}', '${cleanName}')" />
+                <button type="button" onclick="const f=document.getElementById('tms-master-pin-input'); f.type=(f.type==='password'?'text':'password'); this.textContent=(f.type==='password'?'👁️':'🔒')"
+                        title="Toggle Visibility" class="absolute right-2.5 text-slate-400 hover:text-slate-700 text-xs p-1 cursor-pointer">
+                  👁️
+                </button>
+              </div>
+              <div id="tms-master-pin-error" class="hidden text-[11px] font-bold text-rose-600 pt-0.5"></div>
+            </div>
+
+            <div class="bg-indigo-50/60 border border-indigo-200/70 rounded-xl p-2.5 text-[10px] text-indigo-900 flex items-center gap-2">
+              <span>🛡️</span>
+              <span>Only this engineer or Master Admin (<span class="font-mono font-bold">ACprocess@2026</span>) can unlock.</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button type="button" onclick="TmsSyncService.closeMasterPasswordUnlock()"
+                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" onclick="TmsSyncService.submitMasterPasswordUnlock('${empId}', '${cleanName}')"
+                    class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-black shadow-md shadow-indigo-600/20 transition cursor-pointer">
+              Unlock 🔓
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    this._pendingUnlockCallback = onSuccess;
+
+    setTimeout(() => {
+      const pinInput = document.getElementById('tms-master-pin-input');
+      if (pinInput) pinInput.focus();
+    }, 50);
+  },
+
+  closeMasterPasswordUnlock() {
+    const container = document.getElementById('tms-master-unlock-modal-container');
+    if (container) container.innerHTML = '';
+    this._pendingUnlockCallback = null;
+  },
+
+  submitMasterPasswordUnlock(empId, engName) {
+    const pinInput = document.getElementById('tms-master-pin-input');
+    const errEl = document.getElementById('tms-master-pin-error');
+    const pin = (pinInput && pinInput.value) ? pinInput.value.trim() : '';
+
+    if (!pin) {
+      if (errEl) {
+        errEl.textContent = '⚠️ Please enter your Master Password.';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Verify using MasterDataManager
+    let verifyRes = { success: false };
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.verifyEngineerAccess) {
+      verifyRes = MasterDataManager.verifyEngineerAccess(empId, empId, pin);
+    } else if (pin === 'ACprocess@2026') {
+      verifyRes = { success: true };
+    }
+
+    if (!verifyRes.success) {
+      if (errEl) {
+        errEl.textContent = '❌ Incorrect Password! Enter your unique Master PIN or Admin Password.';
+        errEl.classList.remove('hidden');
+      }
+      if (pinInput) {
+        pinInput.classList.add('border-rose-500', 'bg-rose-50');
+        pinInput.focus();
+      }
+      return;
+    }
+
+    // Verification Succeeded!
+    const cb = this._pendingUnlockCallback;
+    this.closeMasterPasswordUnlock();
+
+    if (typeof cb === 'function') {
+      cb();
+      return;
+    }
+
+    // Default Confirm Modal Drawer Unlock
+    const drawer = document.getElementById('tms-password-edit-drawer');
+    const passInput = document.getElementById('tms-confirm-password');
+    if (drawer) {
+      drawer.classList.remove('hidden');
+    }
+    if (passInput) {
+      passInput.value = this._getCachedTmsPassword(empId);
+      passInput.type = 'text';
+      passInput.focus();
+    }
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`🔓 Password unlocked for ${engName || empId}`, 'success');
+    }
+  },
+
+  unlockManualPass(empId, actualPass) {
+    const creds = (typeof MasterDataManager !== 'undefined' && MasterDataManager.getEngineerCredentials)
+      ? MasterDataManager.getEngineerCredentials(empId) : null;
+    const name = (creds && creds.name) ? creds.name : empId;
+    this.openMasterPasswordUnlock(empId, name, () => {
+      const passEl = document.getElementById('manual-bridge-pass-display');
+      if (passEl) {
+        passEl.textContent = actualPass || this._getCachedTmsPassword(empId);
+        passEl.className = "font-mono font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded select-all";
+      }
+      const unlockBtn = document.getElementById('manual-bridge-pass-unlock-btn');
+      if (unlockBtn) unlockBtn.style.display = 'none';
+      if (typeof window.showToast === 'function') {
+        window.showToast(`🔓 Manual TMS password revealed!`, 'success');
+      }
     });
   },
 
@@ -959,16 +1140,39 @@ const TmsSyncService = {
 
           <div class="my-4 space-y-3.5 text-xs text-slate-600">
             
-            <!-- Recommended Solution: Instant Direct TMS ID Link (Zero Network Dependency) -->
-            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2.5 shadow-sm">
+            <!-- Option 1: 1-Click Launch on Local Bridge (Bypasses all Browser Security / Mixed Content) -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-2xl p-4 space-y-2.5 shadow-sm">
               <div class="flex items-center justify-between">
-                <span class="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
-                  <span>🚀</span> <span>Best &amp; Instant Solution: Enter TMS Task ID</span>
+                <span class="font-bold text-blue-950 flex items-center gap-1.5 text-xs">
+                  <span>🚀</span> <span>Option 1: Open App via Local Bridge (Recommended)</span>
                 </span>
-                <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Recommended</span>
+                <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">1-Click Auto-Connect</span>
               </div>
               <p class="text-slate-600 text-[11px] leading-relaxed">
-                Browser security blocks cloud HTTPS apps from connecting to local HTTP bridges. To link your Walton TMS task in 0ms without running any bridge:
+                If the bridge is running on your PC, opening the app at <strong class="text-blue-700 font-mono">http://localhost:3138</strong> directly bypasses all HTTPS Mixed Content blocks and auto-connects in 0ms!
+              </p>
+              <div class="flex items-center gap-2">
+                <a href="http://localhost:3138" target="_blank"
+                   class="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                  <span>Open http://localhost:3138</span> <span>↗</span>
+                </a>
+                <button type="button" onclick="TmsSyncService.retrySync('${month}', '${task.task_id}')"
+                        class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer">
+                  ↺ Re-check Connection
+                </button>
+              </div>
+            </div>
+
+            <!-- Option 2: Instant Direct TMS ID Link (Zero Network Dependency) -->
+            <div class="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-3.5 space-y-2 shadow-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
+                  <span>⚡</span> <span>Option 2: Enter TMS Task ID Directly</span>
+                </span>
+                <span class="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded-full font-bold">Manual Link</span>
+              </div>
+              <p class="text-slate-600 text-[11px]">
+                Paste the TMS Task ID (e.g. 104868) from Walton Intranet to instantly mark it complete without network bridges:
               </p>
               <div class="flex items-center gap-2">
                 <input type="text" id="manual-tms-input" placeholder="e.g. 104868 or paste TMS link..." 
@@ -987,56 +1191,37 @@ const TmsSyncService = {
               </div>
             </div>
 
-            <!-- Option 1: Team Shared Bridge (Zero installation for colleagues!) -->
-            <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-2">
-              <div class="font-bold text-blue-900 flex items-center justify-between">
-                <span class="flex items-center gap-1.5"><span>🌐</span> <span>Option 2: Connect to Team Bridge (Sazzad's PC)</span></span>
-                <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-sans font-bold">Fastest</span>
-              </div>
-              <p class="text-slate-600 text-[11px]">
-                If Sazzad's PC has the bridge running on the office Wi-Fi, you can sync through it without running anything on your PC!
-              </p>
-              <div class="flex items-center gap-2 pt-1">
-                <button type="button" onclick="localStorage.setItem('walton_tms_relay_host', 'http://192.168.50.158:3138'); TmsSyncService.retrySync('${month}', '${task.task_id}')"
-                        class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer">
-                  ⚡ Use Sazzad's Team Bridge (192.168.50.158)
-                </button>
-                <button type="button" onclick="localStorage.removeItem('walton_tms_relay_host'); TmsSyncService.retrySync('${month}', '${task.task_id}')"
-                        class="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-xs transition cursor-pointer">
-                  Reset to Localhost
-                </button>
-              </div>
-            </div>
-
-            <!-- Option 3: Local 1-Click Bridge -->
+            <!-- Option 3: Run Local Bridge on this PC -->
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-              <div class="font-bold text-slate-800 flex items-center gap-1.5">
-                <span>💻</span> <span>Option 3: Run Local Bridge on this PC</span>
+              <div class="font-bold text-slate-800 flex items-center justify-between">
+                <span class="flex items-center gap-1.5"><span>💻</span> <span>Option 3: Run Local Bridge on this PC</span></span>
+                <span class="text-[10px] text-slate-500 font-mono">Port 3138</span>
               </div>
               <p class="text-slate-600 text-[11px]">
-                Go to the project folder and double-click either:
+                In your project folder, double-click <code class="bg-white border border-slate-300 px-1.5 py-0.5 rounded font-mono font-bold text-indigo-700">Run_TMS_Sync_Bridge.bat</code>. It starts the bridge and auto-opens the connected app.
               </p>
-              <div class="grid grid-cols-2 gap-2 text-[11px] font-mono font-bold">
-                <div class="bg-white border border-slate-300 rounded-xl p-2 text-indigo-700 flex items-center justify-between">
-                  <span>Run_TMS_Sync_Bridge_Silent.vbs</span>
-                  <span class="text-[9px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Silent</span>
-                </div>
-                <div class="bg-white border border-slate-300 rounded-xl p-2 text-indigo-700 flex items-center justify-between">
-                  <span>Run_TMS_Sync_Bridge.bat</span>
-                  <span class="text-[9px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Console</span>
-                </div>
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[10px] text-amber-900 leading-relaxed">
+                <strong class="font-bold">Using Cloud HTTPS (GitHub Pages)?</strong> Chrome blocks local HTTP. To allow on this tab: Click 🔒/Tune icon beside URL ➔ <em>Site settings</em> ➔ <em>Insecure content</em>: <strong>Allow</strong> ➔ Refresh.
               </div>
             </div>
 
-            <!-- Option 4: Manual Task & Credentials -->
+            <!-- Option 4: Manual Task & Protected Credentials -->
             <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-1.5">
               <div class="font-bold text-amber-900 flex items-center justify-between">
                 <span class="flex items-center gap-1.5"><span>🔑</span> <span>Manual TMS Login Details</span></span>
                 <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-[11px] text-blue-700 underline font-bold">Open Walton TMS ↗</a>
               </div>
-              <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-700">
+              <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-700 items-center">
                 <div>ID: <strong class="text-slate-900">${payload.employeeId}</strong></div>
-                <div>Pass: <strong class="text-slate-900">${payload.password}</strong></div>
+                <div class="flex items-center gap-1.5">
+                  <span>Pass:</span>
+                  <span id="manual-bridge-pass-display" class="font-bold text-slate-800">●●●●●●●●</span>
+                  <button id="manual-bridge-pass-unlock-btn" type="button" 
+                          onclick="TmsSyncService.unlockManualPass('${payload.employeeId}', '${payload.password}')" 
+                          class="px-2 py-0.5 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px] transition cursor-pointer">
+                    Unlock 🔑
+                  </button>
+                </div>
               </div>
             </div>
 

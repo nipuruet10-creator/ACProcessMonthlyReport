@@ -19,6 +19,8 @@ if %errorlevel% neq 0 (
 )
 
 echo Starting TMS Relay Server...
+echo Opening Web App at http://localhost:3138 ...
+start http://localhost:3138
 echo Keep this window OPEN while syncing tasks from the Monthly Report App.
 echo.
 node "%~dp0tms_relay.js"
