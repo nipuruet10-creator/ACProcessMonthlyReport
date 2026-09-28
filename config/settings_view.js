@@ -1170,7 +1170,7 @@ const SettingsView = {
             <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
               <p class="font-bold flex items-center gap-1.5"><span>🛡️</span> <span>Privacy &amp; Security Protocol:</span></p>
               <p class="text-[11px] text-blue-800 leading-relaxed">
-                Only <strong>${HELPERS.escapeHtml(eng.name)} (ID: ${eng.id})</strong> using their unique security password OR <strong>Master Admin (ID: 50463)</strong> can view and change this TMS password.
+                Enter the unique security password assigned to <strong>${HELPERS.escapeHtml(eng.fullName || eng.name)}</strong> or Master Admin credentials to view and manage TMS credentials.
               </p>
             </div>
 
@@ -1244,8 +1244,27 @@ const SettingsView = {
     const eng = list.find(e => String(e.id) === String(staffId) || e.name === staffId);
 
     if (eng) {
-      const expectedPin = eng.access_pin || `${eng.name}@${eng.id}`;
-      if (inputId === String(eng.id) && inputPass === expectedPin) {
+      const defaultMatch = (typeof DEFAULT_ENGINEERS !== 'undefined' ? DEFAULT_ENGINEERS.find(de => de.id === String(eng.id)) : null);
+      const expectedPin = eng.access_pin || (defaultMatch ? defaultMatch.access_pin : `${eng.name.substring(0, 2).toUpperCase()}#${eng.id}`);
+      const validPins = new Set([
+        expectedPin,
+        expectedPin.replace('#', '@'),
+        expectedPin.replace('@', '#'),
+        defaultMatch ? defaultMatch.access_pin : '',
+        defaultMatch ? defaultMatch.access_pin.replace('#', '@') : '',
+        // Backward compatibility if trailing digit was entered
+        defaultMatch ? `${defaultMatch.access_pin}8` : '',
+        defaultMatch ? `${defaultMatch.access_pin}3` : '',
+        defaultMatch ? `${defaultMatch.access_pin}9` : '',
+        defaultMatch ? `${defaultMatch.access_pin}4` : '',
+        defaultMatch ? `${defaultMatch.access_pin}7` : '',
+        defaultMatch ? `${defaultMatch.access_pin}2` : '',
+        defaultMatch ? `${defaultMatch.access_pin}5` : '',
+        defaultMatch ? `${defaultMatch.access_pin}6` : '',
+        defaultMatch ? `${defaultMatch.access_pin}1` : ''
+      ].filter(Boolean));
+
+      if (inputId === String(eng.id) && validPins.has(inputPass)) {
         if (!this._unlockedStaffIds) this._unlockedStaffIds = new Set();
         this._unlockedStaffIds.add(String(eng.id));
         this.closeUnlockStaffModal();
@@ -1288,13 +1307,13 @@ const SettingsView = {
           <div class="space-y-3.5 my-4">
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Master Employee ID:</label>
-              <input type="text" id="master-admin-id" value="50463" placeholder="50463" 
+              <input type="text" id="master-admin-id" placeholder="Enter Master Employee ID..." 
                      class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500" />
             </div>
 
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Master Admin Password:</label>
-              <input type="password" id="master-admin-password" placeholder="Enter master password..." 
+              <input type="password" id="master-admin-password" placeholder="Enter Master Password..." 
                      class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500" />
             </div>
 
@@ -1341,7 +1360,7 @@ const SettingsView = {
       }
     } else {
       if (errEl) {
-        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463.";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Employee ID or Password.";
         errEl.classList.remove('hidden');
       }
     }
@@ -1392,11 +1411,11 @@ const SettingsView = {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
-                <input type="text" id="new-staff-password" value="Sep@2026" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+                <input type="password" id="new-staff-password" placeholder="Enter TMS Password..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security PIN / Pass:</label>
-                <input type="text" id="new-staff-pin" placeholder="Leave empty for auto: Name@ID" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+                <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security PIN / Password:</label>
+                <input type="password" id="new-staff-pin" placeholder="•••••••• (Leave blank to auto-generate)" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
               </div>
             </div>
 
@@ -1407,12 +1426,12 @@ const SettingsView = {
               </span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master ID (50463):</label>
-                  <input type="text" id="new-staff-master-id" value="50463" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Admin ID:</label>
+                  <input type="text" id="new-staff-master-id" placeholder="Enter Master ID" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
                 </div>
                 <div>
                   <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Password:</label>
-                  <input type="password" id="new-staff-master-pass" placeholder="Enter ACprocess@2026" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                  <input type="password" id="new-staff-master-pass" placeholder="Enter Master Password..." class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
                 </div>
               </div>
             </div>
@@ -1453,7 +1472,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Master Admin Authorization Failed. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;
@@ -1471,7 +1490,10 @@ const SettingsView = {
     const id = idEl.value.trim();
     const fullName = fullEl && fullEl.value.trim() ? fullEl.value.trim() : `Engr. ${name}`;
     const pass = passEl && passEl.value.trim() ? passEl.value.trim() : "Sep@2026";
-    const pin = pinEl && pinEl.value.trim() ? pinEl.value.trim() : `${name}@${id}`;
+    let pin = pinEl && pinEl.value.trim() ? pinEl.value.trim() : "";
+    if (!pin) {
+      pin = `${name.substring(0, 2).toUpperCase()}#${id}`;
+    }
 
     if (typeof MasterDataManager !== 'undefined' && MasterDataManager.addEngineer) {
       MasterDataManager.addEngineer({
@@ -1520,7 +1542,7 @@ const SettingsView = {
               <span class="text-2xl text-rose-600">🗑️</span>
               <div>
                 <h3 class="text-base font-black text-slate-900">Remove Team Member</h3>
-                <p class="text-xs text-slate-500">Requires Master Admin Authorization (ID: 50463)</p>
+                <p class="text-xs text-slate-500">Requires Master Admin Authorization</p>
               </div>
             </div>
             <button onclick="SettingsView.closeDeleteStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
@@ -1534,8 +1556,8 @@ const SettingsView = {
             <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
               <span class="text-xs font-bold text-amber-900">Master Admin Credentials:</span>
               <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="del-staff-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
-                <input type="password" id="del-staff-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="text" id="del-staff-master-id" placeholder="Master ID" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="del-staff-master-pass" placeholder="Master Password..." class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
               </div>
             </div>
 
@@ -1567,7 +1589,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;
@@ -1636,22 +1658,22 @@ const SettingsView = {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
-                <input type="text" id="edit-staff-password" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+                <input type="password" id="edit-staff-password" placeholder="•••••••• (Leave blank to keep existing)" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security PIN / Password:</label>
-                <input type="text" id="edit-staff-pin" value="${HELPERS.escapeHtml(eng.access_pin || `${eng.name}@${eng.id}`)}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+                <input type="password" id="edit-staff-pin" placeholder="•••••••• (Leave blank to keep existing)" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
               </div>
             </div>
 
             <!-- Master Admin Authorization Box -->
             <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
               <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+                <span>🔐</span> <span>Required: Master Admin Verification</span>
               </span>
               <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="edit-staff-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
-                <input type="password" id="edit-staff-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="text" id="edit-staff-master-id" placeholder="Master ID" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="edit-staff-master-pass" placeholder="Master Password..." class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
               </div>
             </div>
 
@@ -1683,7 +1705,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;
@@ -1706,8 +1728,15 @@ const SettingsView = {
     const name = nameEl.value.trim();
     const newId = idEl.value.trim();
     const fullName = fullEl && fullEl.value.trim() ? fullEl.value.trim() : `Engr. ${name}`;
-    const pass = passEl && passEl.value.trim() ? passEl.value.trim() : "Sep@2026";
-    const pin = pinEl && pinEl.value.trim() ? pinEl.value.trim() : `${name}@${newId}`;
+
+    const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : []));
+    const currentEng = list.find(e => String(e.id) === String(oldId) || e.name === oldId);
+
+    const pass = (passEl && passEl.value.trim()) ? passEl.value.trim() : (currentEng && currentEng.tms_password ? currentEng.tms_password : "Sep@2026");
+    let pin = (pinEl && pinEl.value.trim()) ? pinEl.value.trim() : (currentEng && currentEng.access_pin ? currentEng.access_pin : "");
+    if (!pin) {
+      pin = `${name.substring(0, 2).toUpperCase()}#${newId}`;
+    }
 
     if (typeof MasterDataManager !== 'undefined' && MasterDataManager.updateEngineer) {
       try {
@@ -1792,16 +1821,16 @@ const SettingsView = {
             <!-- Master Admin Authorization Box -->
             <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
               <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+                <span>🔐</span> <span>Required: Master Admin Verification</span>
               </span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master ID (50463):</label>
-                  <input type="text" id="new-sup-master-id" value="50463" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Admin ID:</label>
+                  <input type="text" id="new-sup-master-id" placeholder="Enter Master ID" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
                 </div>
                 <div>
                   <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Password:</label>
-                  <input type="password" id="new-sup-master-pass" placeholder="Enter ACprocess@2026" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                  <input type="password" id="new-sup-master-pass" placeholder="Enter Master Password..." class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
                 </div>
               </div>
             </div>
@@ -1834,7 +1863,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;
@@ -1930,11 +1959,11 @@ const SettingsView = {
             <!-- Master Admin Authorization Box -->
             <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
               <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+                <span>🔐</span> <span>Required: Master Admin Verification</span>
               </span>
               <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="edit-sup-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
-                <input type="password" id="edit-sup-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="text" id="edit-sup-master-id" placeholder="Master ID" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="edit-sup-master-pass" placeholder="Master Password..." class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
               </div>
             </div>
 
@@ -1966,7 +1995,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;
@@ -2036,7 +2065,7 @@ const SettingsView = {
               <span class="text-2xl text-rose-600">🗑️</span>
               <div>
                 <h3 class="text-base font-black text-slate-900">Remove Department Supervisor</h3>
-                <p class="text-xs text-slate-500">Requires Master Admin Authorization (ID: 50463)</p>
+                <p class="text-xs text-slate-500">Requires Master Admin Authorization</p>
               </div>
             </div>
             <button onclick="SettingsView.closeDeleteSupervisorModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
@@ -2050,8 +2079,8 @@ const SettingsView = {
             <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
               <span class="text-xs font-bold text-amber-900">Master Admin Credentials:</span>
               <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="del-sup-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
-                <input type="password" id="del-sup-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="text" id="del-sup-master-id" placeholder="Master ID" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="del-sup-master-pass" placeholder="Master Password..." class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
               </div>
             </div>
 
@@ -2083,7 +2112,7 @@ const SettingsView = {
 
     if (mId !== '50463' || mPass !== 'ACprocess@2026') {
       if (errEl) {
-        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.textContent = "❌ Invalid Master Credentials. Incorrect Master ID or Password.";
         errEl.classList.remove('hidden');
       }
       return;

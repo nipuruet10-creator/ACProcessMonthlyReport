@@ -81,7 +81,6 @@ const MasterDataView = {
                         <span class="font-mono text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1" title="Walton eService TMS Password">
                           <span>🔒</span>
                           <span id="tms-pass-display-${e.id}">••••••••</span>
-                          <button onclick="const el=document.getElementById('tms-pass-display-${e.id}'); el.textContent = el.textContent==='••••••••' ? '${e.tms_password || 'Sep@2026'}' : '••••••••';" class="hover:text-amber-900 ml-1">👁️</button>
                         </span>
                       </div>
                       <div class="text-[11px] text-slate-400 mt-0.5">
@@ -234,7 +233,7 @@ const MasterDataView = {
                   👁️ Show/Hide
                 </button>
               </div>
-              <input type="password" id="modal-eng-tms-pass" value="${data.tms_password || 'Sep@2026'}" placeholder="e.g. Sep@2026" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100">
+              <input type="password" id="modal-eng-tms-pass" placeholder="•••••••• (Leave blank to keep existing)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100">
               <span class="text-[10px] text-slate-400">Used for automated login to Walton eService TMS (192.168.118.138)</span>
             </div>
 
@@ -265,7 +264,9 @@ const MasterDataView = {
     const id = document.getElementById('modal-eng-id').value.trim();
     const fullName = document.getElementById('modal-eng-fullname').value.trim();
     const email = document.getElementById('modal-eng-email').value.trim();
-    const tms_password = (document.getElementById('modal-eng-tms-pass') ? document.getElementById('modal-eng-tms-pass').value.trim() : "Sep@2026") || "Sep@2026";
+    const enteredPass = (document.getElementById('modal-eng-tms-pass') ? document.getElementById('modal-eng-tms-pass').value.trim() : '');
+    const currentEng = this.editingEngineerId && typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers().find(x => String(x.id) === String(this.editingEngineerId)) : null;
+    const tms_password = enteredPass || (currentEng && currentEng.tms_password ? currentEng.tms_password : "Sep@2026");
 
     if (!name || !id) {
       alert("Name and ID are required.");
