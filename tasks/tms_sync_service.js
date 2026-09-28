@@ -22,9 +22,10 @@ const TmsSyncService = {
     const candidates = [
       (locOrigin && (locOrigin.includes(':3138') || locOrigin.includes('localhost') || locOrigin.includes('127.0.0.1'))) ? locOrigin : null,
       customHost,
+      'https://walton-pd-tms.loca.lt',
+      'http://192.168.50.158:3138',
       'http://127.0.0.1:3138',
-      'http://localhost:3138',
-      'http://192.168.50.158:3138'
+      'http://localhost:3138'
     ].filter(Boolean);
 
     for (const url of candidates) {
@@ -306,6 +307,32 @@ const TmsSyncService = {
                   </label>
                   <span class="text-[10px] text-slate-400 font-medium">Secured with Master Password</span>
                 </div>
+              </div>
+            </div>
+
+            <!-- Direct TMS Task ID Entry (Zero Setup - No localhost or bridge needed!) -->
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                  <span>⚡</span> <span>Direct Link (No Bridge/Localhost Needed)</span>
+                </span>
+                <span class="text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Easiest</span>
+              </div>
+              <p class="text-[11px] text-slate-600">
+                Already created in Walton TMS? Enter Task ID to link instantly without running any local server:
+              </p>
+              <div class="flex items-center gap-2">
+                <input type="text" id="direct-confirm-tms-id" placeholder="Enter Walton TMS ID (e.g. 104868)..."
+                       class="flex-1 bg-white border border-emerald-300 focus:border-emerald-600 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-800 focus:outline-none shadow-xs"
+                       onkeydown="if(event.key==='Enter') TmsSyncService.linkManualTmsId('${month}', '${task.task_id}', this.value)" />
+                <button type="button" onclick="TmsSyncService.linkManualTmsId('${month}', '${task.task_id}', document.getElementById('direct-confirm-tms-id').value)"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex-shrink-0">
+                  Link TMS ✔
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                <span>View on Walton Intranet:</span>
+                <a href="http://192.168.118.138/adm/repo1/mod/tms/login.php" target="_blank" class="text-blue-700 underline font-bold">Open Walton TMS ↗</a>
               </div>
             </div>
 
@@ -1265,10 +1292,33 @@ const TmsSyncService = {
         remarks: `TMS_ID:${tmsCode}`,
         tms_synced_at: new Date().toISOString()
       });
+
+      const fullTask = window.appState.workbookMgr.getTask(month, taskId);
+
+      // Save to localStorage map
+      try {
+        const syncedMap = JSON.parse(localStorage.getItem('walton_tms_synced_records') || '{}');
+        const rec = { tms_task_id: tmsCode, tms_url: tmsUrl, tms_synced_at: new Date().toISOString() };
+        syncedMap[taskId] = rec;
+        if (fullTask && fullTask.task_name) syncedMap[fullTask.task_name.trim().toLowerCase()] = rec;
+        localStorage.setItem('walton_tms_synced_records', JSON.stringify(syncedMap));
+      } catch (e) {}
+
+      // Update DOM slot in-place
+      const slot = document.getElementById(`tms-action-slot-${taskId}`);
+      if (slot && fullTask) {
+        slot.innerHTML = this.renderTmsBadgeHtml(fullTask);
+      }
+
+      // Sync to Firebase and local DB
+      if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected() && fullTask) {
+        FirebaseSyncService.pushTask(month, fullTask);
+      }
       if (window.appState.syncEngine) {
-        window.appState.syncEngine.syncMonth(month);
+        window.appState.syncEngine.syncMonth(month).catch(() => {});
       }
     }
+    this.closeConfirmModal();
     this.closeBridgeModal();
     if (typeof MonthlyInputView !== 'undefined' && MonthlyInputView.render) {
       MonthlyInputView.render();

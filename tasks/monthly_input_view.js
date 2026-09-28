@@ -307,9 +307,15 @@ const MonthlyInputView = {
           return;
         }
         cleanVal = (value !== '' && value !== null && !isNaN(parseFloat(value))) ? parseFloat(value) : '';
+        patch.hod_point_set_at = Date.now();
+        patch.hod_point_locked = true;
       }
 
       const patch = { [field]: cleanVal };
+      if (field === 'points') {
+        patch.hod_point_set_at = Date.now();
+        patch.hod_point_locked = true;
+      }
       if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
         patch.assignee = cleanVal;
         patch.engineer = cleanVal;
@@ -320,6 +326,14 @@ const MonthlyInputView = {
       // Ultra-Fast Real-time Firebase Sync (Sub-30ms Instant Highway)
       if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
         FirebaseSyncService.updateCell(this.selectedMonth, taskId, field, cleanVal);
+        if (field === 'points') {
+          FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'hod_point_set_at', Date.now());
+          FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'hod_point_locked', true);
+          const fullTask = window.appState.workbookMgr.getTask(this.selectedMonth, taskId);
+          if (fullTask) {
+            FirebaseSyncService.pushTask(this.selectedMonth, fullTask);
+          }
+        }
         if (field === 'assignee' || field === 'engineer' || field === 'concern_engineer') {
           FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'assignee', cleanVal);
           FirebaseSyncService.updateCell(this.selectedMonth, taskId, 'engineer', cleanVal);

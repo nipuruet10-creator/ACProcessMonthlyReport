@@ -671,9 +671,31 @@ class MonthWorkbookManager {
     }
 
     if (updates.points !== undefined) {
-      updated.points = (updates.points !== "" && updates.points !== null && !isNaN(parseFloat(updates.points)))
-        ? parseFloat(updates.points)
-        : "";
+      const currentPts = (tasks[idx].points !== undefined && tasks[idx].points !== null && tasks[idx].points !== "" && !isNaN(parseFloat(tasks[idx].points)))
+        ? parseFloat(tasks[idx].points)
+        : null;
+      const isHodUnlocked = (typeof MonthlyInputView !== 'undefined' && typeof MonthlyInputView.isHodPointUnlocked === 'function')
+        ? MonthlyInputView.isHodPointUnlocked()
+        : false;
+
+      // REQUIREMENT: "HOD ekber task jeta dibe seta fix hobe. HOD change na korle kono vabei sei value change hobe na."
+      // If task already has a point set by HOD, and current session is NOT unlocked as HOD, NEVER allow changing/wiping it!
+      if (currentPts !== null && !isHodUnlocked) {
+        updated.points = currentPts;
+      } else {
+        const newPts = (updates.points !== "" && updates.points !== null && !isNaN(parseFloat(updates.points)))
+          ? parseFloat(updates.points)
+          : "";
+        if (newPts === "" && currentPts !== null && !isHodUnlocked) {
+          updated.points = currentPts;
+        } else {
+          updated.points = newPts;
+          if (newPts !== "") {
+            updated.hod_point_set_at = Date.now();
+            updated.hod_point_locked = true;
+          }
+        }
+      }
     }
 
     tasks[idx] = updated;
@@ -1133,16 +1155,43 @@ class MonthWorkbookManager {
               const rVal = rt[k];
               const lVal = lt[k];
 
-              // 1. POINTS SYNCHRONIZATION: Remote points set by HOD in Firebase always take authoritative precedence!
+              // 1. POINTS SYNCHRONIZATION & IMMUTABILITY:
+              // Requirement: "HOD ekber task jeta dibe seta fix hobe. HOD change na korle kono vabei sei value change hobe na."
               if (k === 'points') {
-                const rPts = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
-                const lPts = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
-                if (rPts !== '') {
-                  lt.points = (typeof rVal === 'number') ? rVal : (isNaN(parseFloat(rVal)) ? rVal : parseFloat(rVal));
-                  continue;
-                } else if (lPts !== '') {
-                  // Local has points, remote is empty: push back to guarantee cloud has it
+                const rNum = (rVal !== undefined && rVal !== null && rVal !== "" && !isNaN(parseFloat(rVal))) ? parseFloat(rVal) : null;
+                const lNum = (lVal !== undefined && lVal !== null && lVal !== "" && !isNaN(parseFloat(lVal))) ? parseFloat(lVal) : null;
+
+                if (lNum !== null && rNum === null) {
+                  // Local already has points, remote is missing: keep local & push back to cloud
                   needsCloudPushBack = true;
+                  continue;
+                }
+                if (lNum !== null && rNum !== null) {
+                  const rHodTime = rt.hod_point_set_at || 0;
+                  const lHodTime = lt.hod_point_set_at || 0;
+
+                  if (rHodTime > lHodTime) {
+                    // Remote has a strictly newer HOD evaluation timestamp
+                    lt.points = rNum;
+                    lt.hod_point_set_at = rHodTime;
+                    lt.hod_point_locked = true;
+                  } else if (lHodTime > rHodTime) {
+                    // Local HOD evaluation is newer: keep local and push to cloud!
+                    needsCloudPushBack = true;
+                  } else {
+                    // Timestamps equal or not set: points can NEVER be reduced by a stale device!
+                    const maxPts = Math.max(lNum, rNum);
+                    lt.points = maxPts;
+                    if (rNum < maxPts) {
+                      needsCloudPushBack = true;
+                    }
+                  }
+                  continue;
+                }
+                if (lNum === null && rNum !== null) {
+                  lt.points = rNum;
+                  if (rt.hod_point_set_at) lt.hod_point_set_at = rt.hod_point_set_at;
+                  lt.hod_point_locked = true;
                   continue;
                 }
               }

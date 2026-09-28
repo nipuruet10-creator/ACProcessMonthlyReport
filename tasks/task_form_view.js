@@ -254,6 +254,16 @@ const TaskFormView = {
       ? window.appState.workbookMgr
       : new MonthWorkbookManager();
 
+    const isHod = (typeof MonthlyInputView !== 'undefined' && typeof MonthlyInputView.isHodPointUnlocked === 'function')
+      ? MonthlyInputView.isHodPointUnlocked() : false;
+    const existingTask = taskId ? workbookMgr.getTask(month, taskId) : null;
+    let finalPoints = points;
+    if (existingTask && existingTask.points !== undefined && existingTask.points !== null && existingTask.points !== "") {
+      if (!isHod) {
+        finalPoints = existingTask.points; // Strictly preserve HOD points!
+      }
+    }
+
     try {
       if (taskId) {
         workbookMgr.updateTask(month, taskId, {
@@ -263,7 +273,7 @@ const TaskFormView = {
           category: category,
           task_details: taskDetails,
           supervisor: supervisor,
-          points: points,
+          points: finalPoints,
           last_updated: new Date().toISOString()
         });
       } else {

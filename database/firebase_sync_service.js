@@ -690,10 +690,36 @@ const FirebaseSyncService = {
         }
       }
 
-      // POINTS: Points are set/managed by HOD. Always adopt remote point if provided!
+      // POINTS IMMUTABILITY: Points are strictly evaluated by HOD (44819).
+      // Requirement: "HOD ekber task jeta dibe seta fix hobe. HOD change na korle kono vabei sei value change hobe na."
       if (k === 'points') {
-        if (v !== undefined && v !== null) {
-          mergedTask.points = (v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : v;
+        const incomingPts = (v !== undefined && v !== null && v !== "" && !isNaN(parseFloat(v))) ? parseFloat(v) : null;
+        const currentLocalPts = (localTask.points !== undefined && localTask.points !== null && localTask.points !== "" && !isNaN(parseFloat(localTask.points))) ? parseFloat(localTask.points) : null;
+
+        if (currentLocalPts !== null) {
+          if (incomingPts === null) {
+            // Remote is empty: NEVER wipe existing HOD points!
+            continue;
+          }
+          const incomingHodTime = task.hod_point_set_at || 0;
+          const localHodTime = localTask.hod_point_set_at || 0;
+
+          if (incomingHodTime > localHodTime) {
+            // Strictly newer HOD evaluation from cloud
+            mergedTask.points = incomingPts;
+            mergedTask.hod_point_set_at = incomingHodTime;
+            mergedTask.hod_point_locked = true;
+          } else if (localHodTime > incomingHodTime) {
+            // Local HOD evaluation is newer: keep local points!
+            continue;
+          } else {
+            // Timestamps equal or not set: points can NEVER be reduced!
+            mergedTask.points = Math.max(currentLocalPts, incomingPts);
+          }
+        } else if (incomingPts !== null) {
+          mergedTask.points = incomingPts;
+          if (task.hod_point_set_at) mergedTask.hod_point_set_at = task.hod_point_set_at;
+          mergedTask.hod_point_locked = true;
         }
         continue;
       }
@@ -730,10 +756,9 @@ const FirebaseSyncService = {
     tasks[idx] = mergedTask;
     this._debouncedSaveWb();
 
-    // Check if points changed remotely to immediately reflect across all devices
-    if (task.points !== undefined && task.points !== null && String(task.points) !== String(localTask.points ?? '')) {
-      const cleanPts = (task.points !== '') ? (isNaN(parseFloat(task.points)) ? task.points : parseFloat(task.points)) : '';
-      mergedTask.points = cleanPts;
+    // Check if points changed to immediately reflect in DOM safely
+    if (mergedTask.points !== undefined && mergedTask.points !== null && String(mergedTask.points) !== String(localTask.points ?? '')) {
+      const cleanPts = mergedTask.points;
       const input = document.getElementById(`task-point-${taskId}`) || document.querySelector(`input[id="task-point-${taskId}"]`);
       if (input && activeId !== input.id) {
         input.value = cleanPts;
