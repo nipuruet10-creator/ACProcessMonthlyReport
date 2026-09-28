@@ -365,7 +365,9 @@ const MonthlyInputView = {
       const month = this.selectedMonth;
       const task = window.appState.workbookMgr.getTask(month, taskId);
       if (task) {
-        task[field] = value;
+        task[field] = (field === 'points')
+          ? ((value !== '' && value !== null && !isNaN(parseFloat(value))) ? parseFloat(value) : '')
+          : value;
         task._lastFieldEditTime = Date.now();
         task.last_updated = new Date().toISOString();
         if (!this._storageSaveTimer) {
@@ -387,7 +389,12 @@ const MonthlyInputView = {
       clearTimeout(this._inputDebounceTimers[debounceKey]);
       this._inputDebounceTimers[debounceKey] = setTimeout(() => {
         if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-          FirebaseSyncService.updateCell(month, taskId, field, value);
+          const sendVal = (field === 'points' && task) ? task[field] : value;
+          FirebaseSyncService.updateCell(month, taskId, field, sendVal);
+        }
+        if (field === 'points') {
+          if (typeof this.updateRankingTable === 'function') this.updateRankingTable();
+          if (typeof this.updateEngineerSummary === 'function') this.updateEngineerSummary();
         }
       }, 250);
     } catch (e) {
@@ -1872,7 +1879,7 @@ const MonthlyInputView = {
             ${this.isHodPointUnlocked() ? `
               <input type="number" id="task-point-${t.task_id}" value="${(t.points !== undefined && t.points !== null && t.points !== '') ? t.points : ''}"
                      placeholder="—" title="Task Point (0-100)" step="5" min="0" max="100"
-                     oninput="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
+                     oninput="MonthlyInputView.handleFieldInput('${t.task_id}', 'points', this.value)"
                      onchange="MonthlyInputView.handleInlineUpdate('${t.task_id}', 'points', this.value)"
                      onkeydown="MonthlyInputView.handlePointKeyDown(event, '${t.task_id}')"
                      onpaste="MonthlyInputView.handlePointPaste(event, '${t.task_id}')"

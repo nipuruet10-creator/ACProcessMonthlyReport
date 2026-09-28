@@ -165,14 +165,6 @@ const FirebaseSyncService = {
       }
 
       if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
-        // Reconcile tombstones: Active tasks present in Firebase are authoritative and can never be tombstoned
-        Object.keys(fbData).forEach(activeId => {
-          deletedSet.delete(activeId);
-        });
-        try {
-          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
-        } catch (e) {}
-
         // Auto-heal tasks loaded from Firebase
         const remoteTasks = [];
         for (const [key, t] of Object.entries(fbData)) {
@@ -183,6 +175,7 @@ const FirebaseSyncService = {
           if (deletedSet.has(t.task_id)) {
             console.warn(`🛡️ Firebase task ${t.task_id} is in deleted tombstones! Purging from cloud...`);
             this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
+            this.db.ref(`walton_monthly_report/deleted_task_ids/${t.task_id}`).set(Date.now()).catch(() => {});
             continue;
           }
 
@@ -472,6 +465,7 @@ const FirebaseSyncService = {
     } catch (e) {}
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_added rejected tombstoned task: ${task.task_id}`);
+      this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
       return;
     }
 
@@ -548,6 +542,7 @@ const FirebaseSyncService = {
     } catch (e) {}
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_changed rejected tombstoned task: ${task.task_id}`);
+      this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
       return;
     }
 
@@ -937,17 +932,12 @@ const FirebaseSyncService = {
   async pushTask(month, task) {
     if (!this.isConnected() || !task || !task.task_id) return false;
 
-    // 🛡️ CRITICAL GUARD: Never push a task that is in deletedSet / tombstoned unless it is an explicit local draft!
+    // 🛡️ CRITICAL GUARD: Never push a task that is tombstoned!
     try {
       let deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
       if (deletedList.includes(task.task_id)) {
-        if (task._isLocalDraft) {
-          deletedList = deletedList.filter(id => id !== task.task_id);
-          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedList));
-        } else {
-          console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
-          return false;
-        }
+        console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
+        return false;
       }
     } catch (e) {}
 
