@@ -1147,14 +1147,6 @@ const MonthlyInputView = {
       }
     }
 
-    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
-      try {
-        await FirebaseSyncService.pushEntireMonth(this.selectedMonth);
-      } catch (fbErr) {
-        console.warn("Firebase bulk push warning:", fbErr);
-      }
-    }
-
     if (window.appState.syncEngine) {
       await window.appState.syncEngine.syncMonth(this.selectedMonth);
     }
@@ -1682,21 +1674,6 @@ const MonthlyInputView = {
         (t.points !== "" && t.points !== undefined && t.points !== null) ? t.points : "",
         t.supervisor || "Kamrul (44819)"
       );
-    }
-
-    // Instant Firebase Highway Broadcast - sub-50ms sync to all other PCs
-    if (typeof FirebaseSyncService !== 'undefined') {
-      try {
-        await FirebaseSyncService.pushEntireMonth(this.selectedMonth);
-        console.log(`🔥 Broadcasted entire ${this.selectedMonth} to Firebase for multi-PC instant sync.`);
-      } catch (err) {
-        console.warn("Firebase bulk paste push notice:", err);
-      }
-    }
-
-    // Google Sheets Cloud Sync - atomic bulk push in background
-    if (typeof GoogleSheetsSync !== 'undefined' && GoogleSheetsSync.getWebAppUrl()) {
-      GoogleSheetsSync.pushAllLocalData().catch(e => console.warn("Google Sheets bulk push notice:", e));
     }
 
     if (window.appState.syncEngine) {
