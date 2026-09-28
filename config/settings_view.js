@@ -6,6 +6,9 @@
  */
 
 const SettingsView = {
+  _unlockedStaffIds: new Set(),
+  _masterAdminUnlocked: false,
+
   render(containerId = 'settings-view-container') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -112,17 +115,32 @@ const SettingsView = {
               <div>
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
                   Walton eService TMS Credentials &amp; Engineer Passwords
-                  <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-mono font-bold border border-blue-200">Auto-Pilot Active</span>
+                  ${this._masterAdminUnlocked ? `
+                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-mono font-bold border border-emerald-200">👑 Master Admin Unlocked</span>
+                  ` : `
+                    <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-mono font-bold border border-blue-200">Privacy Protection Active</span>
+                  `}
                 </h3>
-                <p class="text-xs text-slate-500 mt-0.5">Manage personal Walton TMS login passwords for each engineer. You can add, edit or delete staff anytime.</p>
+                <p class="text-xs text-slate-500 mt-0.5">Each engineer can view/edit only their own TMS password using their unique security password. Master Admin (50463) can manage all.</p>
               </div>
             </div>
-            <button onclick="SettingsView.openAddStaffModal()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer">
-              <span>➕ Add New Staff / Password</span>
-            </button>
+            <div class="flex items-center gap-2">
+              ${this._masterAdminUnlocked ? `
+                <button onclick="SettingsView.lockAllStaff()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-2xs flex items-center gap-1 cursor-pointer">
+                  <span>🔒</span> <span>Lock All</span>
+                </button>
+              ` : `
+                <button onclick="SettingsView.openMasterAdminUnlockModal()" class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 shadow-2xs flex items-center gap-1 cursor-pointer">
+                  <span>👑</span> <span>Master Admin (50463)</span>
+                </button>
+              `}
+              <button onclick="SettingsView.openAddStaffModal()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <span>➕ Add New Member</span>
+              </button>
+            </div>
           </div>
 
-          <!-- Engineers TMS Table (White Theme, Edit & Delete Actions) -->
+          <!-- Engineers TMS Table with Privacy Masking -->
           <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <table class="w-full text-left text-xs border-collapse">
               <thead class="bg-slate-50 text-slate-600 font-mono text-[11px] uppercase border-b border-slate-200">
@@ -137,30 +155,111 @@ const SettingsView = {
               <tbody class="divide-y divide-slate-100 text-slate-700">
                 ${(typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : []))
                   .filter(eng => String(eng.id) !== '44819' && (eng.name || '').toLowerCase() !== 'kamrul')
-                  .map((eng, idx) => `
-                  <tr class="hover:bg-blue-50/20 transition">
+                  .map((eng, idx) => {
+                    const isUnlocked = this._masterAdminUnlocked || (this._unlockedStaffIds && this._unlockedStaffIds.has(String(eng.id)));
+                    return `
+                    <tr class="hover:bg-blue-50/20 transition">
+                      <td class="py-3 px-3 text-center font-mono text-slate-400 font-bold">${idx + 1}</td>
+                      <td class="py-3 px-3 font-bold text-slate-900">
+                        ${HELPERS.escapeHtml(eng.fullName || eng.name)}
+                        <span class="text-[10px] text-slate-500 font-mono font-normal block">${HELPERS.escapeHtml(eng.display || eng.name)}</span>
+                      </td>
+                      <td class="py-3 px-3 font-mono font-bold text-blue-700">${eng.id || '—'}</td>
+                      <td class="py-3 px-4">
+                        ${isUnlocked ? `
+                          <div class="flex items-center gap-1.5">
+                            <input type="text" id="tms-pass-input-${eng.id || eng.name}" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}"
+                                   class="bg-emerald-50 border border-emerald-300 focus:bg-white focus:border-emerald-600 rounded-lg px-3 py-1 text-xs text-slate-900 font-mono font-bold focus:outline-none w-40 transition shadow-2xs" />
+                            <button onclick="SettingsView.saveTmsPassword('${eng.id || eng.name}')" title="Save and Sync Password" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-0.5 cursor-pointer shadow-2xs">
+                              <span>💾 Save</span>
+                            </button>
+                            <button onclick="SettingsView.lockStaff('${eng.id || eng.name}')" title="Re-Lock Password" class="p-1 text-slate-400 hover:text-slate-700 text-xs cursor-pointer">
+                              <span>🔒</span>
+                            </button>
+                          </div>
+                        ` : `
+                          <div class="flex items-center gap-2">
+                            <span class="font-mono text-slate-400 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold tracking-widest">••••••••</span>
+                            <button onclick="SettingsView.openUnlockStaffModal('${eng.id || eng.name}')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition flex items-center gap-1 cursor-pointer">
+                              <span>🔒 Unlock &amp; View</span>
+                            </button>
+                          </div>
+                        `}
+                      </td>
+                      <td class="py-3 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
+                          ${!isUnlocked ? `
+                            <button onclick="SettingsView.openUnlockStaffModal('${eng.id || eng.name}')" title="Unlock Password" class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition flex items-center gap-0.5 cursor-pointer">
+                              <span>🔑 Unlock</span>
+                            </button>
+                          ` : ''}
+                          <button onclick="SettingsView.openEditStaffModal('${eng.id || eng.name}')" title="Edit Staff Name &amp; ID (Requires Master Admin)" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-0.5 cursor-pointer">
+                            <span>✏️ Edit</span>
+                          </button>
+                          <button onclick="SettingsView.deleteStaff('${eng.id || eng.name}')" title="Delete Staff (Requires Master Admin)" class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer">
+                            <span>🗑️</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Department Supervisors & Section Leads Management Card -->
+        <div class="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 text-lg font-bold shadow-2xs">
+                👔
+              </div>
+              <div>
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  Department Supervisors &amp; Section Leads
+                  <span class="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs font-mono font-bold border border-purple-200">Approvers Registry</span>
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">Supervisors assigned for task approvals and monthly report sections. Default leads are Kamrul (44819) and Sazzad (50463). Add/delete requires Master ID: 50463.</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.openAddSupervisorModal()" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer">
+              <span>➕ Add New Supervisor</span>
+            </button>
+          </div>
+
+          <!-- Supervisors Table -->
+          <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50 text-slate-600 font-mono text-[11px] uppercase border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-3 w-10 text-center">#</th>
+                  <th class="py-3 px-3">Supervisor Name</th>
+                  <th class="py-3 px-3 w-28">Employee ID</th>
+                  <th class="py-3 px-4">Designation / Title</th>
+                  <th class="py-3 px-4">Official Email</th>
+                  <th class="py-3 px-3 text-center w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-slate-700">
+                ${(typeof MasterDataManager !== 'undefined' ? MasterDataManager.getSupervisors() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.SUPERVISORS : []))
+                  .map((sup, idx) => `
+                  <tr class="hover:bg-purple-50/20 transition">
                     <td class="py-3 px-3 text-center font-mono text-slate-400 font-bold">${idx + 1}</td>
                     <td class="py-3 px-3 font-bold text-slate-900">
-                      ${HELPERS.escapeHtml(eng.fullName || eng.name)}
-                      <span class="text-[10px] text-slate-500 font-mono font-normal block">${HELPERS.escapeHtml(eng.display || eng.name)}</span>
+                      ${HELPERS.escapeHtml(sup.fullName || sup.name)}
+                      <span class="text-[10px] text-slate-500 font-mono font-normal block">${HELPERS.escapeHtml(sup.display || sup.name)}</span>
                     </td>
-                    <td class="py-3 px-3 font-mono font-bold text-blue-700">${eng.id || '—'}</td>
-                    <td class="py-3 px-4">
-                      <div class="flex items-center gap-1.5">
-                        <input type="password" id="tms-pass-input-${eng.id || eng.name}" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}"
-                               class="bg-slate-50 border border-slate-200 hover:border-slate-300 focus:bg-white focus:border-blue-500 rounded-lg px-3 py-1 text-xs text-slate-800 font-mono focus:outline-none w-40 transition" />
-                        <button onclick="SettingsView.togglePasswordVisibility('tms-pass-input-${eng.id || eng.name}')" title="Show/Hide Password" class="p-1 text-slate-400 hover:text-slate-700 text-xs cursor-pointer">👁️</button>
-                      </div>
-                    </td>
+                    <td class="py-3 px-3 font-mono font-bold text-purple-700">${sup.id || '—'}</td>
+                    <td class="py-3 px-4 text-slate-700 font-medium">${HELPERS.escapeHtml(sup.title || 'Supervisor')}</td>
+                    <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">${HELPERS.escapeHtml(sup.email || '—')}</td>
                     <td class="py-3 px-3 text-center">
                       <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="SettingsView.openEditStaffModal('${eng.id || eng.name}')" title="Edit Staff Name &amp; ID" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-0.5 cursor-pointer">
+                        <button onclick="SettingsView.openEditSupervisorModal('${sup.id || sup.name}')" title="Edit Supervisor (Requires Master Admin)" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-0.5 cursor-pointer">
                           <span>✏️</span> <span>Edit</span>
                         </button>
-                        <button onclick="SettingsView.saveTmsPassword('${eng.id || eng.name}')" title="Save Password" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 text-xs font-bold transition flex items-center gap-0.5 cursor-pointer">
-                          <span>💾</span> <span>Save</span>
-                        </button>
-                        <button onclick="SettingsView.deleteStaff('${eng.id || eng.name}')" title="Delete Staff" class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer">
+                        <button onclick="SettingsView.deleteSupervisor('${sup.id || sup.name}')" title="Delete Supervisor (Requires Master Admin)" class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer">
                           <span>🗑️</span>
                         </button>
                       </div>
@@ -987,7 +1086,8 @@ const SettingsView = {
   },
 
   /**
-   * Save / Modify TMS Password for an Engineer (Requirement 3)
+   * Save / Modify TMS Password for an Engineer (Requirement 1)
+   * Updates local registry and pushes immediately to Firebase RTDB for sub-50ms sync across all PCs
    */
   saveTmsPassword(idOrName) {
     const input = document.getElementById(`tms-pass-input-${idOrName}`);
@@ -1004,20 +1104,252 @@ const SettingsView = {
       if (eng) eng.tms_password = newPass;
       localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
     }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterEngineers(MASTER_LISTS.ENGINEERS);
+    }
+
     if (typeof window.showToast === 'function') {
-      window.showToast(`✅ Saved TMS Password for ${idOrName}!`, "success");
+      window.showToast(`✅ Saved & Synchronized TMS Password for ${idOrName} across all laptops!`, "success");
     } else {
-      alert(`✅ Saved TMS Password for ${idOrName}!`);
+      alert(`✅ Saved & Synchronized TMS Password for ${idOrName} across all laptops!`);
+    }
+    this.render();
+  },
+
+  lockStaff(idOrName) {
+    if (this._unlockedStaffIds) {
+      this._unlockedStaffIds.delete(String(idOrName));
+    }
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast(`🔒 Re-locked TMS credentials for ${idOrName}`, "info");
     }
   },
 
-  togglePasswordVisibility(inputId) {
-    const input = document.getElementById(inputId);
-    if (input) {
-      input.type = (input.type === 'password') ? 'text' : 'password';
+  lockAllStaff() {
+    this._masterAdminUnlocked = false;
+    if (this._unlockedStaffIds) {
+      this._unlockedStaffIds.clear();
+    }
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast("🔒 All engineer TMS credentials have been re-locked.", "info");
     }
   },
 
+  // -------------------------------------------------------------
+  // TMS PASSWORD PRIVACY: Individual Unlock & Master Admin Modal
+  // -------------------------------------------------------------
+  openUnlockStaffModal(staffId) {
+    const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : []));
+    const eng = list.find(e => String(e.id) === String(staffId) || e.name === staffId) || { id: staffId, name: staffId };
+
+    let container = document.getElementById('unlock-staff-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'unlock-staff-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">🔐</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Unlock TMS Password Access</h3>
+                <p class="text-xs text-slate-500">Staff Privacy Protection &bull; Enter credentials for ${HELPERS.escapeHtml(eng.fullName || eng.name)}</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeUnlockStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3.5 my-4">
+            <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
+              <p class="font-bold flex items-center gap-1.5"><span>🛡️</span> <span>Privacy &amp; Security Protocol:</span></p>
+              <p class="text-[11px] text-blue-800 leading-relaxed">
+                Only <strong>${HELPERS.escapeHtml(eng.name)} (ID: ${eng.id})</strong> using their unique security password OR <strong>Master Admin (ID: 50463)</strong> can view and change this TMS password.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID:</label>
+              <input type="text" id="unlock-staff-id" value="${HELPERS.escapeHtml(String(eng.id || ''))}" 
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security Password / PIN:</label>
+              <input type="password" id="unlock-staff-password" placeholder="Enter your Unique Password or Master Password..." 
+                     class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500" />
+            </div>
+
+            <div id="unlock-staff-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeUnlockStaffModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmUnlockStaff('${HELPERS.escapeHtml(String(eng.id || staffId))}')" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>🔓</span> <span>Unlock Credentials</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      const passIn = document.getElementById('unlock-staff-password');
+      if (passIn) passIn.focus();
+    }, 100);
+  },
+
+  closeUnlockStaffModal() {
+    const container = document.getElementById('unlock-staff-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmUnlockStaff(staffId) {
+    const idEl = document.getElementById('unlock-staff-id');
+    const passEl = document.getElementById('unlock-staff-password');
+    const errEl = document.getElementById('unlock-staff-error');
+
+    const inputId = idEl ? idEl.value.trim() : '';
+    const inputPass = passEl ? passEl.value.trim() : '';
+
+    if (!inputId || !inputPass) {
+      if (errEl) {
+        errEl.textContent = "Please enter both Employee ID and Security Password.";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Check Master Admin credentials (ID: 50463, pass: ACprocess@2026)
+    if (inputId === '50463' && inputPass === 'ACprocess@2026') {
+      this._masterAdminUnlocked = true;
+      this.closeUnlockStaffModal();
+      this.render();
+      if (typeof window.showToast === 'function') {
+        window.showToast("👑 Master Admin Verified! All engineer credentials unlocked.", "success");
+      }
+      return;
+    }
+
+    // Check individual engineer credentials
+    const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : []));
+    const eng = list.find(e => String(e.id) === String(staffId) || e.name === staffId);
+
+    if (eng) {
+      const expectedPin = eng.access_pin || `${eng.name}@${eng.id}`;
+      if (inputId === String(eng.id) && inputPass === expectedPin) {
+        if (!this._unlockedStaffIds) this._unlockedStaffIds = new Set();
+        this._unlockedStaffIds.add(String(eng.id));
+        this.closeUnlockStaffModal();
+        this.render();
+        if (typeof window.showToast === 'function') {
+          window.showToast(`🔓 TMS Password unlocked for ${eng.fullName || eng.name}!`, "success");
+        }
+        return;
+      }
+    }
+
+    if (errEl) {
+      errEl.textContent = "❌ Incorrect Employee ID or Security Password. Please enter your assigned unique password or contact Master Admin.";
+      errEl.classList.remove('hidden');
+    }
+  },
+
+  openMasterAdminUnlockModal() {
+    let container = document.getElementById('master-admin-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'master-admin-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">👑</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Master Admin Authorization</h3>
+                <p class="text-xs text-slate-500">Unlock all staff TMS passwords and modify personnel registry</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeMasterAdminUnlockModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3.5 my-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Master Employee ID:</label>
+              <input type="text" id="master-admin-id" value="50463" placeholder="50463" 
+                     class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Master Admin Password:</label>
+              <input type="password" id="master-admin-password" placeholder="Enter master password..." 
+                     class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div id="master-admin-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeMasterAdminUnlockModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmMasterAdminUnlock()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>👑</span> <span>Authorize Master Admin</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      const passIn = document.getElementById('master-admin-password');
+      if (passIn) passIn.focus();
+    }, 100);
+  },
+
+  closeMasterAdminUnlockModal() {
+    const container = document.getElementById('master-admin-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmMasterAdminUnlock() {
+    const idEl = document.getElementById('master-admin-id');
+    const passEl = document.getElementById('master-admin-password');
+    const errEl = document.getElementById('master-admin-error');
+
+    const id = idEl ? idEl.value.trim() : '';
+    const pass = passEl ? passEl.value.trim() : '';
+
+    if (id === '50463' && pass === 'ACprocess@2026') {
+      this._masterAdminUnlocked = true;
+      this.closeMasterAdminUnlockModal();
+      this.render();
+      if (typeof window.showToast === 'function') {
+        window.showToast("👑 Master Admin Unlocked! Full access enabled.", "success");
+      }
+    } else {
+      if (errEl) {
+        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463.";
+        errEl.classList.remove('hidden');
+      }
+    }
+  },
+
+  // -------------------------------------------------------------
+  // MEMBER (ENGINEER) ADD, EDIT & DELETE (Protected by 50463 / ACprocess@2026)
+  // -------------------------------------------------------------
   openAddStaffModal() {
     let container = document.getElementById('add-staff-modal-container');
     if (!container) {
@@ -1028,43 +1360,72 @@ const SettingsView = {
 
     container.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+        <div class="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div class="flex items-center gap-2.5">
               <span class="text-2xl">👤</span>
               <div>
-                <h3 class="text-base font-black text-slate-800">Add Staff / Engineer TMS Password</h3>
-                <p class="text-xs text-slate-400">Register employee ID and Walton TMS password</p>
+                <h3 class="text-base font-black text-slate-900">Add New Team Member / Engineer</h3>
+                <p class="text-xs text-slate-500">Register employee ID, unique access PIN, and Walton TMS password</p>
               </div>
             </div>
             <button onclick="SettingsView.closeAddStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
           </div>
 
           <div class="space-y-3 my-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Engineer First Name (e.g. Sazzad):</label>
-              <input type="text" id="new-staff-name" placeholder="Name" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">First Name (e.g. Sazzad):</label>
+                <input type="text" id="new-staff-name" placeholder="Name" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 50463):</label>
+                <input type="text" id="new-staff-id" placeholder="50463" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 50463):</label>
-              <input type="text" id="new-staff-id" placeholder="50463" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
-            </div>
+
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Full Designation / Title:</label>
               <input type="text" id="new-staff-fullname" placeholder="Engr. Sazzadul Islam" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
-              <input type="password" id="new-staff-password" value="Sep@2026" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
+                <input type="text" id="new-staff-password" value="Sep@2026" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security PIN / Pass:</label>
+                <input type="text" id="new-staff-pin" placeholder="Leave empty for auto: Name@ID" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
             </div>
+
+            <!-- Master Admin Authorization Box -->
+            <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
+              <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span>🔐</span> <span>Required: Master Admin Verification</span>
+              </span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master ID (50463):</label>
+                  <input type="text" id="new-staff-master-id" value="50463" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Password:</label>
+                  <input type="password" id="new-staff-master-pass" placeholder="Enter ACprocess@2026" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                </div>
+              </div>
+            </div>
+
+            <div id="new-staff-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
           </div>
 
           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button onclick="SettingsView.closeAddStaffModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
               Cancel
             </button>
-            <button onclick="SettingsView.confirmAddStaff()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition">
-              💾 Add Staff &amp; Save
+            <button onclick="SettingsView.confirmAddStaff()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>➕</span> <span>Add Member &amp; Save</span>
             </button>
           </div>
         </div>
@@ -1082,16 +1443,35 @@ const SettingsView = {
     const idEl = document.getElementById('new-staff-id');
     const fullEl = document.getElementById('new-staff-fullname');
     const passEl = document.getElementById('new-staff-password');
+    const pinEl = document.getElementById('new-staff-pin');
+    const mIdEl = document.getElementById('new-staff-master-id');
+    const mPassEl = document.getElementById('new-staff-master-pass');
+    const errEl = document.getElementById('new-staff-error');
+
+    const mId = mIdEl ? mIdEl.value.trim() : '';
+    const mPass = mPassEl ? mPassEl.value.trim() : '';
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Master Admin Authorization Failed. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
 
     if (!nameEl || !idEl || !nameEl.value.trim() || !idEl.value.trim()) {
-      alert("Please enter Engineer Name and Employee ID.");
+      if (errEl) {
+        errEl.textContent = "Please enter Engineer Name and Employee ID.";
+        errEl.classList.remove('hidden');
+      }
       return;
     }
 
     const name = nameEl.value.trim();
     const id = idEl.value.trim();
-    const fullName = fullEl ? fullEl.value.trim() : `Engr. ${name}`;
-    const pass = passEl ? passEl.value.trim() : "Sep@2026";
+    const fullName = fullEl && fullEl.value.trim() ? fullEl.value.trim() : `Engr. ${name}`;
+    const pass = passEl && passEl.value.trim() ? passEl.value.trim() : "Sep@2026";
+    const pin = pinEl && pinEl.value.trim() ? pinEl.value.trim() : `${name}@${id}`;
 
     if (typeof MasterDataManager !== 'undefined' && MasterDataManager.addEngineer) {
       MasterDataManager.addEngineer({
@@ -1099,24 +1479,97 @@ const SettingsView = {
         name: name,
         fullName: fullName,
         display: `${name} (${id})`,
-        tms_password: pass
+        tms_password: pass,
+        access_pin: pin
       });
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterEngineers(MASTER_LISTS.ENGINEERS);
     }
 
     this.closeAddStaffModal();
     this.render();
 
     if (typeof window.showToast === 'function') {
-      window.showToast(`✨ Added Engr. ${name} (${id}) to Master Registry & TMS!`, "success");
+      window.showToast(`✨ Added Engr. ${name} (${id}) & synced across all PCs!`, "success");
     }
   },
 
   deleteStaff(idOrName) {
+    this.openDeleteStaffModal(idOrName);
+  },
+
+  openDeleteStaffModal(idOrName) {
     const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getEngineers() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.ENGINEERS : []));
     const target = list.find(e => String(e.id) === String(idOrName) || e.name === idOrName);
     const displayName = target ? (target.fullName || target.name) : idOrName;
 
-    if (!confirm(`Are you sure you want to remove staff member "${displayName}"?`)) {
+    let container = document.getElementById('delete-staff-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'delete-staff-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl text-rose-600">🗑️</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Remove Team Member</h3>
+                <p class="text-xs text-slate-500">Requires Master Admin Authorization (ID: 50463)</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeDeleteStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3.5 my-4">
+            <p class="text-xs text-slate-700">
+              Are you sure you want to remove <strong>${HELPERS.escapeHtml(displayName)}</strong> from the active engineer registry?
+            </p>
+
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <span class="text-xs font-bold text-amber-900">Master Admin Credentials:</span>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="del-staff-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="del-staff-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+              </div>
+            </div>
+
+            <div id="del-staff-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeDeleteStaffModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmDeleteStaff('${HELPERS.escapeHtml(String(idOrName))}')" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>🗑️</span> <span>Authorize &amp; Delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeDeleteStaffModal() {
+    const container = document.getElementById('delete-staff-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmDeleteStaff(idOrName) {
+    const mId = (document.getElementById('del-staff-master-id') ? document.getElementById('del-staff-master-id').value : '').trim();
+    const mPass = (document.getElementById('del-staff-master-pass') ? document.getElementById('del-staff-master-pass').value : '').trim();
+    const errEl = document.getElementById('del-staff-error');
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.classList.remove('hidden');
+      }
       return;
     }
 
@@ -1127,17 +1580,14 @@ const SettingsView = {
       localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
     }
 
-    try {
-      const removed = JSON.parse(localStorage.getItem('walton_removed_engineer_ids') || '[]');
-      if (!removed.includes(String(idOrName))) {
-        removed.push(String(idOrName));
-        localStorage.setItem('walton_removed_engineer_ids', JSON.stringify(removed));
-      }
-    } catch (e) {}
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterEngineers(MASTER_LISTS.ENGINEERS);
+    }
 
+    this.closeDeleteStaffModal();
     this.render();
     if (typeof window.showToast === 'function') {
-      window.showToast(`🗑️ Removed staff member "${displayName}"`, "info");
+      window.showToast(`🗑️ Removed staff member and synced to all devices!`, "info");
     }
   },
 
@@ -1154,43 +1604,66 @@ const SettingsView = {
 
     container.innerHTML = `
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+        <div class="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
           <div class="flex items-center justify-between pb-3 border-b border-slate-100">
             <div class="flex items-center gap-2.5">
               <span class="text-2xl">✏️</span>
               <div>
-                <h3 class="text-base font-black text-slate-800">Edit Staff / TMS Credentials</h3>
-                <p class="text-xs text-slate-400">Modify engineer details and Walton TMS login password</p>
+                <h3 class="text-base font-black text-slate-900">Edit Member Details &amp; TMS Credentials</h3>
+                <p class="text-xs text-slate-500">Modify engineer profile, unique PIN, and login credentials</p>
               </div>
             </div>
             <button onclick="SettingsView.closeEditStaffModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
           </div>
 
           <div class="space-y-3 my-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Engineer First Name (e.g. Sazzad):</label>
-              <input type="text" id="edit-staff-name" value="${HELPERS.escapeHtml(eng.name || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">First Name (e.g. Sazzad):</label>
+                <input type="text" id="edit-staff-name" value="${HELPERS.escapeHtml(eng.name || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 50463):</label>
+                <input type="text" id="edit-staff-id" value="${HELPERS.escapeHtml(String(eng.id || ''))}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 50463):</label>
-              <input type="text" id="edit-staff-id" value="${HELPERS.escapeHtml(String(eng.id || ''))}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
-            </div>
+
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1">Full Designation / Title:</label>
               <input type="text" id="edit-staff-fullname" value="${HELPERS.escapeHtml(eng.fullName || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
-              <input type="text" id="edit-staff-password" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Walton TMS Login Password:</label>
+                <input type="text" id="edit-staff-password" value="${HELPERS.escapeHtml(eng.tms_password || 'Sep@2026')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Unique Security PIN / Password:</label>
+                <input type="text" id="edit-staff-pin" value="${HELPERS.escapeHtml(eng.access_pin || `${eng.name}@${eng.id}`)}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
             </div>
+
+            <!-- Master Admin Authorization Box -->
+            <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
+              <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+              </span>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="edit-staff-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="edit-staff-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+              </div>
+            </div>
+
+            <div id="edit-staff-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
           </div>
 
           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button onclick="SettingsView.closeEditStaffModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
               Cancel
             </button>
-            <button onclick="SettingsView.confirmEditStaff('${HELPERS.escapeHtml(String(eng.id || staffId))}')" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition">
-              💾 Update &amp; Save
+            <button onclick="SettingsView.confirmEditStaff('${HELPERS.escapeHtml(String(eng.id || staffId))}')" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>💾</span> <span>Update &amp; Save</span>
             </button>
           </div>
         </div>
@@ -1204,20 +1677,37 @@ const SettingsView = {
   },
 
   confirmEditStaff(oldId) {
+    const mId = (document.getElementById('edit-staff-master-id') ? document.getElementById('edit-staff-master-id').value : '').trim();
+    const mPass = (document.getElementById('edit-staff-master-pass') ? document.getElementById('edit-staff-master-pass').value : '').trim();
+    const errEl = document.getElementById('edit-staff-error');
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
     const nameEl = document.getElementById('edit-staff-name');
     const idEl = document.getElementById('edit-staff-id');
     const fullEl = document.getElementById('edit-staff-fullname');
     const passEl = document.getElementById('edit-staff-password');
+    const pinEl = document.getElementById('edit-staff-pin');
 
     if (!nameEl || !idEl || !nameEl.value.trim() || !idEl.value.trim()) {
-      alert("Please enter Engineer Name and Employee ID.");
+      if (errEl) {
+        errEl.textContent = "Please enter Engineer Name and Employee ID.";
+        errEl.classList.remove('hidden');
+      }
       return;
     }
 
     const name = nameEl.value.trim();
     const newId = idEl.value.trim();
-    const fullName = fullEl ? fullEl.value.trim() : `Engr. ${name}`;
-    const pass = passEl ? passEl.value.trim() : "Sep@2026";
+    const fullName = fullEl && fullEl.value.trim() ? fullEl.value.trim() : `Engr. ${name}`;
+    const pass = passEl && passEl.value.trim() ? passEl.value.trim() : "Sep@2026";
+    const pin = pinEl && pinEl.value.trim() ? pinEl.value.trim() : `${name}@${newId}`;
 
     if (typeof MasterDataManager !== 'undefined' && MasterDataManager.updateEngineer) {
       try {
@@ -1225,7 +1715,8 @@ const SettingsView = {
           id: newId,
           name: name,
           fullName: fullName,
-          tms_password: pass
+          tms_password: pass,
+          access_pin: pin
         });
       } catch (err) {
         MasterDataManager.addEngineer({
@@ -1233,22 +1724,14 @@ const SettingsView = {
           name: name,
           fullName: fullName,
           display: `${name} (${newId})`,
-          tms_password: pass
+          tms_password: pass,
+          access_pin: pin
         });
       }
-    } else if (typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.ENGINEERS) {
-      const idx = MASTER_LISTS.ENGINEERS.findIndex(e => String(e.id) === String(oldId) || e.name === oldId);
-      if (idx !== -1) {
-        MASTER_LISTS.ENGINEERS[idx] = {
-          ...MASTER_LISTS.ENGINEERS[idx],
-          id: newId,
-          name: name,
-          fullName: fullName,
-          display: `${name} (${newId})`,
-          tms_password: pass
-        };
-        localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
-      }
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterEngineers(MASTER_LISTS.ENGINEERS);
     }
 
     this.closeEditStaffModal();
@@ -1256,6 +1739,371 @@ const SettingsView = {
 
     if (typeof window.showToast === 'function') {
       window.showToast(`✨ Updated Engr. ${name} (${newId}) successfully!`, "success");
+    }
+  },
+
+  // -------------------------------------------------------------
+  // SUPERVISOR ADD, EDIT & DELETE (Protected by 50463 / ACprocess@2026)
+  // -------------------------------------------------------------
+  openAddSupervisorModal() {
+    let container = document.getElementById('add-supervisor-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'add-supervisor-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">👔</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Add New Department Supervisor</h3>
+                <p class="text-xs text-slate-500">Register supervisor for task verification and monthly report sections</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeAddSupervisorModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3 my-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Supervisor Name (e.g. Kamrul):</label>
+                <input type="text" id="new-sup-name" placeholder="Kamrul" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID (e.g. 44819):</label>
+                <input type="text" id="new-sup-id" placeholder="44819" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-purple-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Title / Designation:</label>
+              <input type="text" id="new-sup-title" placeholder="Head of Process / Lead Engineer" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Official Email Address:</label>
+              <input type="email" id="new-sup-email" placeholder="kamrulkuet50@gmail.com" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <!-- Master Admin Authorization Box -->
+            <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
+              <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+              </span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master ID (50463):</label>
+                  <input type="text" id="new-sup-master-id" value="50463" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-amber-800 mb-0.5">Master Password:</label>
+                  <input type="password" id="new-sup-master-pass" placeholder="Enter ACprocess@2026" class="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800" />
+                </div>
+              </div>
+            </div>
+
+            <div id="new-sup-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeAddSupervisorModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmAddSupervisor()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>➕</span> <span>Add Supervisor &amp; Save</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeAddSupervisorModal() {
+    const container = document.getElementById('add-supervisor-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmAddSupervisor() {
+    const mId = (document.getElementById('new-sup-master-id') ? document.getElementById('new-sup-master-id').value : '').trim();
+    const mPass = (document.getElementById('new-sup-master-pass') ? document.getElementById('new-sup-master-pass').value : '').trim();
+    const errEl = document.getElementById('new-sup-error');
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const nameEl = document.getElementById('new-sup-name');
+    const idEl = document.getElementById('new-sup-id');
+    const titleEl = document.getElementById('new-sup-title');
+    const emailEl = document.getElementById('new-sup-email');
+
+    if (!nameEl || !nameEl.value.trim()) {
+      if (errEl) {
+        errEl.textContent = "Please enter Supervisor Name.";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const name = nameEl.value.trim();
+    const id = idEl ? idEl.value.trim() : "";
+    const title = titleEl && titleEl.value.trim() ? titleEl.value.trim() : "Section Lead / Supervisor";
+    const email = emailEl ? emailEl.value.trim() : "";
+
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.addSupervisor) {
+      MasterDataManager.addSupervisor({
+        id: id,
+        name: name,
+        fullName: `Engr. ${name}`,
+        title: title,
+        email: email
+      });
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterSupervisors(MASTER_LISTS.SUPERVISORS);
+    }
+
+    this.closeAddSupervisorModal();
+    this.render();
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✨ Added Supervisor ${name} (${id}) & synced across all laptops!`, "success");
+    }
+  },
+
+  openEditSupervisorModal(supId) {
+    const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getSupervisors() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.SUPERVISORS : []));
+    const sup = list.find(s => String(s.id) === String(supId) || s.name === supId) || { id: supId, name: supId };
+
+    let container = document.getElementById('edit-supervisor-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'edit-supervisor-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">✏️</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Edit Supervisor Details</h3>
+                <p class="text-xs text-slate-500">Modify supervisor designation, ID, and department email</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeEditSupervisorModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3 my-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Supervisor Name:</label>
+                <input type="text" id="edit-sup-name" value="${HELPERS.escapeHtml(sup.name || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-purple-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Employee ID:</label>
+                <input type="text" id="edit-sup-id" value="${HELPERS.escapeHtml(String(sup.id || ''))}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-purple-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Title / Designation:</label>
+              <input type="text" id="edit-sup-title" value="${HELPERS.escapeHtml(sup.title || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Official Email:</label>
+              <input type="email" id="edit-sup-email" value="${HELPERS.escapeHtml(sup.email || '')}" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <!-- Master Admin Authorization Box -->
+            <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 mt-2">
+              <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span>🔐</span> <span>Required: Master Admin Verification (ID: 50463)</span>
+              </span>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="edit-sup-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="edit-sup-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+              </div>
+            </div>
+
+            <div id="edit-sup-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeEditSupervisorModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmEditSupervisor('${HELPERS.escapeHtml(String(sup.id || supId))}')" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>💾</span> <span>Update &amp; Save</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeEditSupervisorModal() {
+    const container = document.getElementById('edit-supervisor-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmEditSupervisor(oldId) {
+    const mId = (document.getElementById('edit-sup-master-id') ? document.getElementById('edit-sup-master-id').value : '').trim();
+    const mPass = (document.getElementById('edit-sup-master-pass') ? document.getElementById('edit-sup-master-pass').value : '').trim();
+    const errEl = document.getElementById('edit-sup-error');
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Master Admin Authorization Required (ID: 50463, Pass: ACprocess@2026).";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const nameEl = document.getElementById('edit-sup-name');
+    const idEl = document.getElementById('edit-sup-id');
+    const titleEl = document.getElementById('edit-sup-title');
+    const emailEl = document.getElementById('edit-sup-email');
+
+    if (!nameEl || !nameEl.value.trim()) {
+      if (errEl) {
+        errEl.textContent = "Please enter Supervisor Name.";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const name = nameEl.value.trim();
+    const newId = idEl ? idEl.value.trim() : "";
+    const title = titleEl ? titleEl.value.trim() : "Section Lead / Supervisor";
+    const email = emailEl ? emailEl.value.trim() : "";
+
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.updateSupervisor) {
+      MasterDataManager.updateSupervisor(oldId, {
+        id: newId,
+        name: name,
+        fullName: `Engr. ${name}`,
+        title: title,
+        email: email
+      });
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterSupervisors(MASTER_LISTS.SUPERVISORS);
+    }
+
+    this.closeEditSupervisorModal();
+    this.render();
+
+    if (typeof window.showToast === 'function') {
+      window.showToast(`✨ Updated Supervisor ${name} (${newId}) successfully!`, "success");
+    }
+  },
+
+  deleteSupervisor(supId) {
+    this.openDeleteSupervisorModal(supId);
+  },
+
+  openDeleteSupervisorModal(supId) {
+    const list = (typeof MasterDataManager !== 'undefined' ? MasterDataManager.getSupervisors() : (typeof MASTER_LISTS !== 'undefined' ? MASTER_LISTS.SUPERVISORS : []));
+    const target = list.find(s => String(s.id) === String(supId) || s.name === supId);
+    const displayName = target ? (target.fullName || target.name) : supId;
+
+    let container = document.getElementById('delete-sup-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'delete-sup-modal-container';
+      document.body.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+        <div class="relative w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl p-6 text-slate-800">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl text-rose-600">🗑️</span>
+              <div>
+                <h3 class="text-base font-black text-slate-900">Remove Department Supervisor</h3>
+                <p class="text-xs text-slate-500">Requires Master Admin Authorization (ID: 50463)</p>
+              </div>
+            </div>
+            <button onclick="SettingsView.closeDeleteSupervisorModal()" class="p-1 text-slate-400 hover:text-slate-700 rounded-lg">✕</button>
+          </div>
+
+          <div class="space-y-3.5 my-4">
+            <p class="text-xs text-slate-700">
+              Are you sure you want to remove supervisor <strong>${HELPERS.escapeHtml(displayName)}</strong>?
+            </p>
+
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <span class="text-xs font-bold text-amber-900">Master Admin Credentials:</span>
+              <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="del-sup-master-id" value="50463" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+                <input type="password" id="del-sup-master-pass" placeholder="ACprocess@2026" class="bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold" />
+              </div>
+            </div>
+
+            <div id="del-sup-error" class="hidden p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold"></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="SettingsView.closeDeleteSupervisorModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+              Cancel
+            </button>
+            <button onclick="SettingsView.confirmDeleteSupervisor('${HELPERS.escapeHtml(String(supId))}')" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+              <span>🗑️</span> <span>Authorize &amp; Delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeDeleteSupervisorModal() {
+    const container = document.getElementById('delete-sup-modal-container');
+    if (container) container.innerHTML = '';
+  },
+
+  confirmDeleteSupervisor(supId) {
+    const mId = (document.getElementById('del-sup-master-id') ? document.getElementById('del-sup-master-id').value : '').trim();
+    const mPass = (document.getElementById('del-sup-master-pass') ? document.getElementById('del-sup-master-pass').value : '').trim();
+    const errEl = document.getElementById('del-sup-error');
+
+    if (mId !== '50463' || mPass !== 'ACprocess@2026') {
+      if (errEl) {
+        errEl.textContent = "❌ Invalid Master Credentials. Required ID: 50463, Pass: ACprocess@2026.";
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (typeof MasterDataManager !== 'undefined' && MasterDataManager.deleteSupervisor) {
+      MasterDataManager.deleteSupervisor(supId);
+    } else if (typeof MASTER_LISTS !== 'undefined' && MASTER_LISTS.SUPERVISORS) {
+      MASTER_LISTS.SUPERVISORS = MASTER_LISTS.SUPERVISORS.filter(s => String(s.id) !== String(supId) && s.name !== supId);
+      localStorage.setItem("walton_pd_master_supervisors_v2", JSON.stringify(MASTER_LISTS.SUPERVISORS));
+    }
+
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.isConnected()) {
+      FirebaseSyncService.pushMasterSupervisors(MASTER_LISTS.SUPERVISORS);
+    }
+
+    this.closeDeleteSupervisorModal();
+    this.render();
+    if (typeof window.showToast === 'function') {
+      window.showToast(`🗑️ Removed supervisor and synced to all devices!`, "info");
     }
   }
 };

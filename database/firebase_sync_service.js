@@ -101,6 +101,9 @@ const FirebaseSyncService = {
           this._updateNavbarBadge();
           this._notifySubscribers();
 
+          // Hydrate master engineers and supervisors from cloud
+          this.hydrateMasterPersonnel();
+
           // Bind active month listeners
           const activeMonth = (window.appState && window.appState.workbookMgr)
             ? window.appState.workbookMgr.activeMonth
@@ -399,9 +402,11 @@ const FirebaseSyncService = {
             const local = MASTER_LISTS.ENGINEERS.find(e => String(e.id) === String(remoteEng.id));
             if (local) {
               if (remoteEng.tms_password) local.tms_password = remoteEng.tms_password;
+              if (remoteEng.access_pin) local.access_pin = remoteEng.access_pin;
               if (remoteEng.name) local.name = remoteEng.name;
               if (remoteEng.fullName) local.fullName = remoteEng.fullName;
               if (remoteEng.display) local.display = remoteEng.display;
+              if (remoteEng.email) local.email = remoteEng.email;
             } else {
               MASTER_LISTS.ENGINEERS.push(remoteEng);
             }
@@ -409,11 +414,73 @@ const FirebaseSyncService = {
           try {
             localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
           } catch (e) {}
+          if (window.appState && window.appState.activeTab === 'settings' && typeof SettingsView !== 'undefined' && SettingsView.render) {
+            SettingsView.render();
+          }
+        }
+      });
+    }
+
+    // 6. Real-time Master Supervisors Sync
+    if (!this._supervisorsBound) {
+      this._supervisorsBound = true;
+      this.db.ref('walton_monthly_report/master_supervisors').on('value', (snapshot) => {
+        const val = snapshot.val();
+        if (Array.isArray(val) && val.length > 0 && typeof MASTER_LISTS !== 'undefined') {
+          MASTER_LISTS.SUPERVISORS = val;
+          try {
+            localStorage.setItem("walton_pd_master_supervisors_v2", JSON.stringify(MASTER_LISTS.SUPERVISORS));
+          } catch (e) {}
+          if (window.appState && window.appState.activeTab === 'settings' && typeof SettingsView !== 'undefined' && SettingsView.render) {
+            SettingsView.render();
+          }
         }
       });
     }
 
     console.log(`🔥 Firebase listening to real-time changes for ${normMonth}`);
+  },
+
+  /**
+   * Hydrate master engineers, access pins, and supervisors on startup
+   */
+  async hydrateMasterPersonnel() {
+    if (!this.db) return;
+    try {
+      // 1. Engineers & TMS Passwords
+      const engSnap = await this.db.ref('walton_monthly_report/master_engineers').once('value');
+      const remoteEngs = engSnap.val();
+      if (Array.isArray(remoteEngs) && remoteEngs.length > 0 && typeof MASTER_LISTS !== 'undefined') {
+        remoteEngs.forEach(remoteEng => {
+          const local = MASTER_LISTS.ENGINEERS.find(e => String(e.id) === String(remoteEng.id));
+          if (local) {
+            if (remoteEng.tms_password) local.tms_password = remoteEng.tms_password;
+            if (remoteEng.access_pin) local.access_pin = remoteEng.access_pin;
+            if (remoteEng.name) local.name = remoteEng.name;
+            if (remoteEng.fullName) local.fullName = remoteEng.fullName;
+            if (remoteEng.display) local.display = remoteEng.display;
+            if (remoteEng.email) local.email = remoteEng.email;
+          } else {
+            MASTER_LISTS.ENGINEERS.push(remoteEng);
+          }
+        });
+        localStorage.setItem("walton_pd_master_engineers_v2", JSON.stringify(MASTER_LISTS.ENGINEERS));
+      }
+
+      // 2. Supervisors
+      const supSnap = await this.db.ref('walton_monthly_report/master_supervisors').once('value');
+      const remoteSups = supSnap.val();
+      if (Array.isArray(remoteSups) && remoteSups.length > 0 && typeof MASTER_LISTS !== 'undefined') {
+        MASTER_LISTS.SUPERVISORS = remoteSups;
+        localStorage.setItem("walton_pd_master_supervisors_v2", JSON.stringify(MASTER_LISTS.SUPERVISORS));
+      }
+
+      if (window.appState && window.appState.activeTab === 'settings' && typeof SettingsView !== 'undefined' && SettingsView.render) {
+        SettingsView.render();
+      }
+    } catch (e) {
+      console.warn("Hydrate master personnel notice:", e);
+    }
   },
 
   /**
@@ -425,6 +492,18 @@ const FirebaseSyncService = {
       this.db.ref('walton_monthly_report/master_engineers').set(engineers);
     } catch (e) {
       console.warn("Firebase pushMasterEngineers notice:", e);
+    }
+  },
+
+  /**
+   * Push master supervisors to Firebase
+   */
+  pushMasterSupervisors(supervisors) {
+    if (!this.db || !Array.isArray(supervisors)) return;
+    try {
+      this.db.ref('walton_monthly_report/master_supervisors').set(supervisors);
+    } catch (e) {
+      console.warn("Firebase pushMasterSupervisors notice:", e);
     }
   },
 
@@ -589,8 +668,8 @@ const FirebaseSyncService = {
         continue;
       }
 
-      // Local edit recent guard (15s)
-      if ((k === 'task_name' || k === 'task_details' || k === 'points') &&
+      // Local edit recent guard (15s) - for text fields only
+      if ((k === 'task_name' || k === 'task_details') &&
           localTask._lastFieldEditTime && (Date.now() - localTask._lastFieldEditTime < 15000)) {
         continue;
       }
@@ -611,12 +690,12 @@ const FirebaseSyncService = {
         }
       }
 
+      // POINTS: Points are set/managed by HOD. Always adopt remote point if provided!
       if (k === 'points') {
-        const rPts = (v !== undefined && v !== null) ? String(v).trim() : '';
-        const lPts = (localTask.points !== undefined && localTask.points !== null) ? String(localTask.points).trim() : '';
-        if (rPts === '' && lPts !== '') {
-          continue; // Preserve local points
+        if (v !== undefined && v !== null) {
+          mergedTask.points = (v !== '' && !isNaN(parseFloat(v))) ? parseFloat(v) : v;
         }
+        continue;
       }
       if ((k === 'task_name' || k === 'task_details') && (!v || String(v).trim() === '') && localTask[k]) {
         continue;
@@ -651,6 +730,24 @@ const FirebaseSyncService = {
     tasks[idx] = mergedTask;
     this._debouncedSaveWb();
 
+    // Check if points changed remotely to immediately reflect across all devices
+    if (task.points !== undefined && task.points !== null && String(task.points) !== String(localTask.points ?? '')) {
+      const cleanPts = (task.points !== '') ? (isNaN(parseFloat(task.points)) ? task.points : parseFloat(task.points)) : '';
+      mergedTask.points = cleanPts;
+      const input = document.getElementById(`task-point-${taskId}`) || document.querySelector(`input[id="task-point-${taskId}"]`);
+      if (input && activeId !== input.id) {
+        input.value = cleanPts;
+        this._flashCell(input);
+      }
+      if (typeof MonthlyInputView !== 'undefined') {
+        if (MonthlyInputView.updateRankingTable) MonthlyInputView.updateRankingTable();
+        if (MonthlyInputView.updateEngineerSummary) MonthlyInputView.updateEngineerSummary();
+      }
+      if (typeof DashboardController !== 'undefined' && window.appState && window.appState.activeTab === 'dashboard') {
+        DashboardController.render();
+      }
+    }
+
     changedKeys.forEach(field => {
       // Ignore local echo if user just typed this field locally
       const echoKey = `${taskId}:${field}`;
@@ -684,16 +781,20 @@ const FirebaseSyncService = {
         }
       }
 
-      // 3. Points
+      // 3. Points (Instant HOD point synchronization across all PCs & laptops)
       else if (field === 'points') {
-        const input = document.getElementById(`task-point-${taskId}`) || document.querySelector(`input[onchange*="${taskId}"][onchange*="points"]`);
+        const cleanPts = (task.points !== undefined && task.points !== null && task.points !== '') ? task.points : '';
+        const input = document.getElementById(`task-point-${taskId}`) || document.querySelector(`input[id="task-point-${taskId}"]`);
         if (input && activeId !== input.id) {
-          input.value = (task.points !== undefined && task.points !== null) ? task.points : '';
+          input.value = cleanPts;
           this._flashCell(input);
         }
         if (typeof MonthlyInputView !== 'undefined') {
           if (MonthlyInputView.updateRankingTable) MonthlyInputView.updateRankingTable();
           if (MonthlyInputView.updateEngineerSummary) MonthlyInputView.updateEngineerSummary();
+        }
+        if (typeof DashboardController !== 'undefined' && window.appState && window.appState.activeTab === 'dashboard') {
+          DashboardController.render();
         }
       }
 

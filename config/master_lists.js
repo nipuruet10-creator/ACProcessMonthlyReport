@@ -7,16 +7,21 @@
  */
 
 const DEFAULT_ENGINEERS = [
-  { id: "50463", name: "Sazzad", fullName: "Engr. Sazzadul Islam", display: "Sazzad (50463)", email: "sazzad50463@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "45127", name: "Rafi", fullName: "Engr. Sajjadul Islam Rafi", display: "Rafi (45127)", email: "rafi45127@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "54634", name: "Faiyaz", fullName: "Engr. Faiyaz", display: "Faiyaz (54634)", email: "faiyaz54634@waltonbd.com", tms_password: "619684!Me" },
-  { id: "58102", name: "Abdullah", fullName: "Engr. Abdullah Jashim", display: "Abdullah (58102)", email: "abdullah58102@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "58279", name: "Emon", fullName: "Engr. Yousof Ahmed Emon", display: "Emon (58279)", email: "emon58279@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "56880", name: "Hashmi", fullName: "Engr. Abuzar Hashmi", display: "Hashmi (56880)", email: "hashmi56880@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "52800", name: "Anam", fullName: "Engr. Md. Rafiul Anam", display: "Anam (52800)", email: "mdrafiulanam@gmail.com", tms_password: "Sep@2026" },
-  { id: "7686", name: "Jowel", fullName: "Engr. Jowel", display: "Jowel (7686)", email: "jowel7686@waltonbd.com", tms_password: "Sep@2026" },
-  { id: "54636", name: "Pear", fullName: "Engr. Pear", display: "Pear (54636)", email: "pear54636@waltonbd.com", tms_password: "Sep@2026" }
+  { id: "50463", name: "Sazzad", fullName: "Engr. Sazzadul Islam", display: "Sazzad (50463)", email: "sazzad50463@waltonbd.com", tms_password: "Sep@2026", access_pin: "Sazzad@50463" },
+  { id: "45127", name: "Rafi", fullName: "Engr. Sajjadul Islam Rafi", display: "Rafi (45127)", email: "rafi45127@waltonbd.com", tms_password: "Sep@2026", access_pin: "Rafi@45127" },
+  { id: "54634", name: "Faiyaz", fullName: "Engr. Faiyaz", display: "Faiyaz (54634)", email: "faiyaz54634@waltonbd.com", tms_password: "619684!Me", access_pin: "Faiyaz@54634" },
+  { id: "58102", name: "Abdullah", fullName: "Engr. Abdullah Jashim", display: "Abdullah (58102)", email: "abdullah58102@waltonbd.com", tms_password: "Sep@2026", access_pin: "Abdullah@58102" },
+  { id: "58279", name: "Emon", fullName: "Engr. Yousof Ahmed Emon", display: "Emon (58279)", email: "emon58279@waltonbd.com", tms_password: "Sep@2026", access_pin: "Emon@58279" },
+  { id: "56880", name: "Hashmi", fullName: "Engr. Abuzar Hashmi", display: "Hashmi (56880)", email: "hashmi56880@waltonbd.com", tms_password: "Sep@2026", access_pin: "Hashmi@56880" },
+  { id: "52800", name: "Anam", fullName: "Engr. Md. Rafiul Anam", display: "Anam (52800)", email: "mdrafiulanam@gmail.com", tms_password: "Sep@2026", access_pin: "Anam@52800" },
+  { id: "7686", name: "Jowel", fullName: "Engr. Jowel", display: "Jowel (7686)", email: "jowel7686@waltonbd.com", tms_password: "Sep@2026", access_pin: "Jowel@7686" },
+  { id: "54636", name: "Pear", fullName: "Engr. Pear", display: "Pear (54636)", email: "pear54636@waltonbd.com", tms_password: "Sep@2026", access_pin: "Pear@54636" }
 ];
+
+const MASTER_ADMIN_CREDENTIALS = {
+  ID: "50463",
+  PASSWORD: "ACprocess@2026"
+};
 
 const DEFAULT_CATEGORIES = [
   "Process development",
@@ -56,9 +61,13 @@ function loadMasterEngineers() {
             if (String(e.id) === "54634") {
               pass = (pass === "Sep@2026" || !pass) ? "619684!Me" : pass;
             }
+            const cleanId = String(e.id);
+            const defaultMatch = DEFAULT_ENGINEERS.find(de => de.id === cleanId);
+            const pin = e.access_pin || (defaultMatch ? defaultMatch.access_pin : `${e.name}@${cleanId}`);
             return {
               ...e,
-              tms_password: pass
+              tms_password: pass,
+              access_pin: pin
             };
           });
         return filtered.length > 0 ? filtered : [...DEFAULT_ENGINEERS];
@@ -157,13 +166,16 @@ const MasterDataManager = {
     }
     const cleanId = String(engineer.id).trim();
     const cleanName = engineer.name.trim();
+    const defaultMatch = DEFAULT_ENGINEERS.find(de => de.id === cleanId);
+    const pin = engineer.access_pin ? engineer.access_pin.trim() : (defaultMatch ? defaultMatch.access_pin : `${cleanName}@${cleanId}`);
     const newEng = {
       id: cleanId,
       name: cleanName,
       fullName: engineer.fullName ? engineer.fullName.trim() : `Engr. ${cleanName}`,
       display: `${cleanName} (${cleanId})`,
       email: engineer.email ? engineer.email.trim() : `${cleanName.toLowerCase()}${cleanId}@waltonbd.com`,
-      tms_password: engineer.tms_password ? engineer.tms_password.trim() : "Sep@2026"
+      tms_password: engineer.tms_password ? engineer.tms_password.trim() : "Sep@2026",
+      access_pin: pin
     };
     MASTER_LISTS.ENGINEERS.push(newEng);
     this.saveEngineers();
@@ -176,6 +188,7 @@ const MasterDataManager = {
     const current = MASTER_LISTS.ENGINEERS[idx];
     const name = updates.name ? updates.name.trim() : current.name;
     const newId = updates.id ? String(updates.id).trim() : current.id;
+    const defaultMatch = DEFAULT_ENGINEERS.find(de => de.id === newId);
     const updated = {
       ...current,
       ...updates,
@@ -184,11 +197,45 @@ const MasterDataManager = {
       fullName: updates.fullName ? updates.fullName.trim() : (current.fullName || `Engr. ${name}`),
       display: `${name} (${newId})`,
       email: updates.email ? updates.email.trim() : current.email,
-      tms_password: updates.tms_password !== undefined ? updates.tms_password.trim() : (current.tms_password || "Sep@2026")
+      tms_password: updates.tms_password !== undefined ? updates.tms_password.trim() : (current.tms_password || "Sep@2026"),
+      access_pin: updates.access_pin !== undefined ? updates.access_pin.trim() : (current.access_pin || (defaultMatch ? defaultMatch.access_pin : `${name}@${newId}`))
     };
     MASTER_LISTS.ENGINEERS[idx] = updated;
     this.saveEngineers();
     return updated;
+  },
+
+  verifyMasterAdmin(id, password) {
+    const cleanId = String(id || '').trim();
+    const cleanPass = String(password || '').trim();
+    return (cleanId === MASTER_ADMIN_CREDENTIALS.ID && cleanPass === MASTER_ADMIN_CREDENTIALS.PASSWORD);
+  },
+
+  verifyEngineerAccess(engId, inputId, inputPassword) {
+    const cleanInputId = String(inputId || '').trim();
+    const cleanPass = String(inputPassword || '').trim();
+    if (this.verifyMasterAdmin(cleanInputId, cleanPass)) {
+      return { success: true, isMasterAdmin: true };
+    }
+    const eng = MASTER_LISTS.ENGINEERS.find(e => String(e.id) === String(engId) || e.name === engId);
+    if (!eng) {
+      return { success: false, error: "Engineer record not found." };
+    }
+    const expectedPin = eng.access_pin || `${eng.name}@${eng.id}`;
+    if (cleanInputId === String(eng.id) && cleanPass === expectedPin) {
+      return { success: true, isMasterAdmin: false, engineer: eng };
+    }
+    return { success: false, error: "Invalid Employee ID or Security Password." };
+  },
+
+  getMasterCredentialsList() {
+    return MASTER_LISTS.ENGINEERS.map(e => ({
+      id: e.id,
+      name: e.name,
+      fullName: e.fullName || `Engr. ${e.name}`,
+      access_pin: e.access_pin || `${e.name}@${e.id}`,
+      tms_password: e.tms_password || "Sep@2026"
+    }));
   },
 
   getEngineerCredentials(idOrName) {
@@ -374,6 +421,9 @@ const MasterDataManager = {
       localStorage.setItem("walton_pd_master_supervisors_v2", JSON.stringify(MASTER_LISTS.SUPERVISORS));
     } catch (e) {
       console.error("Failed to save master supervisors:", e);
+    }
+    if (typeof FirebaseSyncService !== 'undefined' && FirebaseSyncService.pushMasterSupervisors) {
+      FirebaseSyncService.pushMasterSupervisors(MASTER_LISTS.SUPERVISORS);
     }
   },
 

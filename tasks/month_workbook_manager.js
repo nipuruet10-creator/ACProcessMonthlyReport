@@ -1001,17 +1001,17 @@ class MonthWorkbookManager {
               const rVal = rt[k];
               const lVal = lt[k];
 
-              // 1. POINTS PROTECTION: Never allow empty/blank remote points to wipe populated local points!
+              // 1. POINTS SYNCHRONIZATION: Remote points set by HOD in Firebase always take authoritative precedence!
               if (k === 'points') {
                 const rPts = (rVal !== undefined && rVal !== null) ? String(rVal).trim() : '';
                 const lPts = (lVal !== undefined && lVal !== null) ? String(lVal).trim() : '';
-                if (rPts === '' && lPts !== '') {
-                  // Keep local points, and mark to push back so cloud is permanently updated
+                if (rPts !== '') {
+                  lt.points = (typeof rVal === 'number') ? rVal : (isNaN(parseFloat(rVal)) ? rVal : parseFloat(rVal));
+                  continue;
+                } else if (lPts !== '') {
+                  // Local has points, remote is empty: push back to guarantee cloud has it
                   needsCloudPushBack = true;
                   continue;
-                }
-                if (isLocalStrictlyNewer && lPts !== '') {
-                  continue; // Newer local edit wins
                 }
               }
 
