@@ -822,11 +822,6 @@ const MonthlyInputView = {
       }
     }, 250);
 
-    // 5. Silent background slide compilation
-    if (window.appState.syncEngine) {
-      window.appState.syncEngine.syncMonth(this.selectedMonth).catch(e => console.warn("Sync notice:", e));
-    }
-
     if (typeof window.showToast === 'function') {
       window.showToast(`🗑️ Deleted "${taskName}"`, "info");
     }

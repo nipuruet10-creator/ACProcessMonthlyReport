@@ -520,6 +520,9 @@ const SettingsView = {
           <h3 class="text-sm font-bold text-slate-900">Cache &amp; Local Persistence</h3>
           <p class="text-xs text-slate-500">Clear cached AI breakdowns or reload original seed data.</p>
           <div class="flex flex-wrap gap-3">
+            <button onclick="SettingsView.clearAllHistoryAndCache()" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-xs font-bold text-white shadow-xs transition cursor-pointer flex items-center gap-1.5">
+              <span>⚡</span> <span>Clear History &amp; Cache (Maximize Speed)</span>
+            </button>
             <button onclick="SettingsView.clearAICache()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 border border-slate-200 cursor-pointer">
               🧹 Clear AI Response Cache
             </button>
@@ -718,6 +721,62 @@ const SettingsView = {
   clearAICache() {
     AICacheManager.clear();
     alert("AI Cache cleared successfully.");
+  },
+
+  clearAllHistoryAndCache() {
+    const confirmed = (typeof window !== 'undefined' && typeof window.confirm === 'function')
+      ? window.confirm("Clear all report history, audit logs, AI breakdown caches, and temporary slide caches? Your active tasks in Firebase and local storage will remain 100% safe.")
+      : true;
+    if (!confirmed) return;
+
+    try {
+      const preserveKeys = new Set([
+        'walton_pd_monthly_workbooks_v2',
+        'walton_deleted_task_ids',
+        'walton_pd_master_engineers_v2',
+        'walton_pd_master_supervisors_v2',
+        'walton_pd_master_categories_v1',
+        'walton_firebase_db_url',
+        'walton_pd_admin_password_hash',
+        'walton_active_engineer_profile',
+        'walton_hod_point_unlocked_until'
+      ]);
+
+      const allKeys = Object.keys(localStorage);
+      let cleared = 0;
+      allKeys.forEach(k => {
+        if (!preserveKeys.has(k) && (
+          k.includes('cache') ||
+          k.includes('history') ||
+          k.includes('audit') ||
+          k.includes('active_slides') ||
+          k.includes('breakdown') ||
+          k.includes('queue') ||
+          k.includes('synced_records')
+        )) {
+          localStorage.removeItem(k);
+          cleared++;
+        }
+      });
+
+      if (window.appState && window.appState.breakdownSheet) {
+        window.appState.breakdownSheet.breakdowns = {};
+      }
+
+      if (typeof AICacheManager !== 'undefined' && AICacheManager.clear) {
+        AICacheManager.clear();
+      }
+
+      if (typeof window.showToast === 'function') {
+        window.showToast(`🚀 Cleared ${cleared} cache & history items! System is running at max speed.`, 'success');
+      } else {
+        alert(`Cleared ${cleared} cache & history items! System is running at max speed.`);
+      }
+
+      this.render();
+    } catch (e) {
+      console.error("Clear cache notice:", e);
+    }
   },
 
     resetWorkbooks() {

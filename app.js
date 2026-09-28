@@ -101,12 +101,26 @@ const App = {
       FirebaseSyncService.init();
     }
 
-    // Deferred Background Slide Sync (Runs smoothly in idle time without blocking UI interaction)
-    setTimeout(() => {
-      syncEngine.syncMonth(workbookMgr.activeMonth).catch(e => {
-        console.warn("Background sync notification:", e);
+    // Auto-clean bloated stale history and cache to ensure buttery smooth performance
+    try {
+      const trimKeys = ['walton_pd_history_v1', 'walton_pd_audit_v1', 'walton_report_history', 'walton_audit_log'];
+      trimKeys.forEach(k => {
+        const item = localStorage.getItem(k);
+        if (item) {
+          try {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed) && parsed.length > 20) {
+              localStorage.setItem(k, JSON.stringify(parsed.slice(0, 20)));
+            }
+          } catch(e) {}
+        }
       });
-    }, 1500);
+      // Purge legacy v1 workbook keys if v2 is present to free local memory
+      if (localStorage.getItem("walton_pd_monthly_workbooks_v2")) {
+        localStorage.removeItem("walton_pd_month_workbooks_v1");
+        localStorage.removeItem("walton_pd_monthly_workbooks_v1");
+      }
+    } catch(e) {}
 
     console.log("System initialized successfully.");
   },
