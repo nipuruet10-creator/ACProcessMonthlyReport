@@ -182,6 +182,22 @@ const FirebaseSyncService = {
             continue;
           }
 
+          // 🛡️ STRICT REJECTION: Blacklisted engineers (Mahmud 51020, etc.) must NEVER enter!
+          const assStr = String(t.assignee || t.engineer || '');
+          let isBlacklistedEng = false;
+          if (typeof REMOVED_ENGINEER_IDS !== 'undefined') {
+            for (const rId of REMOVED_ENGINEER_IDS) {
+              if (assStr.includes(rId)) { isBlacklistedEng = true; break; }
+            }
+          }
+          if (isBlacklistedEng) {
+            console.warn(`🛡️ Firebase task ${t.task_id} (${assStr}) belongs to blacklisted engineer! Purging from cloud...`);
+            this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
+            this.db.ref(`walton_monthly_report/deleted_task_ids/${t.task_id}`).set(Date.now()).catch(() => {});
+            deletedSet.add(t.task_id);
+            continue;
+          }
+
           // Purge empty placeholder tasks only
           if (!t.task_name || !t.task_name.trim() || t.task_name === 'Enter Task Name...') {
             this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${t.task_id}`).remove().catch(() => {});
@@ -338,6 +354,18 @@ const FirebaseSyncService = {
       // Auto-repair supervisor
       if (!task.supervisor || String(task.supervisor).toLowerCase().includes('sazzad') || String(task.supervisor).includes('50463')) {
         task.supervisor = 'Kamrul (44819)';
+      }
+
+      // 🛡️ STRICT REJECTION: Blacklisted engineers (Mahmud 51020, etc.) must NEVER enter!
+      const assStr = String(task.assignee || task.engineer || '');
+      if (typeof REMOVED_ENGINEER_IDS !== 'undefined') {
+        for (const rId of REMOVED_ENGINEER_IDS) {
+          if (assStr.includes(rId)) {
+            this.db.ref(`walton_monthly_report/workbooks/${normMonth}/tasks/${task.task_id}`).remove().catch(() => {});
+            this.db.ref(`walton_monthly_report/deleted_task_ids/${task.task_id}`).set(Date.now()).catch(() => {});
+            return;
+          }
+        }
       }
 
       this._handleRemoteTaskAdded(normMonth, task);
@@ -546,6 +574,20 @@ const FirebaseSyncService = {
       console.warn(`🛡️ Firebase child_added rejected tombstoned task: ${task.task_id}`);
       this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
       return;
+    }
+
+    // 🛡️ STRICT REJECTION: Blacklisted engineers (Mahmud 51020, etc.) must NEVER enter!
+    const assStr = String(task.assignee || task.engineer || '');
+    if (typeof REMOVED_ENGINEER_IDS !== 'undefined') {
+      for (const rId of REMOVED_ENGINEER_IDS) {
+        if (assStr.includes(rId)) {
+          if (this.db) {
+            this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
+            this.db.ref(`walton_monthly_report/deleted_task_ids/${task.task_id}`).set(Date.now()).catch(() => {});
+          }
+          return;
+        }
+      }
     }
 
     if (!task.task_name || !task.task_name.trim() || task.task_name === 'Enter Task Name...') {

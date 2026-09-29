@@ -1669,7 +1669,7 @@ const MonthlyInputView = {
     if (!textarea || !window.appState || !window.appState.workbookMgr) return;
 
     const defaultEng = defaultEngSelect ? defaultEngSelect.value : "Sazzad";
-    const parsed = this.parseExcelClipboard(textarea.value, defaultEng);
+    let parsed = this.parseExcelClipboard(textarea.value, defaultEng);
     if (parsed.length === 0) {
       alert("No valid tasks found in pasted text.");
       return;
@@ -1686,6 +1686,42 @@ const MonthlyInputView = {
       }
       if (window.appState.workbookMgr.workbooks) {
         window.appState.workbookMgr.workbooks[this.selectedMonth] = [];
+      }
+    } else {
+      // mode === 'append': Strictly prevent duplicate task rows from flooding the grid
+      const existingTasks = window.appState.workbookMgr.getTasksForMonth(this.selectedMonth);
+      const existingKeySet = new Set(existingTasks.map(t => `${(t.task_name || '').trim().toLowerCase()}:::${(t.assignee || t.engineer || '').trim().toLowerCase()}`));
+      
+      const uniqueParsed = [];
+      let duplicateSkipped = 0;
+      for (const pt of parsed) {
+        const key = `${(pt.task_name || '').trim().toLowerCase()}:::${(pt.assignee || pt.engineer || defaultEng).trim().toLowerCase()}`;
+        if (existingKeySet.has(key)) {
+          duplicateSkipped++;
+          const match = existingTasks.find(t => `${(t.task_name || '').trim().toLowerCase()}:::${(t.assignee || t.engineer || '').trim().toLowerCase()}` === key);
+          if (match) {
+            if ((match.points === "" || match.points === undefined) && pt.points !== "" && pt.points !== undefined) {
+              match.points = pt.points;
+            }
+            if (!match.task_details && pt.task_details) {
+              match.task_details = pt.task_details;
+            }
+          }
+        } else {
+          uniqueParsed.push(pt);
+          existingKeySet.add(key);
+        }
+      }
+      parsed = uniqueParsed;
+
+      if (parsed.length === 0 && duplicateSkipped > 0) {
+        this.closePasteModal();
+        window.appState.workbookMgr.save();
+        await this.render();
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Notice: All ${duplicateSkipped} tasks already exist in grid. Existing records updated without creating duplicates.`, "info");
+        }
+        return;
       }
     }
 
@@ -2091,7 +2127,7 @@ const MonthlyInputView = {
   },
 
   _renderEmptyStateHtml(month) {
-    return (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl()) ? `
+    return (typeof GoogleSheetsSync !== 'undefined' && !GoogleSheetsSync.initialSyncCompleted && GoogleSheetsSync.getWebAppUrl() && GoogleSheetsSync.status === 'SYNCING') ? `
       <tr>
         <td colspan="10" class="py-14 text-center">
           <div class="max-w-md mx-auto space-y-3">

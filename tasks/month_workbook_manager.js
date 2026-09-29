@@ -78,11 +78,47 @@ class MonthWorkbookManager {
     keys.forEach(k => {
       const norm = this.normalizeMonth(k);
       if (Array.isArray(this.workbooks[k])) {
-        // Filter out tombstoned deleted tasks (never auto-delete or blacklist user tasks)
+        // Filter out tombstoned deleted tasks and blacklisted engineers (Mahmud 51020, etc.)
         this.workbooks[k] = this.workbooks[k].filter(t => {
           if (!t || !t.task_id) return false;
-          return !deletedSet.has(t.task_id);
+          if (deletedSet.has(t.task_id)) return false;
+          const ass = String(t.assignee || t.engineer || '');
+          if (typeof REMOVED_ENGINEER_IDS !== 'undefined') {
+            for (const rId of REMOVED_ENGINEER_IDS) {
+              if (ass.includes(rId)) return false;
+            }
+          }
+          return true;
         });
+
+        // Auto-deduplicate identical tasks for the same engineer in the same month, keeping the one with higher points
+        const seenNames = new Map();
+        const deduplicated = [];
+        this.workbooks[k].forEach(t => {
+          const key = (t.task_name || '').trim().toLowerCase() + ':::' + (t.assignee || '').trim().toLowerCase();
+          if (!key.trim() || key === ':::') {
+            deduplicated.push(t);
+            return;
+          }
+          if (!seenNames.has(key)) {
+            seenNames.set(key, t);
+            deduplicated.push(t);
+          } else {
+            const existing = seenNames.get(key);
+            const exPts = parseFloat(existing.points) || 0;
+            const newPts = parseFloat(t.points) || 0;
+            if (newPts > exPts) {
+              const idx = deduplicated.indexOf(existing);
+              if (idx !== -1) deduplicated[idx] = t;
+              seenNames.set(key, t);
+              deletedSet.add(existing.task_id);
+            } else {
+              deletedSet.add(t.task_id);
+            }
+            modified = true;
+          }
+        });
+        this.workbooks[k] = deduplicated;
 
         this.workbooks[k].forEach(t => {
           if (!t) return;
@@ -1056,6 +1092,24 @@ class MonthWorkbookManager {
             }
           }
           return;
+        }
+
+        // Strict Blacklist Defense: Blacklisted engineers (Mahmud 51020, etc.) must NEVER enter!
+        const assStr = String(rt.assignee || rt.engineer || '');
+        if (typeof REMOVED_ENGINEER_IDS !== 'undefined') {
+          for (const rId of REMOVED_ENGINEER_IDS) {
+            if (assStr.includes(rId)) {
+              if (localMap.has(rt.task_id)) {
+                const idx = localTasks.findIndex(t => t.task_id === rt.task_id);
+                if (idx !== -1) {
+                  localTasks.splice(idx, 1);
+                  localMap.delete(rt.task_id);
+                  anyChanges = true;
+                }
+              }
+              return;
+            }
+          }
         }
 
         remoteIdSet.add(rt.task_id);

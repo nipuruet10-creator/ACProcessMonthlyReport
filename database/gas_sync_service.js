@@ -64,6 +64,7 @@ const GoogleSheetsSync = {
   init() {
     this.lastSyncTime = localStorage.getItem(this.STORAGE_KEY_LAST_SYNC) || null;
     this.status = 'CONNECTED';
+    this.initialSyncCompleted = true;
 
     // Set up BroadcastChannel for zero-latency sync between multiple open tabs/windows
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window && !this.broadcastChannel) {
