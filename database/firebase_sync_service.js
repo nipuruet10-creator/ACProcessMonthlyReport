@@ -140,7 +140,11 @@ const FirebaseSyncService = {
       let deletedSet = new Set();
       try {
         const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        deletedList.forEach(id => deletedSet.add(id));
+        deletedList.forEach(id => {
+          if (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(id)) {
+            deletedSet.add(id);
+          }
+        });
       } catch (e) {}
 
       // Hydrate cloud tombstones from Firebase to guarantee cross-device permanent deletions (excluding protected tasks)
@@ -149,10 +153,22 @@ const FirebaseSyncService = {
         const cloudTombs = tombSnap.val();
         if (cloudTombs && typeof cloudTombs === 'object') {
           Object.keys(cloudTombs).forEach(id => {
-            deletedSet.add(id);
+            if (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(id)) {
+              deletedSet.add(id);
+            }
           });
-          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
         }
+      } catch (e) {}
+
+      // Strictly purge any protected IDs from deletedSet and Firebase deleted_task_ids
+      if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+        SAZZAD_PROTECTED_TASK_IDS.forEach(id => {
+          deletedSet.delete(id);
+          this.db.ref(`walton_monthly_report/deleted_task_ids/${id}`).remove().catch(() => {});
+        });
+      }
+      try {
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(Array.from(deletedSet)));
       } catch (e) {}
 
       // Prune tombstoned tasks from in-memory workbook BEFORE processing
@@ -570,6 +586,9 @@ const FirebaseSyncService = {
       const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
       deletedSet = new Set(deletedList);
     } catch (e) {}
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      SAZZAD_PROTECTED_TASK_IDS.forEach(id => deletedSet.delete(id));
+    }
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_added rejected tombstoned task: ${task.task_id}`);
       this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
@@ -661,6 +680,9 @@ const FirebaseSyncService = {
       const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
       deletedSet = new Set(deletedList);
     } catch (e) {}
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      SAZZAD_PROTECTED_TASK_IDS.forEach(id => deletedSet.delete(id));
+    }
     if (deletedSet.has(task.task_id)) {
       console.warn(`🛡️ Firebase child_changed rejected tombstoned task: ${task.task_id}`);
       this.db.ref(`walton_monthly_report/workbooks/${month}/tasks/${task.task_id}`).remove().catch(() => {});
@@ -1052,7 +1074,7 @@ const FirebaseSyncService = {
     // 🛡️ CRITICAL GUARD: Never resurrect tombstoned tasks via cell updates
     try {
       const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      if (deletedList.includes(taskId)) {
+      if (deletedList.includes(taskId) && (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(taskId))) {
         console.warn(`🛡️ Firebase updateCell blocked: ${taskId} is tombstoned!`);
         return false;
       }
@@ -1103,7 +1125,7 @@ const FirebaseSyncService = {
     // 🛡️ CRITICAL GUARD: Never push a task that is tombstoned!
     try {
       let deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      if (deletedList.includes(task.task_id)) {
+      if (deletedList.includes(task.task_id) && (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(task.task_id))) {
         console.warn(`🛡️ FirebaseSyncService.pushTask BLOCKED: ${task.task_id} is in deleted list!`);
         return false;
       }
@@ -1136,7 +1158,11 @@ const FirebaseSyncService = {
       let deletedList = new Set();
       try {
         const d = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-        d.forEach(id => deletedList.add(id));
+        d.forEach(id => {
+          if (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(id)) {
+            deletedList.add(id);
+          }
+        });
       } catch (e) {}
 
       const updates = {};
@@ -1161,6 +1187,10 @@ const FirebaseSyncService = {
    */
   async deleteTask(month, taskId) {
     if (!taskId) return false;
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined' && SAZZAD_PROTECTED_TASK_IDS.has(taskId)) {
+      console.warn(`🛡️ Refusing to delete protected task: ${taskId}`);
+      return false;
+    }
 
     // Record tombstone locally first
     try {
@@ -1194,6 +1224,10 @@ const FirebaseSyncService = {
    */
   async deleteMultipleTasks(month, taskIds = []) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return false;
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      taskIds = taskIds.filter(id => !SAZZAD_PROTECTED_TASK_IDS.has(id));
+      if (taskIds.length === 0) return true;
+    }
 
     // 1. Record tombstones locally first
     try {
@@ -1253,7 +1287,11 @@ const FirebaseSyncService = {
     let deletedSet = new Set();
     try {
       const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      deletedSet = new Set(deletedList);
+      deletedList.forEach(id => {
+        if (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(id)) {
+          deletedSet.add(id);
+        }
+      });
     } catch (e) {}
 
     const tasks = window.appState.workbookMgr.getTasksForMonth(normMonth);

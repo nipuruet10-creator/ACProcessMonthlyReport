@@ -48,6 +48,31 @@ const DEFAULT_CATEGORIES = [
 const REMOVED_ENGINEER_IDS = new Set(["28117", "37486", "40121", "39635", "46484", "51121", "2571", "44819", "51020"]);
 const REMOVED_ENGINEER_NAMES = new Set(["shishir", "rana", "mehedi", "shahria", "kasfia", "takvir", "nurul", "kamrul", "mahmud"]);
 
+const SAZZAD_PROTECTED_TASK_IDS = new Set([
+  'SEP-2026-142-FJTG', 'SEP-2026-143-IUSP', 'SEP-2026-144-FSAF', 'SEP-2026-145-Y4FB',
+  'SEP-2026-146-N2WQ', 'SEP-2026-147-L7GA', 'SEP-2026-148-JTPO', 'SEP-2026-149-SORS',
+  'SEP-2026-150-M8CG', 'SEP-2026-151-YQBW', 'SEP-2026-152-9DLZ', 'SEP-2026-153-82EE',
+  'SEP-2026-154-Z2U6', 'SEP-2026-155-EPQ0', 'SEP-2026-156-AU13', 'SEP-2026-157-B1B0',
+  'SEP-2026-158-U38B', 'SEP-2026-159-GKBY', 'SEP-2026-160-O9XW', 'SEP-2026-161-CM3U',
+  'SEP-2026-162-MR1M', 'SEP-2026-163-YGIQ', 'SEP-2026-164-IZE1', 'SEP-2026-165-B8QB',
+  'SEP-2026-166-EVWA'
+]);
+if (typeof window !== 'undefined') {
+  window.SAZZAD_PROTECTED_TASK_IDS = SAZZAD_PROTECTED_TASK_IDS;
+  try {
+    const raw = localStorage.getItem('walton_deleted_task_ids');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const cleaned = arr.filter(id => !SAZZAD_PROTECTED_TASK_IDS.has(id));
+        if (cleaned.length !== arr.length) {
+          localStorage.setItem('walton_deleted_task_ids', JSON.stringify(cleaned));
+        }
+      }
+    }
+  } catch (e) {}
+}
+
 function loadMasterEngineers() {
   try {
     const saved = localStorage.getItem("walton_pd_master_engineers_v2");

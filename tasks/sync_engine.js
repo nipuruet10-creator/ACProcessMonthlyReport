@@ -246,7 +246,11 @@ class SyncEngine {
     let deletedSet = new Set();
     try {
       const deletedList = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
-      deletedSet = new Set(deletedList);
+      deletedList.forEach(id => {
+        if (typeof SAZZAD_PROTECTED_TASK_IDS === 'undefined' || !SAZZAD_PROTECTED_TASK_IDS.has(id)) {
+          deletedSet.add(id);
+        }
+      });
     } catch (e) {}
 
     const rawTasks = wbMgr ? wbMgr.getTasksForMonth(normalizedMonth) : [];

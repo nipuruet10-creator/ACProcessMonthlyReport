@@ -68,11 +68,17 @@ class MonthWorkbookManager {
     const keys = Object.keys(this.workbooks);
     let modified = false;
 
-    // Load deleted task IDs without artificial immunity
+    // Load deleted task IDs without artificial immunity (excluding protected tasks)
     let deletedIds = [];
     try {
       deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
     } catch (e) {}
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      deletedIds = deletedIds.filter(id => !SAZZAD_PROTECTED_TASK_IDS.has(id));
+      try {
+        localStorage.setItem('walton_deleted_task_ids', JSON.stringify(deletedIds));
+      } catch (e) {}
+    }
     const deletedSet = new Set(deletedIds);
 
     keys.forEach(k => {
@@ -854,6 +860,10 @@ class MonthWorkbookManager {
 
   deleteTask(month, taskId) {
     if (!taskId) return false;
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined' && SAZZAD_PROTECTED_TASK_IDS.has(taskId)) {
+      console.warn(`🛡️ Refusing to delete protected task: ${taskId}`);
+      return false;
+    }
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return false;
     const initialLen = this.workbooks[m].length;
@@ -911,6 +921,10 @@ class MonthWorkbookManager {
 
   deleteMultipleTasks(month, taskIds = []) {
     if (!Array.isArray(taskIds) || taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      taskIds = taskIds.filter(id => !SAZZAD_PROTECTED_TASK_IDS.has(id));
+      if (taskIds.length === 0) return { success: true, deletedCount: 0, count: 0 };
+    }
     const m = this.normalizeMonth(month);
     if (!this.workbooks[m]) return { success: true, deletedCount: 0, count: 0 };
     const initialLen = this.workbooks[m].length;
@@ -1064,6 +1078,9 @@ class MonthWorkbookManager {
     try {
       deletedIds = JSON.parse(localStorage.getItem('walton_deleted_task_ids') || '[]');
     } catch (e) {}
+    if (typeof SAZZAD_PROTECTED_TASK_IDS !== 'undefined') {
+      deletedIds = deletedIds.filter(id => !SAZZAD_PROTECTED_TASK_IDS.has(id));
+    }
 
     months.forEach(m => {
       const norm = this.normalizeMonth(m);
